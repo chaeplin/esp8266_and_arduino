@@ -7,12 +7,13 @@ door alarm using pro mini as external reset
 
 
 * pro mini pin
-| pin | to |
+
+| pin | to                                   |
 |---- | ------------------------------------ |
-|  2  | INPUT_PULLUP, magnetic door switch - |
-|  5  | buzzer vcc ------------------------- |
-|  6  | buzzer i/o ------------------------- |
-|  7  | esp8266 gpio 5 --------------------- |
-|  8  | esp8266 gpio 16 -------------------- |
-|  9  | esp8266 reset ---------------------- |
+|  2  | INPUT_PULLUP, magnetic door switch   |
+|  5  | buzzer vcc                           |
+|  6  | buzzer i/o                           |
+|  7  | esp8266 gpio 5                       |
+|  8  | esp8266 gpio 16                      |
+|  9  | esp8266 reset                        |
 
