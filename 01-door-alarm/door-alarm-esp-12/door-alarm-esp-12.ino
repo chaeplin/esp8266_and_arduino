@@ -2,11 +2,14 @@
 #include <PubSubClient.h>
 #include <ESP8266WiFi.h>
 
-#include "ap_setting.h"
-
+#ifdef __IS_MY_HOME
+  #include "/usr/local/src/ap_setting.h"
+#else
+  #include "ap_setting.h"
+#endif
 
 extern "C"{
-#include "user_interface.h"
+  #include "user_interface.h"
 }
 
 extern "C" uint16_t readvdd33(void);
@@ -55,8 +58,11 @@ void setup()
 
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password); 
-  WiFi.config(IPAddress(192, 168, 10, 14), IPAddress(192, 168, 10, 1), IPAddress(255, 255, 255, 0));
 
+  #ifdef __IS_MY_HOME
+  WiFi.config(IPAddress(192, 168, 10, 14), IPAddress(192, 168, 10, 1), IPAddress(255, 255, 255, 0));
+  #endif
+  
   while (WiFi.status() != WL_CONNECTED) {
     delay(100);
     Serial.print(".");
@@ -103,7 +109,7 @@ void setup()
 
 void loop()
 {
-  delay(200);
+  delay(100);
   Serial.println(millis() - startMills);
   Serial.println("going to sleep");
   ESP.deepSleep(0);

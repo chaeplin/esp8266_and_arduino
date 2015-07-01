@@ -12,7 +12,6 @@
 
 */
 
-
 #include <avr/interrupt.h>
 #include <avr/sleep.h>
 
@@ -53,7 +52,7 @@ void setup()
   
   startMills = millis();
   
-  digitalWrite(espResetPin, LOW);
+  digitalWrite(espResetPin, HIGH);
   digitalWrite(espDoorPin, doorStatus);
 
   digitalWrite(buzzerVccPin, LOW);
@@ -79,37 +78,40 @@ void sleepNow()
 }
 
 void WakeUp()   
-{
-  if ((millis() - startMills) > 300) {
-    
-    Serial.println("Wake up");
-    doorStatus = ! doorStatus ;
+{ 
+  if ((millis() - startMills) > 300) {  
+    Serial.print("======> Wake up :  ");
+    Serial.println(millis() - startMills);
+    //doorStatus = ! doorStatus ;
+    doorStatus = digitalRead(wakeUpPin);
     alarmset = HIGH ;
     digitalWrite(espDoorPin, doorStatus); 
     startMills = millis();
-    espReset();  
+    espReset();
   }
 }
 
 void loop()
 {
-  Serial.println(millis() - startMills);
-  
+   
   espRfstate = digitalRead(espRfStatePin);
   
   if (((millis() - startMills) >= 5000) && (espRfstate == HIGH))
   {
+      Serial.println(millis() - startMills);
       alarm_wifi();
       sleepNow();
   }
 
   if (espRfstate == LOW) 
   {
+       Serial.println(millis() - startMills);
        Serial.println("msg sent");
        sleepNow();
   }
 
   if ( alarmset == HIGH ) {
+     Serial.println(millis() - startMills);
      if ( doorStatus == HIGH ) 
      {
        alarm_open();
