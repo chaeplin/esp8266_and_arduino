@@ -1,14 +1,18 @@
 
 /*
 
-2 - int 0 - door
+// magnetic door switch
+// to remove debounce use small capacitor between pin 2 and gnd
+2 - int 0 - magnetic door switch - gnd : INPUT_PULLUP
 
-7 - esp 5
-8 - esp 16
-9 - esp rest
+// esp8266 (esp-12 )
+7 - esp 5     : output - door status
+8 - esp 16    : input -  wifi/mqtt status
+9 - esp reset : output -  reset esp8266 
 
-5 - buzzer vcc
-6 - buzzer i/o
+// activr buzzer
+5 - buzzer vcc : output
+6 - buzzer i/o : output
 
 */
 
@@ -84,8 +88,8 @@ void WakeUp()
     Serial.println(millis() - startMills);
     //doorStatus = ! doorStatus ;
     doorStatus = digitalRead(wakeUpPin);
-    alarmset = HIGH ;
     digitalWrite(espDoorPin, doorStatus); 
+    alarmset = HIGH ;
     startMills = millis();
     espReset();
   }

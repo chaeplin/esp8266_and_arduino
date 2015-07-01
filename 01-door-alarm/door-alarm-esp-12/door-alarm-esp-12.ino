@@ -1,3 +1,15 @@
+/*
+
+// pro mini
+5 - mini 7 : input - door status
+16 - mini 8 : output - wifi/mqtt status
+rest - mini 9 : external reset
+
+* to program esp8266 with serial of esp8266, 
+* press reset button of promini till uploading is finished
+
+*/
+
 #include <MQTT.h>
 #include <PubSubClient.h>
 #include <ESP8266WiFi.h>
@@ -99,6 +111,10 @@ void setup()
           payload += "\"OPEN\"";
   }
 
+  /*
+  payload += doorstatus;
+  */
+
   payload += ",\"vdd\":";
   payload += vdd;
   payload += "}";  
@@ -116,7 +132,8 @@ void loop()
 }
 
 
-void sendDoorAlarm(String payload) {
+void sendDoorAlarm(String payload) 
+{
 
   if (
         client.connect(MQTT::Connect((char*) clientName.c_str())
@@ -161,7 +178,6 @@ void sendDoorAlarm(String payload) {
   }
 
 }
-
 
 
 String macToStr(const uint8_t* mac)
