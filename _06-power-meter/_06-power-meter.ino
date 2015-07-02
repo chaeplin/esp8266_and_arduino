@@ -19,12 +19,18 @@ IPAddress server(192, 168, 10, 10);
 // pin : using line tracker
 #define IRPIN 4
 
+#define REPORT_INTERVAL 4800 // in msec
+
+
 volatile long startMills ;
-volatile float lastMills ;
+volatile float revMills ;
+long sentMills ;
+
+volatile int IRSTATUS = LOW ;
+int OLDIRSTATUS ;
 
 float revValue ;
-int OLDIRSTATUS ;
-volatile int IRSTATUS = LOW ;
+double VIrms ;
 
 //
 String clientName ;
@@ -97,12 +103,13 @@ void setup() {
   }  
  
   startMills = millis();
-  lastMills  = 0 ;
+  sentMills = millis();
+  revMills  = 0 ;
 
   pinMode(IRPIN, INPUT);
   attachInterrupt(4, IRCHECKING_START, RISING); 
 
-  emon1.current(A0, 74);             // Current: input pin, calibration.
+  emon1.current(A0, 74);  // Current: input pin, calibration.
 
   OLDIRSTATUS = LOW ;
 
@@ -116,40 +123,85 @@ void IRCHECKING_START(){
 
 void loop()
 {
+  
+  VIrms = emon1.calcIrms(1480) * 220.0 ; 
+  revValue = (( 3600  * 1000 )/ ( 600 * revMills ) ) * 1000 ;
+
+  payload = "{\"VIrms\":";
+  payload += VIrms;
+  payload += ",\"revValue\":";
+  payload += revValue;
+  payload += ",\"revMills\":";
+  payload += revMills;
+  payload += "}";
+
   /*
-  if ( IRSTATUS != OLDIRSTATUS ) 
-  {
-      OLDIRSTATUS = IRSTATUS ;
+  if ( revValue > 0 ) {
+    Serial.print("power => ");
+    Serial.print(VIrms); 
+    Serial.print(" ir => ");
+    Serial.print(revMills);
+    Serial.print(" W => ");
+    Serial.println(revValue);
+
   }
   */
-  
-  
-  double Irms = emon1.calcIrms(1480); 
-  revValue = (( 3600  * 1000 )/ ( 600 * lastMills ) ) * 1000 ;
 
-  Serial.print("power => ");
-  Serial.print(Irms*220.0);         // Apparent power
-// Serial.print(" => ");
-// Serial.print(Irms);          // Irms
-  Serial.print(" ir => ");
-  Serial.print(lastMills);
-  Serial.print(" W => ");
-  Serial.println(revValue);
+  if ( ( revValue > 0 ) && ( IRSTATUS != OLDIRSTATUS ) ) {
+       sendmqttMsg(payload);
+       OLDIRSTATUS = IRSTATUS;
+       sentMills = millis();
+  }
 
-  delay(1000);
+  if ((millis() - sentMills) > REPORT_INTERVAL )
+       sendmqttMsg(payload);
+       sentMills = millis();
+  }
 
 }
+
+void sendmqttMsg(String payload) 
+{
+  if (!client.connected()) {
+    if (client.connect((char*) clientName.c_str())) {
+      Serial.println("Connected to MQTT broker again esp8266/arduino/s07");
+      Serial.print("Topic is: ");
+      Serial.println(topic);
+    }
+    else {
+      Serial.println("MQTT connect failed");
+      Serial.println("Will reset and try again...");
+      abort();
+    }
+  }
+
+  if (client.connected()) {
+    Serial.print("Sending payload: ");
+    Serial.println(payload);
+
+    if (
+      client.publish(MQTT::Publish(topic, (char*) payload.c_str())
+                .set_retain()
+               )
+      ) {
+      Serial.println("Publish ok");
+    }
+    else {
+      Serial.println("Publish failed");
+    }
+  }
+}
+
 
 void count_powermeter()
 {
  if (( millis() - startMills ) < 300 ) {
        return;
  } else {
-  lastMills = (millis() - startMills)  ;
+  revMills   = (millis() - startMills)  ;
   startMills = millis();
-  IRSTATUS = !IRSTATUS ;
+  IRSTATUS   = !IRSTATUS ;
  }
- 
 }
 
 String macToStr(const uint8_t* mac)

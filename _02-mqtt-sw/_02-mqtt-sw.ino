@@ -30,7 +30,7 @@ IPAddress server(192, 168, 10, 10);
 DHT dht(DHTPIN, DHTTYPE, 15);
 
 // OTHER
-#define REPORT_INTERVAL 9 // in sec
+#define REPORT_INTERVAL 9500 // in msec
 
 // DS18B20
 #define ONE_WIRE_BUS 12
@@ -228,19 +228,19 @@ void loop()
     startMills = millis();
   }
     
-  if (((millis() - startMills) > 9500 ) && ( getdalastempstatus == 0))
+  if (((millis() - startMills) > REPORT_INTERVAL ) && ( getdalastempstatus == 0))
   {
     getdalastemp();
     getdalastempstatus = 1;
   }
   
-  if (((millis() - startMills) > 9500 ) && ( getdht22tempstatus == 0))
+  if (((millis() - startMills) > REPORT_INTERVAL ) && ( getdht22tempstatus == 0))
   {
     getdht22temp();
     getdht22tempstatus = 1;
   }
     
-  if ((millis() - startMills) > 9500 )
+  if ((millis() - startMills) > REPORT_INTERVAL )
   {
     sendmqttMsg(topic, payload);
     getdalastempstatus = 0;
