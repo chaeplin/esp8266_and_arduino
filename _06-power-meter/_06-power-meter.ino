@@ -6,9 +6,9 @@ EnergyMonitor emon1;                   // Create an instance
 
 // wifi
 #ifdef __IS_MY_HOME
-  #include "/usr/local/src/ap_setting.h"
+#include "/usr/local/src/ap_setting.h"
 #else
-  #include "ap_setting.h"
+#include "ap_setting.h"
 #endif
 
 // mqtt
@@ -23,18 +23,36 @@ IPAddress server(192, 168, 10, 10);
 
 
 volatile long startMills ;
-volatile float revMills ;
+volatile long revMills ;
+long oldrevMills ;
+
 long sentMills ;
 
 volatile int IRSTATUS = LOW ;
 int OLDIRSTATUS ;
 
 float revValue ;
+float oldrevValue ;
 double VIrms ;
 
 //
 String clientName ;
 String payload ;
+
+// smoothing
+// https://www.arduino.cc/en/Tutorial/Smoothing
+// Define the number of samples to keep track of.  The higher the number,
+// the more the readings will be smoothed, but the slower the output will
+// respond to the input.  Using a constant rather than a normal variable lets
+// use this value to determine the size of the readings array.
+
+const int numReadings = 10;
+
+int readings[numReadings];      // the readings from the analog input
+int indexof = 0;                  // the indexof of the current reading
+int total = 0;                  // the running total
+int average = 0;                // the average
+
 
 void callback(const MQTT::Publish& pub) {
 }
@@ -46,7 +64,7 @@ void setup() {
   Serial.begin(38400);
   Serial.println("power meter test!");
   delay(20);
-  
+
   Serial.println();
   Serial.println();
   Serial.print("Connecting to ");
@@ -54,12 +72,12 @@ void setup() {
 
   WiFi.mode(WIFI_STA);
 
-  #ifdef __IS_MY_HOME
+#ifdef __IS_MY_HOME
   WiFi.begin(ssid, password, channel, bssid);
   WiFi.config(IPAddress(192, 168, 10, 17), IPAddress(192, 168, 10, 1), IPAddress(255, 255, 255, 0));
-  #else
-  WiFi.begin(ssid, password); 
-  #endif
+#else
+  WiFi.begin(ssid, password);
+#endif
 
 
   while (WiFi.status() != WL_CONNECTED) {
@@ -100,69 +118,99 @@ void setup() {
     Serial.println("MQTT connect failed");
     Serial.println("Will reset and try again...");
     abort();
-  }  
- 
+  }
+
   startMills = millis();
   sentMills = millis();
   revMills  = 0 ;
+  revValue  = 0 ;
+  oldrevMills = 0 ;
+  oldrevValue = 0 ;
 
   pinMode(IRPIN, INPUT);
-  attachInterrupt(4, IRCHECKING_START, RISING); 
+  attachInterrupt(4, IRCHECKING_START, RISING);
 
-  emon1.current(A0, 74);  // Current: input pin, calibration.
+  emon1.current(A0, 70);  // Current: input pin, calibration.
 
   OLDIRSTATUS = LOW ;
 
+  for (int thisReading = 0; thisReading < numReadings; thisReading++)
+    readings[thisReading] = 0 ;
+
 }
 
-void IRCHECKING_START(){
+void IRCHECKING_START() {
   detachInterrupt(4);
   attachInterrupt(4, count_powermeter, RISING);
   startMills = millis();
+  OLDIRSTATUS = HIGH ;
 }
 
 void loop()
 {
+  total = total - readings[indexof];
+
+  VIrms = emon1.calcIrms(1480) * 220.0 ;
+  readings[indexof] = VIrms ;
+
+  total = total + readings[indexof];
+  indexof = indexof + 1;
+  if (indexof >= numReadings)
+    indexof = 0;
+
+  average = total / numReadings;
+
+/*
+  Serial.print("revMills ==> ");
+  Serial.print(revMills);  
+  Serial.print(" oldrevMills ==> ");
+  Serial.println(oldrevMills);  
+*/
+
+  if ( revMills > 0 ) {
+      revValue = float(( 3600  * 1000 ) / ( 600 * float(revMills) ) ) * 1000 ;
+  }
+
+/*
+  Serial.print("revValue ==> ");
+  Serial.println(revValue);  
+*/
   
-  VIrms = emon1.calcIrms(1480) * 220.0 ; 
-  revValue = (( 3600  * 1000 )/ ( 600 * revMills ) ) * 1000 ;
-
-  payload = "{\"VIrms\":";
-  payload += VIrms;
-  payload += ",\"revValue\":";
-  payload += revValue;
-  payload += ",\"revMills\":";
-  payload += revMills;
-  payload += "}";
-
-  /*
-  if ( revValue > 0 ) {
-    Serial.print("power => ");
-    Serial.print(VIrms); 
-    Serial.print(" ir => ");
-    Serial.print(revMills);
-    Serial.print(" W => ");
-    Serial.println(revValue);
-
-  }
-  */
-
-  if ( ( revMills != 0.00 ) && ( IRSTATUS != OLDIRSTATUS ) ) {
-       sendmqttMsg(payload);
-       OLDIRSTATUS = IRSTATUS;
-       sentMills = millis();
+  if ( oldrevValue == 0 ) {
+    oldrevValue = revValue ;
   }
 
-  if ((millis() - sentMills) > REPORT_INTERVAL ) {
-       sendmqttMsg(payload);
-       sentMills = millis();
+  if ( oldrevMills == 0 ) {
+    oldrevMills = revMills ;
   }
 
-  delay(1000);
+    payload = "{\"VIrms\":";
+    payload += average;
+    payload += ",\"revValue\":";
+    payload += ( revValue + oldrevValue ) / 2 ;
+    payload += ",\"revMills\":";
+    payload += ( revMills + oldrevMills ) / 2 ;
+    payload += "}";
+
+  if (( IRSTATUS != OLDIRSTATUS ) && ( revMills > 0 )) {
+    sendmqttMsg(payload);
+    sentMills = millis();
+    OLDIRSTATUS = IRSTATUS ;
+    oldrevValue = revValue ;
+    oldrevMills = revMills ;
+  }
+
+
+  if (((millis() - sentMills) > REPORT_INTERVAL ) && ( revMills > 0 )) {
+    sendmqttMsg(payload);
+    sentMills = millis();
+  }
+
+  delay(100);
 
 }
 
-void sendmqttMsg(String payload) 
+void sendmqttMsg(String payload)
 {
   if (!client.connected()) {
     if (client.connect((char*) clientName.c_str())) {
@@ -181,11 +229,7 @@ void sendmqttMsg(String payload)
     Serial.print("Sending payload: ");
     Serial.println(payload);
 
-    if (
-      client.publish(MQTT::Publish(topic, (char*) payload.c_str())
-                .set_retain()
-               )
-      ) {
+   if (client.publish(topic, (char*) payload.c_str())) {
       Serial.println("Publish ok");
     }
     else {
@@ -197,9 +241,9 @@ void sendmqttMsg(String payload)
 
 void count_powermeter()
 {
-// if (( millis() - startMills ) < 600 ) {
+  // if (( millis() - startMills ) < 600 ) {
   if (( millis() - startMills ) < ( revMills / 3 )) {
-       return;
+    return;
   } else {
     revMills   = (millis() - startMills)  ;
     startMills = millis();
