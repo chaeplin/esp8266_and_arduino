@@ -19,7 +19,7 @@ IPAddress server(192, 168, 10, 10);
 // pin : using line tracker
 #define IRPIN 4
 
-#define REPORT_INTERVAL 10000 // in msec
+#define REPORT_INTERVAL 20000 // in msec
 
 
 volatile long startMills ;
@@ -158,7 +158,7 @@ void loop()
        sentMills = millis();
   }
 
-  delay(500);
+  delay(1000);
 
 }
 
@@ -197,13 +197,14 @@ void sendmqttMsg(String payload)
 
 void count_powermeter()
 {
- if (( millis() - startMills ) < 300 ) {
+// if (( millis() - startMills ) < 600 ) {
+  if (( millis() - startMills ) < ( revMills / 3 )) {
        return;
- } else {
-  revMills   = (millis() - startMills)  ;
-  startMills = millis();
-  IRSTATUS   = !IRSTATUS ;
- }
+  } else {
+    revMills   = (millis() - startMills)  ;
+    startMills = millis();
+    IRSTATUS   = !IRSTATUS ;
+  }
 }
 
 String macToStr(const uint8_t* mac)
