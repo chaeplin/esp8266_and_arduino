@@ -1,6 +1,6 @@
 * home sensor ip and topic
 
-| sensor                    | topic | ip
+| sensor                    | topic | ip |
 | ------------------------- | ----- | -- |
 | _01-door-alarm            |  s05  | 14 |
 | _02-mqtt-sw               |  s02  | 11 |
