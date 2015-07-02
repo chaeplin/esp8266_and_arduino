@@ -244,7 +244,17 @@ void sendmqttMsg(String payload)
 
 void count_powermeter()
 {
-  // if (( millis() - startMills ) < 600 ) {
+  long removebounce ;
+  // 600 rev/kWh --> 1 rev 6 sec 1kW
+  // max A : 40
+  // 220 V * 45A = 9900, 
+  // 0.6sec -> 10kW
+  // 
+   
+  if (( millis() - startMills ) < 500 ) {
+    return;
+  }
+
   if (( millis() - startMills ) < ( revMills / 3 )) {
     return;
   } else {
