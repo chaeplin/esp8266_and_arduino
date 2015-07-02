@@ -22,7 +22,7 @@ String clientName;
 WiFiClient wifiClient;
 
 IPAddress server(192, 168, 10, 10);
-PubSubClient client(server);
+PubSubClient client(wifiClient, server);
 
 int inuse = LOW;
 #define nemoisOnPin 13

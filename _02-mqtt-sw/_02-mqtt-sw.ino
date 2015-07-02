@@ -1,3 +1,5 @@
+/*
+*/
 #include <OneWire.h>
 #include "DHT.h"
 #include <PubSubClient.h>
@@ -388,7 +390,6 @@ void printData(DeviceAddress deviceAddress)
   Serial.println();
 }
 
-
 String macToStr(const uint8_t* mac)
 {
   String result;
@@ -399,5 +400,3 @@ String macToStr(const uint8_t* mac)
   }
   return result;
 }
-
-//---------------
