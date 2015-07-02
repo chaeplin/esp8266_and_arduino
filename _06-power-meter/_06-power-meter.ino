@@ -206,8 +206,11 @@ void loop()
     sentMills = millis();
   }
 
-  delay(100);
-
+  if ( revMills > 0 ) {
+    delay(int(float(revMills)/10));
+  }else {
+    delay(100);
+  }
 }
 
 void sendmqttMsg(String payload)
