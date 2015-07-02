@@ -60,7 +60,7 @@ void setup(void)
   Serial.print("Connecting to ");
   Serial.println(ssid);
 
-  client.set_callback(callback);
+ // client.set_callback(callback);
 
   WiFi.mode(WIFI_STA);
 
