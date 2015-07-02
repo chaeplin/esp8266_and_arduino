@@ -10,21 +10,20 @@ rest - mini 9 : external reset
 
 */
 
-#include <MQTT.h>
-#include <PubSubClient.h>
 #include <ESP8266WiFi.h>
-
-#ifdef __IS_MY_HOME
-  #include "/usr/local/src/ap_setting.h"
-#else
-  #include "ap_setting.h"
-#endif
+#include <PubSubClient.h>
 
 extern "C"{
   #include "user_interface.h"
 }
 
 extern "C" uint16_t readvdd33(void);
+
+#ifdef __IS_MY_HOME
+  #include "/usr/local/src/ap_setting.h"
+#else
+  #include "ap_setting.h"
+#endif
 
 
 int msgsentPin = 16 ; // espRfStatePin
