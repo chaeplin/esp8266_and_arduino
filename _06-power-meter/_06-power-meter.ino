@@ -1,5 +1,7 @@
 #include <PubSubClient.h>
 #include <ESP8266WiFi.h>
+#include "EmonLib.h"                   // Include Emon Library
+EnergyMonitor emon1;                   // Create an instance
 
 // wifi
 #ifdef __IS_MY_HOME
@@ -16,9 +18,10 @@ IPAddress server(192, 168, 10, 10);
 // pin : using line tracker
 #define IRPIN 4
 
-long startMills ;
-long lastMills ;
-int adcValue ;
+volatile long startMills ;
+volatile float lastMills ;
+
+float revValue ;
 int OLDIRSTATUS ;
 volatile int IRSTATUS = LOW ;
 
@@ -29,10 +32,8 @@ String payload ;
 void callback(const MQTT::Publish& pub) {
 }
 
-/*
 WiFiClient wifiClient;
 PubSubClient client(wifiClient, server);
-*/
 
 void setup() {
   Serial.begin(38400);
@@ -44,7 +45,6 @@ void setup() {
   Serial.print("Connecting to ");
   Serial.println(ssid);
 
-/*
   WiFi.mode(WIFI_STA);
 
   #ifdef __IS_MY_HOME
@@ -64,9 +64,6 @@ void setup() {
   Serial.println("WiFi connected");
   Serial.println("IP address: ");
   Serial.println(WiFi.localIP());
-
-  attachInterrupt(13, motion_detection, RISING);
-  attachInterrupt(5, run_lightcmd, CHANGE); 
 
   clientName += "esp8266-";
   uint8_t mac[6];
@@ -91,61 +88,67 @@ void setup() {
     else {
       Serial.println("Publish failed");
     }
-
-    if (client.subscribe(subtopic)) {
-      Serial.println("Subscribe ok");
-    } else {
-      Serial.println("Subscribe failed");
-    }
-
   }
   else {
     Serial.println("MQTT connect failed");
     Serial.println("Will reset and try again...");
     abort();
   }  
-  
-  */
  
   startMills = millis();
   lastMills  = 0 ;
-  adcValue   = 0 ;
 
-  pinMode(IRPIN, INPUT_PULLUP);
-  attachInterrupt(4, count_powermeter, FALLING); 
+  pinMode(IRPIN, INPUT);
+  attachInterrupt(4, IRCHECKING_START, RISING); 
+
+  emon1.current(A0, 74);             // Current: input pin, calibration.
 
   OLDIRSTATUS = LOW ;
 
 }
 
+void IRCHECKING_START(){
+  detachInterrupt(4);
+  attachInterrupt(4, count_powermeter, RISING);
+  startMills = millis();
+}
+
 void loop()
 {
+  /*
   if ( IRSTATUS != OLDIRSTATUS ) 
   {
       OLDIRSTATUS = IRSTATUS ;
   }
+  */
+  
+  
+  double Irms = emon1.calcIrms(1480); 
+  revValue = (( 3600  * 1000 )/ ( 600 * lastMills ) ) * 1000 ;
 
-  Serial.print("adc  => ");
-  Serial.print(read_adc());
+  Serial.print("power => ");
+  Serial.print(Irms*220.0);         // Apparent power
+// Serial.print(" => ");
+// Serial.print(Irms);          // Irms
   Serial.print(" ir => ");
-  Serial.println(lastMills);
-  delay(5000);
+  Serial.print(lastMills);
+  Serial.print(" W => ");
+  Serial.println(revValue);
+
+  delay(1000);
+
 }
 
 void count_powermeter()
 {
- if (( millis() - startMills ) < 500 ) {
+ if (( millis() - startMills ) < 300 ) {
        return;
  } else {
-  lastMills = millis() - startMills ;
+  lastMills = (millis() - startMills)  ;
   startMills = millis();
   IRSTATUS = !IRSTATUS ;
  }
-}
-
-void read_adc()
-{
-  return(analogRead(A0)) ;
+ 
 }
 
 String macToStr(const uint8_t* mac)

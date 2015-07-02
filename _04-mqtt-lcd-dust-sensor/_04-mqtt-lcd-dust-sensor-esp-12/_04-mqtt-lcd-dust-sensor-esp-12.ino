@@ -71,7 +71,7 @@ byte picatura[8] = //icon for water droplet
 };
 
 
-PubSubClient client(server);
+PubSubClient client(wifiClient, server);
 
 void callback(const MQTT::Publish& pub) {
   Serial.print(pub.topic());

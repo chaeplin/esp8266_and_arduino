@@ -42,7 +42,7 @@ void callback(const MQTT::Publish& pub) {
   // handle message arrived
 }
 
-PubSubClient client(server);
+PubSubClient client(wifiClient, server);
 
 long startMills;
 void setup(void)
