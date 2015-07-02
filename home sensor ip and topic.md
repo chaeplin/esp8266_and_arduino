@@ -1,4 +1,4 @@
-* home sensor ip and topic
+* ip and topic of ESP8266 mqtt node
 
 | sensor                    | topic | ip |
 |---------------------------|-------|----|
