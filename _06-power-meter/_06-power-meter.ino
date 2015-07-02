@@ -19,7 +19,7 @@ IPAddress server(192, 168, 10, 10);
 // pin : using line tracker
 #define IRPIN 4
 
-#define REPORT_INTERVAL 4800 // in msec
+#define REPORT_INTERVAL 10000 // in msec
 
 
 volatile long startMills ;
@@ -147,16 +147,18 @@ void loop()
   }
   */
 
-  if ( ( revValue > 0 ) && ( IRSTATUS != OLDIRSTATUS ) ) {
+  if ( ( revMills != 0.00 ) && ( IRSTATUS != OLDIRSTATUS ) ) {
        sendmqttMsg(payload);
        OLDIRSTATUS = IRSTATUS;
        sentMills = millis();
   }
 
-  if ((millis() - sentMills) > REPORT_INTERVAL )
+  if ((millis() - sentMills) > REPORT_INTERVAL ) {
        sendmqttMsg(payload);
        sentMills = millis();
   }
+
+  delay(500);
 
 }
 
