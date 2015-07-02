@@ -115,7 +115,7 @@ void setup()
   WiFi.begin(ssid, password, channel, bssid);
   WiFi.config(IPAddress(192, 168, 10, 11), IPAddress(192, 168, 10, 1), IPAddress(255, 255, 255, 0));
   #else
-    WiFi.begin(ssid, password); 
+  WiFi.begin(ssid, password); 
   #endif
 
 
