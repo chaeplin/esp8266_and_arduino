@@ -167,7 +167,7 @@ void loop()
   Serial.println(oldrevMills);  
 */
 
-  if ( revMills > 0 ) {
+  if ( revMills > 600 ) {
       revValue = float(( 3600  * 1000 ) / ( 600 * float(revMills) ) ) * 1000 ;
   }
 
@@ -192,7 +192,7 @@ void loop()
     payload += ( revMills + oldrevMills ) / 2 ;
     payload += "}";
 
-  if (( IRSTATUS != OLDIRSTATUS ) && ( revMills > 0 )) {
+  if (( IRSTATUS != OLDIRSTATUS ) && ( revMills > 600 )) {
     sendmqttMsg(payload);
     sentMills = millis();
     OLDIRSTATUS = IRSTATUS ;
@@ -201,12 +201,12 @@ void loop()
   }
 
 
-  if (((millis() - sentMills) > REPORT_INTERVAL ) && ( revMills > 0 )) {
+  if (((millis() - sentMills) > REPORT_INTERVAL ) && ( revMills > 600 )) {
     sendmqttMsg(payload);
     sentMills = millis();
   }
 
-  if ( revMills > 0 ) {
+  if ( revMills > 1000 ) {
     delay(int(float(revMills)/10));
   }else {
     delay(100);
@@ -244,14 +244,13 @@ void sendmqttMsg(String payload)
 
 void count_powermeter()
 {
-  long removebounce ;
   // 600 rev/kWh --> 1 rev 6 sec 1kW
   // max A : 40
   // 220 V * 45A = 9900, 
   // 0.6sec -> 10kW
   // 
    
-  if (( millis() - startMills ) < 500 ) {
+  if (( millis() - startMills ) < 600 ) {
     return;
   }
 
