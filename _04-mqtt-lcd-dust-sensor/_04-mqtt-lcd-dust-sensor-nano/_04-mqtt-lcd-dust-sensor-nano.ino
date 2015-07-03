@@ -5,7 +5,7 @@
  Sharp Optical Dust Sensor GP2Y1010AU0F
 */
   
-int measurePin = 6; //Connect dust sensor to Arduino A0 pin
+int measurePin = A6; //Connect dust sensor to Arduino A0 pin
 int ledPower = 2;   //Connect 3 led driver pins of dust sensor to Arduino D2
   
 int samplingTime = 280;
@@ -53,7 +53,7 @@ void loop()
   Serial.print(" - Dust Density: ");
   Serial.println(dustDensity); // unit: mg/m3
   
-  delay(5000);
+  delay(3000);
 
 }
 

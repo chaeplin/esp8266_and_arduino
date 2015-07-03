@@ -10,16 +10,16 @@
 #else
 #include <avr/pgmspace.h>
 #endif
-#include <Wire.h>  
+#include <Wire.h>
 #include <RtcDS3231.h>
 
 RtcDS3231 Rtc;
 
 // wifi
 #ifdef __IS_MY_HOME
-  #include "/usr/local/src/ap_setting.h"
+#include "/usr/local/src/ap_setting.h"
 #else
-  #include "ap_setting.h"
+#include "ap_setting.h"
 #endif
 
 char* topic = "esp8266/arduino/s03";
@@ -30,11 +30,12 @@ LiquidCrystal_I2C lcd(0x27, 20, 4);
 
 IPAddress server(192, 168, 10, 10);
 
-unsigned int localPort = 2390;      // local port to listen for UDP packets
+unsigned int localPort = 2390;  // local port to listen for UDP packets
 IPAddress timeServer(192, 168, 10, 10); // time.nist.gov NTP server
 const int timeZone = 9;
 
 String clientName;
+String payload;
 WiFiClient wifiClient;
 WiFiUDP udp;
 
@@ -44,30 +45,33 @@ float T2 ;
 int pir  ;
 float O  ;
 
+float dustDensity ;
+float olddustDensity = -1 ;
+
 int inuse = 0 ;
 
 byte termometru[8] = //icon for termometer
 {
-    B00100,
-    B01010,
-    B01010,
-    B01110,
-    B01110,
-    B11111,
-    B11111,
-    B01110
+  B00100,
+  B01010,
+  B01010,
+  B01110,
+  B01110,
+  B11111,
+  B11111,
+  B01110
 };
 
 byte picatura[8] = //icon for water droplet
 {
-    B00100,
-    B00100,
-    B01010,
-    B01010,
-    B10001,
-    B10001,
-    B10001,
-    B01110,
+  B00100,
+  B00100,
+  B01010,
+  B01010,
+  B10001,
+  B10001,
+  B10001,
+  B01110,
 };
 
 
@@ -95,21 +99,24 @@ void lcd_display(String payload) {
     Serial.println("parseObject() failed");
     return;
   }
-  
+
   float Of   = root["OUTSIDE"];
   float Hf   = root["Humidity"];
   float T1f  = root["Temperature"];
   float T2f  = root["DS18B20"];
-  int pirf   = root["PIRSTATUS"];
+  int pirf   = root["DOORPIR"];
+
+  // esp8266/arduino/s07 => {"VIrms":752,"revValue":715.81,"revMills":8386}
+  // NemoWeightAvg
+  
 
   if ( Of > 0 ) {
-     O = Of ;
+    O = Of ;
   }
   if ( Hf > 0 ) {
     H   = Hf;
     T1  = T1f ;
     T2  = T2f;
-    pir = pirf ;
   }
 
   Serial.print(H);
@@ -129,12 +136,13 @@ void lcd_display(String payload) {
   lcd.print((char)223); //degree sign
 
   if ( O > 0 ) {
-      lcd.setCursor(2, 2);
-      lcd.print("      ");
-      lcd.setCursor(2, 2);
-      lcd.print(O);
-      lcd.print((char)223); //degree sign
+    lcd.setCursor(2, 2);
+    lcd.print("      ");
+    lcd.setCursor(2, 2);
+    lcd.print(O);
+    lcd.print((char)223); //degree sign
   }
+
   lcd.setCursor(2, 3);
   lcd.print(H);
   lcd.print("%");
@@ -158,13 +166,13 @@ void setup() {
   client.set_callback(callback);
 
   WiFi.mode(WIFI_STA);
-  
-  #ifdef __IS_MY_HOME
+
+#ifdef __IS_MY_HOME
   WiFi.begin(ssid, password, channel, bssid);
   WiFi.config(IPAddress(192, 168, 10, 12), IPAddress(192, 168, 10, 1), IPAddress(255, 255, 255, 0));
-  #else
-  WiFi.begin(ssid, password); 
-  #endif
+#else
+  WiFi.begin(ssid, password);
+#endif
 
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
@@ -251,8 +259,8 @@ void setup() {
   lcd.init();                      // initialize the lcd
   lcd.backlight();
   lcd.clear();
-  lcd.createChar(1,termometru);
-  lcd.createChar(2,picatura);
+  lcd.createChar(1, termometru);
+  lcd.createChar(2, picatura);
 
   lcd.setCursor(0, 1);
   lcd.write(1);
@@ -281,44 +289,82 @@ void loop() {
 
 void requestSharp() {
   if ( inuse == 0 ) {
-     Wire.requestFrom(2, 2);    // request 6 bytes from slave device #2
-     
-     int x;
-     byte a, b;
+    Wire.requestFrom(2, 2);    // request 6 bytes from slave device #2
 
-     a = Wire.read();
-     b = Wire.read();
+    int x;
+    byte a, b;
 
-     x = a;
-     x = x << 8 | b;     
-     
-     float calcVoltage = x * (5.0 / 1024.0);
-     float dustDensity = 0.17 * calcVoltage - 0.1;
+    a = Wire.read();
+    b = Wire.read();
 
-     Serial.print("Raw Signal Value (0-1023): ");
-     Serial.print(x);
-  
-      Serial.print(" - Voltage: ");
-      Serial.print(calcVoltage);
-  
-      Serial.print(" - Dust Density: ");
-      Serial.println(dustDensity); // unit: mg/m3
+    x = a;
+    x = x << 8 | b;
 
-       lcd.setCursor(9, 1);
-       lcd.print("*    ");
-       lcd.setCursor(10, 1);
-       lcd.print(x);
-       
-       lcd.setCursor(9, 2);
-       lcd.print("*");
-       lcd.print(calcVoltage);
-       lcd.print(" Volt");
-       
-       lcd.setCursor(9, 3);
-       lcd.print("*");
-       lcd.print(dustDensity);
-       lcd.print(" mg/m3");
-     
+    float calcVoltage = x * (5.0 / 1024.0);
+    dustDensity = 0.17 * calcVoltage - 0.1;
+    // //    0 ~ 0.5
+
+    Serial.print("Raw Signal Value (0-1023): ");
+    Serial.print(x);
+
+    Serial.print(" - Voltage: ");
+    Serial.print(calcVoltage);
+
+    Serial.print(" - Dust Density: ");
+    Serial.println(dustDensity); // unit: mg/m3
+
+    lcd.setCursor(9, 1);
+    lcd.print("*     ");
+    lcd.setCursor(10, 1);
+    lcd.print(x);
+
+    lcd.setCursor(9, 2);
+    lcd.print("*");
+    lcd.print(calcVoltage);
+    lcd.print(" Volt");
+
+    lcd.setCursor(9, 3);
+    lcd.print("*");
+    lcd.print(dustDensity);
+    lcd.print(" mg/m3");
+
+    payload = "{\"dustDensity\":";
+    payload += dustDensity;
+    payload += "}";
+
+    if ( dustDensity != olddustDensity ) {
+      sendmqttMsg(payload);
+      olddustDensity = dustDensity ;
+    }
+
+  }
+}
+
+void sendmqttMsg(String payload)
+{
+  if (!client.connected()) {
+    if (client.connect((char*) clientName.c_str())) {
+      Serial.println("Connected to MQTT broker again esp8266/arduino/s03");
+      Serial.print("Topic is: ");
+      Serial.println(topic);
+    }
+    else {
+      Serial.println("MQTT connect failed");
+      Serial.println("Will reset and try again...");
+      abort();
+    }
+  }
+
+  if (client.connected()) {
+    Serial.print("Sending payload: ");
+    Serial.println(payload);
+
+    if (client.publish(topic, (char*) payload.c_str())) {
+      Serial.println("Publish ok");
+    }
+    else {
+      Serial.println("Publish failed");
+    }
   }
 }
 
