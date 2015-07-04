@@ -25,7 +25,7 @@ RtcDS3231 Rtc;
 #endif
 
 char* topic = "esp8266/arduino/s03";
-char* subtopic = "esp8266/#";
+char* subtopic = "#";
 char* hellotopic = "HELLO";
 
 LiquidCrystal_I2C lcd(0x27, 20, 4);
@@ -111,23 +111,51 @@ byte dustDensityfill[8] = //icon for dustDensity droplet
 };
 
 
+byte pirfill[8] = //icon for dustDensity droplet
+{
+  B00111,
+  B00111,
+  B00111,
+  B00111,
+  B00111,
+  B00111,
+  B00111,
+  B00111,
+};
+
+byte powericon[8] = //icon for dustDensity droplet
+{
+  B11000,
+  B00110,
+  B00011,
+  B01100,
+  B11000,
+  B00110,
+  B00011,
+  B01100,
+};
+
+
+
 PubSubClient client(wifiClient, server);
 
 void callback(const MQTT::Publish& pub) {
-  /*
+  if (DEBUG_PRINT) {
     Serial.print(pub.topic());
     Serial.print(" => ");
     Serial.println(pub.payload_string());
-  */
-  parseMqttMsg(pub.payload_string());
+  }
+
+  String receivedtopic = pub.topic();
+  parseMqttMsg(pub.payload_string(), receivedtopic);
 }
 
-void parseMqttMsg(String payload) {
+void parseMqttMsg(String payload, String receivedtopic) {
 
-  StaticJsonBuffer<200> jsonBuffer;
+  StaticJsonBuffer<300> jsonBuffer;
 
   char json[] =
-    "{\"Humidity\":38.10,\"Temperature\":27.70,\"DS18B20\":28.31,\"PIRSTATUS\":1}";
+    "{\"Humidity\":38.10,\"Temperature\":27.70,\"DS18B20\":28.31,\"SENSORTEMP\":31.31,\"PIRSTATUS\":1}";
 
   payload.toCharArray(json, 200);
 
@@ -176,7 +204,7 @@ void parseMqttMsg(String payload) {
     NW  = root["NemoWeightAvg"];
   }
 
-  if ( TEMP_PIR )
+  if ( receivedtopic == "raspberrypi/doorpir" )
   {
     PIR = root["DOORPIR"];
   }
@@ -294,20 +322,21 @@ void setup() {
   lcd.createChar(2, picatura);
   lcd.createChar(3, dustDensityicon);
   lcd.createChar(4, dustDensityfill);
+  lcd.createChar(5, pirfill);
+  lcd.createChar(6, powericon);
 
   lcd.setCursor(0, 1);
   lcd.write(1);
-
-  /*
-  lcd.setCursor(0, 2);
-  lcd.write(1);
-  */
 
   lcd.setCursor(0, 2);
   lcd.write(2);
 
   lcd.setCursor(0, 3);
   lcd.write(3);
+
+  lcd.setCursor(8, 2);
+  lcd.write(6);
+
 
   H  = 0 ;
   T1 = 0 ;
@@ -407,6 +436,16 @@ void checkDisplayValue() {
 
 void displaypowerAvg()
 {
+  lcd.setCursor(10, 2);
+  if ( PW > 999 ) {
+    lcd.print(PW, 0);
+    lcd.print("W");
+  } else {
+    lcd.print(PW, 0);
+    lcd.print("W");
+    lcd.print(" ");
+    lcd.print(" ");
+  }
 
 }
 
@@ -417,7 +456,26 @@ void displayNemoWeightAvg()
 
 void displayPIR()
 {
-
+  if ( PIR == 1)
+  {
+    lcd.setCursor(19, 0);
+    lcd.write(5);
+    lcd.setCursor(19, 1);
+    lcd.write(5);
+    lcd.setCursor(19, 2);
+    lcd.write(5);
+    lcd.setCursor(19, 3);
+    lcd.write(5);
+  } else {
+    lcd.setCursor(19, 0);
+    lcd.print(" ");
+    lcd.setCursor(19, 1);
+    lcd.print(" ");
+    lcd.setCursor(19, 2);
+    lcd.print(" ");
+    lcd.setCursor(19, 3);
+    lcd.print(" ");
+  }
 }
 
 void displayTemperature()
@@ -449,38 +507,23 @@ void displayTemperature()
 
 void displaydustDensity()
 {
+  int n = int(dustDensity / 0.05) ;
 
-  lcd.setCursor(3, 1);   
-  if ( 0   < dustDensity =< 0.1 ) {
-    lcd.write(4);
-    lcd.print("    ");
+  if (DEBUG_PRINT) {
+    Serial.print("===> dustDensity ");
+    Serial.print(dustDensity);
+    Serial.print(" ===>  ");
+    Serial.println(int(dustDensity / 0.05));
   }
-  if ( 0.1 < dustDensity =< 0.2 ) {
+
+  for ( int i = 0 ; i <= n ; i++) {
+    lcd.setCursor(2 + i, 3);
     lcd.write(4);
-    lcd.write(4);
-    lcd.print("   ");
   }
-  if ( 0.2 < dustDensity =< 0.3 ) {
-    lcd.write(4);
-    lcd.write(4);
-    lcd.write(4);
-    lcd.print("  ");
-  }
-  if ( 0.3 < dustDensity =< 0.4 ) {
-    lcd.write(4);
-    lcd.write(4);
-    lcd.write(4);
-    lcd.write(4);
+
+  for ( int o = 0 ; o <= ( 10 - n) ; o++) {
     lcd.print(" ");
   }
-  if ( 0.4 < dustDensity =< 0.5 ) {
-    lcd.write(4);
-    lcd.write(4);
-    lcd.write(4);
-    lcd.write(4);
-    lcd.write(4);
-  }
-
 }
 
 void requestSharp()
@@ -495,6 +538,11 @@ void requestSharp()
 
   x = a;
   x = x << 8 | b;
+
+  if (DEBUG_PRINT) {
+    Serial.print("X ===>  ");
+    Serial.println(x);
+  }
 
   if (( x < 1024 ) && (x != OLD_x )) {
     float calcVoltage = x * (5.0 / 1024.0);
