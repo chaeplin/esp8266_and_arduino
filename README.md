@@ -2,7 +2,7 @@
 
 #### Server ####
 - mqtt broker : mosquitto
-- db : indluxdb
+- db : influxdb
 - web : grafana, node-red
 - collect : mqtt2graphite
 - alert : mqttwarn 
