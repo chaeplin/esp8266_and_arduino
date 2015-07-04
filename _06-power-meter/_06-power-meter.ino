@@ -130,7 +130,7 @@ void setup() {
   pinMode(IRPIN, INPUT);
   attachInterrupt(4, IRCHECKING_START, RISING);
 
-  emon1.current(A0, 70);  // Current: input pin, calibration.
+  emon1.current(A0, 75);  // Current: input pin, calibration.
 
   OLDIRSTATUS = LOW ;
 
@@ -190,7 +190,10 @@ void loop()
     payload += ( revValue + oldrevValue ) / 2 ;
     payload += ",\"revMills\":";
     payload += ( revMills + oldrevMills ) / 2 ;
+    payload += ",\"powerAvg\":";
+    payload += ( average + ((revValue + oldrevValue ) / 2 )) / 2 ;
     payload += "}";
+
 
   if (( IRSTATUS != OLDIRSTATUS ) && ( revMills > 600 )) {
     sendmqttMsg(payload);
