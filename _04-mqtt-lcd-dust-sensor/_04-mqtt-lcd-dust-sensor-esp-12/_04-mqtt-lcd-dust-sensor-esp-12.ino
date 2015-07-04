@@ -98,6 +98,17 @@ byte dustDensityicon[8] = //icon for dustDensity droplet
   B00000,
 };
 
+byte dustDensityfill[8] = //icon for dustDensity droplet
+{
+  B00000,
+  B11111,
+  B11111,
+  B11111,
+  B11111,
+  B11111,
+  B11111,
+  B00000,
+};
 
 
 PubSubClient client(wifiClient, server);
@@ -282,6 +293,7 @@ void setup() {
   lcd.createChar(1, termometru);
   lcd.createChar(2, picatura);
   lcd.createChar(3, dustDensityicon);
+  lcd.createChar(4, dustDensityfill);
 
   lcd.setCursor(0, 1);
   lcd.write(1);
@@ -437,31 +449,37 @@ void displayTemperature()
 
 void displaydustDensity()
 {
-  /*
-  Serial.print("Raw Signal Value (0 - 1023): ");
-  Serial.print(x);
 
-  Serial.print(" - Voltage: ");
-  Serial.print(calcVoltage);
-
-  Serial.print(" - Dust Density: ");
-  Serial.println(dustDensity); // unit: mg/m3
-
-  lcd.setCursor(9, 1);
-  lcd.print("*     ");
-  lcd.setCursor(10, 1);
-  lcd.print(x);
-
-  lcd.setCursor(9, 2);
-  lcd.print("*");
-  lcd.print(calcVoltage);
-  lcd.print(" Volt");
-
-  lcd.setCursor(9, 3);
-  lcd.print("*");
-  lcd.print(dustDensity);
-  lcd.print(" mg / m3");
-  */
+  lcd.setCursor(3, 1);   
+  if ( 0   < dustDensity =< 0.1 ) {
+    lcd.write(4);
+    lcd.print("    ");
+  }
+  if ( 0.1 < dustDensity =< 0.2 ) {
+    lcd.write(4);
+    lcd.write(4);
+    lcd.print("   ");
+  }
+  if ( 0.2 < dustDensity =< 0.3 ) {
+    lcd.write(4);
+    lcd.write(4);
+    lcd.write(4);
+    lcd.print("  ");
+  }
+  if ( 0.3 < dustDensity =< 0.4 ) {
+    lcd.write(4);
+    lcd.write(4);
+    lcd.write(4);
+    lcd.write(4);
+    lcd.print(" ");
+  }
+  if ( 0.4 < dustDensity =< 0.5 ) {
+    lcd.write(4);
+    lcd.write(4);
+    lcd.write(4);
+    lcd.write(4);
+    lcd.write(4);
+  }
 
 }
 
