@@ -86,6 +86,7 @@ byte picatura[8] = //icon for water droplet
   B01110,
 };
 
+/*
 byte dustDensityicon[8] = //icon for dustDensity droplet
 {
   B00000,
@@ -96,6 +97,19 @@ byte dustDensityicon[8] = //icon for dustDensity droplet
   B01010,
   B01110,
   B00000,
+};
+*/
+
+byte dustDensityicon[8] = //icon for dustDensity droplet
+{
+  B11111,
+  B11111,
+  B11011,
+  B10001,
+  B10001,
+  B11011,
+  B11111,
+  B11111,
 };
 
 byte dustDensityfill[8] = //icon for dustDensity droplet
@@ -441,10 +455,9 @@ void displaypowerAvg()
     lcd.print(PW, 0);
     lcd.print("W");
   } else {
+    lcd.print(" ");
     lcd.print(PW, 0);
     lcd.print("W");
-    lcd.print(" ");
-    lcd.print(" ");
   }
 
 }
