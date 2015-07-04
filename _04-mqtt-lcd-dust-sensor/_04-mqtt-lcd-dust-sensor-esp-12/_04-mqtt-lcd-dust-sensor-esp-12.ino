@@ -15,6 +15,8 @@
 
 RtcDS3231 Rtc;
 
+#define DEBUG_PRINT 0
+
 // wifi
 #ifdef __IS_MY_HOME
 #include "/usr/local/src/ap_setting.h"
@@ -39,25 +41,26 @@ String payload;
 WiFiClient wifiClient;
 WiFiUDP udp;
 
-float H  = 0 ;
-float T1 = 0 ;
-float T2 = 0 ;
-float OT = 0 ;
-float PW = 0 ;
-float NW = 0 ;
-int PIR = 0 ;
-float dustDensity = 0;
+// volatile
+float H  ;
+float T1 ;
+float T2 ;
+float OT ;
+float PW ;
+float NW ;
+int PIR  ;
+float dustDensity ;
 
-float OLD_H  = 0 ;
-float OLD_T1 = 0 ;
-float OLD_T2 = 0 ;
-float OLD_OT = 0 ;
-float OLD_PW = 0 ;
-float OLD_NW = 0 ;
-int OLD_PIR = 0 ;
-float OLD_dustDensity = 0 ;
+float OLD_H  ;
+float OLD_T1 ;
+float OLD_T2 ;
+float OLD_OT ;
+float OLD_PW ;
+float OLD_NW ;
+int OLD_PIR  ;
+float OLD_dustDensity ;
 
-int inuse = 0 ;
+int OLD_x ;
 
 byte termometru[8] = //icon for termometer
 {
@@ -83,14 +86,28 @@ byte picatura[8] = //icon for water droplet
   B01110,
 };
 
+byte dustDensityicon[8] = //icon for dustDensity droplet
+{
+  B00000,
+  B01110,
+  B01010,
+  B01110,
+  B01110,
+  B01010,
+  B01110,
+  B00000,
+};
+
+
 
 PubSubClient client(wifiClient, server);
 
 void callback(const MQTT::Publish& pub) {
-  inuse = 1;
-  Serial.print(pub.topic());
-  Serial.print(" => ");
-  Serial.println(pub.payload_string());
+  /*
+    Serial.print(pub.topic());
+    Serial.print(" => ");
+    Serial.println(pub.payload_string());
+  */
   parseMqttMsg(pub.payload_string());
 }
 
@@ -110,15 +127,48 @@ void parseMqttMsg(String payload) {
     return;
   }
 
-  H   = root["Humidity"];
-  T1  = root["Temperature"];
-  T2  = root["DS18B20"];
-  OT  = root["OUTSIDE"];
-  PIR = root["DOORPIR"];
-  PW  = root["powerAvg"];
-  NW  = root["NemoWeightAvg"];
+  float TEMP_H   = root["Humidity"];
+  float TEMP_T1  = root["Temperature"];
+  float TEMP_T2  = root["DS18B20"];
+  float TEMP_OT  = root["OUTSIDE"];
+  float TEMP_PW  = root["powerAvg"];
+  float TEMP_NW  = root["NemoWeightAvg"];
+  int TEMP_PIR   = root["DOORPIR"];
 
-  inuse = 0;
+  if ( TEMP_H > 0 )
+  {
+    H   = root["Humidity"];
+  }
+
+  if ( TEMP_T1 > 0 )
+  {
+    T1  = root["Temperature"];
+  }
+
+  if (TEMP_T2 > 0 )
+  {
+    T2  = root["DS18B20"];
+  }
+
+  if ( TEMP_OT > 0 )
+  {
+    OT  = root["OUTSIDE"];
+  }
+
+  if ( TEMP_PW > 0 )
+  {
+    PW  = root["powerAvg"];
+  }
+
+  if ( TEMP_NW > 0 )
+  {
+    NW  = root["NemoWeightAvg"];
+  }
+
+  if ( TEMP_PIR )
+  {
+    PIR = root["DOORPIR"];
+  }
 
 }
 
@@ -191,11 +241,11 @@ void setup() {
 
   //
 
-  clientName += "esp8266-";
+  clientName += "esp8266 - ";
   uint8_t mac[6];
   WiFi.macAddress(mac);
   clientName += macToStr(mac);
-  clientName += "-";
+  clientName += " - ";
   clientName += String(micros() & 0xff, 16);
 
   Serial.print("Connecting to ");
@@ -231,19 +281,47 @@ void setup() {
   lcd.clear();
   lcd.createChar(1, termometru);
   lcd.createChar(2, picatura);
+  lcd.createChar(3, dustDensityicon);
 
   lcd.setCursor(0, 1);
   lcd.write(1);
+
+  /*
   lcd.setCursor(0, 2);
   lcd.write(1);
-  lcd.setCursor(0, 3);
+  */
+
+  lcd.setCursor(0, 2);
   lcd.write(2);
+
+  lcd.setCursor(0, 3);
+  lcd.write(3);
+
+  H  = 0 ;
+  T1 = 0 ;
+  T2 = 0 ;
+  OT = 0 ;
+  PW = 0 ;
+  NW = 0 ;
+  PIR = 0 ;
+  dustDensity = 0;
+
+  OLD_H  = 0 ;
+  OLD_T1 = 0 ;
+  OLD_T2 = 0 ;
+  OLD_OT = 0 ;
+  OLD_PW = 0 ;
+  OLD_NW = 0 ;
+  OLD_PIR = 0 ;
+  OLD_dustDensity = 0 ;
+
+  OLD_x = 0 ;
 
 }
 
 time_t prevDisplay = 0; // when the digital clock was displayed
 
-void loop() 
+void loop()
 {
 
   if (timeStatus() != timeNotSet) {
@@ -262,66 +340,58 @@ void loop()
 void checkDisplayValue() {
   if ( PW != OLD_PW )
   {
-       displaypowerAvg();
-       OLD_PW = PW;
+    displaypowerAvg();
+    OLD_PW = PW;
   }
 
   if ( NW != OLD_NW )
   {
-       displayNemoWeightAvg();
-       OLD_NW = NW;
+    displayNemoWeightAvg();
+    OLD_NW = NW;
   }
 
   if ( PIR != OLD_PIR )
   {
-       displayPIR();
-       PIR = OLD_PIR;
+    displayPIR();
+    OLD_PIR = PIR;
   }
 
-  if ( H != OLD_H )
+  if ((T1 != OLD_T1 ) || (T2 != OLD_T2 ) || (OT != OLD_OT) || ( H != OLD_H ))
   {
-       displayHumidity();
-       OLD_H = H;
+    displayTemperature();
+    OLD_T1 = T1;
+    OLD_T2 = T2;
+    OLD_OT = OT;
+    OLD_H = H;
   }
 
-  if ((T1 != OLD_T1 ) || (T2 != OLD_T2 ) || (OT != OLD_OT))
+  if ( dustDensity != OLD_dustDensity )
   {
-       displayTemperature();
-       OLD_T1 = T1;
-       OLD_T2 = T2;
-       OLD_OT = OT;
-
+    senddustDensity();
+    displaydustDensity();
+    OLD_dustDensity = dustDensity ;
   }
 
-  if ( dustDensity != OLD_dustDensity ) 
-  {
-       senddustDensity();
-       displaydustDensity();
-       OLD_dustDensity = dustDensity ;
+  if (DEBUG_PRINT) {
+    Serial.print("=====> ");
+    Serial.print(T1);
+    Serial.print(" ===> ");
+    Serial.print(T2);
+    Serial.print(" ===> ");
+    Serial.print(OT);
+    Serial.print(" ===> ");
+    Serial.print(H);
+    Serial.print(" ===> ");
+    Serial.print(dustDensity);
+    Serial.print(" ===> ");
+    Serial.print(PIR);
+    Serial.print(" ===> ");
+    Serial.print(PW);
+    Serial.print(" ===> ");
+    Serial.println(NW);
   }
 
 }
-
-/*
-
-  lcd.setCursor(2, 1);
-  lcd.print((T1 + T2) / 2);
-  lcd.print((char)223); //degree sign
-
-  if ( O > 0 ) {
-    lcd.setCursor(2, 2);
-    lcd.print("      ");
-    lcd.setCursor(2, 2);
-    lcd.print(O);
-    lcd.print((char)223); //degree sign
-  }
-
-  lcd.setCursor(2, 3);
-  lcd.print(H);
-  lcd.print("%");
-
-
- */
 
 void displaypowerAvg()
 {
@@ -338,70 +408,89 @@ void displayPIR()
 
 }
 
-void displayHumidity()
-{
-
-}
-
 void displayTemperature()
 {
 
+  lcd.setCursor(2, 1);
+  lcd.print((T1 + T2) / 2, 1);
+  lcd.print((char)223); //degree sign
+
+  float tempdiff = OT - ((T1 + T2) / 2) ;
+
+  if ( OT > 0 ) {
+    lcd.print(" ");
+    lcd.print(OT, 1);
+    lcd.print((char)223); //degree sign
+    lcd.print(" ");
+
+    if ( tempdiff >= 0 ) {
+      lcd.print("+");
+    }
+    lcd.print(OT - ((T1 + T2) / 2), 1);
+    lcd.print((char)223); //degree sign
+  }
+
+  lcd.setCursor(2, 2);
+  lcd.print(H, 1);
+  lcd.print("%");
 }
 
 void displaydustDensity()
 {
-/*
-    Serial.print("Raw Signal Value (0-1023): ");
-    Serial.print(x);
+  /*
+  Serial.print("Raw Signal Value (0 - 1023): ");
+  Serial.print(x);
 
-    Serial.print(" - Voltage: ");
-    Serial.print(calcVoltage);
+  Serial.print(" - Voltage: ");
+  Serial.print(calcVoltage);
 
-    Serial.print(" - Dust Density: ");
-    Serial.println(dustDensity); // unit: mg/m3
+  Serial.print(" - Dust Density: ");
+  Serial.println(dustDensity); // unit: mg/m3
 
-    lcd.setCursor(9, 1);
-    lcd.print("*     ");
-    lcd.setCursor(10, 1);
-    lcd.print(x);
+  lcd.setCursor(9, 1);
+  lcd.print("*     ");
+  lcd.setCursor(10, 1);
+  lcd.print(x);
 
-    lcd.setCursor(9, 2);
-    lcd.print("*");
-    lcd.print(calcVoltage);
-    lcd.print(" Volt");
+  lcd.setCursor(9, 2);
+  lcd.print("*");
+  lcd.print(calcVoltage);
+  lcd.print(" Volt");
 
-    lcd.setCursor(9, 3);
-    lcd.print("*");
-    lcd.print(dustDensity);
-    lcd.print(" mg/m3");  
-    */
+  lcd.setCursor(9, 3);
+  lcd.print("*");
+  lcd.print(dustDensity);
+  lcd.print(" mg / m3");
+  */
 
 }
 
-void requestSharp() 
+void requestSharp()
 {
-  if ( inuse == 0 ) {
-    Wire.requestFrom(2, 2);    // request 6 bytes from slave device #2
+  Wire.requestFrom(2, 2);    // request 6 bytes from slave device #2
 
-    int x;
-    byte a, b;
+  int x;
+  byte a, b;
 
-    a = Wire.read();
-    b = Wire.read();
+  a = Wire.read();
+  b = Wire.read();
 
-    x = a;
-    x = x << 8 | b;
+  x = a;
+  x = x << 8 | b;
 
+  if (( x < 1024 ) && (x != OLD_x )) {
     float calcVoltage = x * (5.0 / 1024.0);
     dustDensity = 0.17 * calcVoltage - 0.1;
+    OLD_x = x ;
     // //    0 ~ 0.5
   }
+
 }
 
 
 void senddustDensity()
 {
-  payload = "{\"dustDensity\":";
+  payload = " {\"dustDensity\":";
   payload += dustDensity;
   payload += "}";
 
@@ -424,11 +513,15 @@ void sendmqttMsg(String payload)
   }
 
   if (client.connected()) {
-    Serial.print("Sending payload: ");
-    Serial.println(payload);
+    if (DEBUG_PRINT) {
+      Serial.print("Sending payload: ");
+      Serial.println(payload);
+    }
 
     if (client.publish(topic, (char*) payload.c_str())) {
-      Serial.println("Publish ok");
+      if (DEBUG_PRINT) {
+        Serial.println("Publish ok");
+      }
     }
     else {
       Serial.println("Publish failed");
@@ -448,7 +541,7 @@ String macToStr(const uint8_t* mac)
   return result;
 }
 
-void digitalClockDisplay() 
+void digitalClockDisplay()
 {
   // digital clock display of the time
   lcd.setCursor(0, 0);
@@ -463,7 +556,7 @@ void digitalClockDisplay()
   printDigits(second());
 }
 
-void printDigitsnocolon(int digits) 
+void printDigitsnocolon(int digits)
 {
   if (digits < 10)
     lcd.print('0');
@@ -471,7 +564,7 @@ void printDigitsnocolon(int digits)
 }
 
 
-void printDigits(int digits) 
+void printDigits(int digits)
 {
   // utility for digital clock display: prints preceding colon and leading 0
   lcd.print(":");
