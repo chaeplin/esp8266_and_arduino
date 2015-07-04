@@ -1,5 +1,11 @@
 * ESP8266 mqtt node
 
+#### Server ####
+- mqtt broker : mosquitto
+- db : indluxdb
+- web : grafana, node-red
+- collect : mqtt2graphite
+- alert : mqttwarn 
 
 #### _01-door-alarm ####
 - esp-12 +(gpio) pro mini
