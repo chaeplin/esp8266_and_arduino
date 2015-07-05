@@ -180,41 +180,28 @@ void parseMqttMsg(String payload, String receivedtopic) {
     return;
   }
 
-  float TEMP_H   = root["Humidity"];
-  float TEMP_T1  = root["Temperature"];
-  float TEMP_T2  = root["DS18B20"];
-  float TEMP_OT  = root["OUTSIDE"];
-  float TEMP_PW  = root["powerAvg"];
-  float TEMP_NW  = root["NemoWeightAvg"];
-  int TEMP_PIR   = root["DOORPIR"];
+// topic 
+// raspberrypi/doorpir
+// esp8266/arduino/s07 : power
+// esp8266/arduino/s04 : OUTSIDE
+// esp8266/arduino/s06 : Scale
+// esp8266/arduino/s02  : T, H
 
-  if ( TEMP_H > 0 )
-  {
+  if ( receivedtopic == "esp8266/arduino/s02" ) {
     H   = root["Humidity"];
-  }
-
-  if ( TEMP_T1 > 0 )
-  {
     T1  = root["Temperature"];
-  }
-
-  if (TEMP_T2 > 0 )
-  {
     T2  = root["DS18B20"];
   }
-
-  if ( TEMP_OT > 0 )
-  {
+  
+  if ( receivedtopic == "esp8266/arduino/s04" ) {
     OT  = root["OUTSIDE"];
   }
 
-  if ( TEMP_PW > 0 )
-  {
+  if ( receivedtopic == "esp8266/arduino/s07" ) {
     PW  = root["powerAvg"];
   }
 
-  if ( TEMP_NW > 0 )
-  {
+  if ( receivedtopic == "esp8266/arduino/s06" ) {
     NW  = root["NemoWeightAvg"];
   }
 
@@ -352,23 +339,23 @@ void setup() {
   lcd.write(6);
 
 
-  H  = 0 ;
-  T1 = 0 ;
-  T2 = 0 ;
-  OT = 0 ;
-  PW = 0 ;
-  NW = 0 ;
+  H  = -1000 ;
+  T1 = -1000 ;
+  T2 = -1000 ;
+  OT = -1000 ;
+  PW = -1000 ;
+  NW = -1000 ;
   PIR = 0 ;
-  dustDensity = 0;
+  dustDensity = -1000 ;
 
-  OLD_H  = 0 ;
-  OLD_T1 = 0 ;
-  OLD_T2 = 0 ;
-  OLD_OT = 0 ;
-  OLD_PW = 0 ;
-  OLD_NW = 0 ;
+  OLD_H  = -1000 ;
+  OLD_T1 = -1000 ;
+  OLD_T2 = -1000 ;
+  OLD_OT = -1000 ;
+  OLD_PW = -1000 ;
+  OLD_NW = -1000 ;
   OLD_PIR = 0 ;
-  OLD_dustDensity = 0 ;
+  OLD_dustDensity = -1000 ;
 
   OLD_x = 0 ;
 
@@ -451,14 +438,26 @@ void checkDisplayValue() {
 void displaypowerAvg()
 {
   lcd.setCursor(10, 2);
-  if ( PW > 999 ) {
-    lcd.print(PW, 0);
-    lcd.print("W");
-  } else {
+  if ( PW < 10 ) {
+    lcd.print(" ");
+    lcd.print(" ");
     lcd.print(" ");
     lcd.print(PW, 0);
-    lcd.print("W");
+   
+  } else if ( 10 <= PW < 99 ) {
+    lcd.print(" ");
+    lcd.print(" ");
+    lcd.print(PW, 0);
+
+  } else if ( 100 <= PW < 1000 ) {
+    lcd.print(" ");
+    lcd.print(PW, 0);
+
+  } else if ( PW >= 1000 ) {
+    lcd.print(PW, 0);
   }
+
+  lcd.print("W");
 
 }
 
@@ -471,50 +470,85 @@ void displayPIR()
 {
   if ( PIR == 1)
   {
-    lcd.setCursor(19, 0);
-    lcd.write(5);
-    lcd.setCursor(19, 1);
-    lcd.write(5);
-    lcd.setCursor(19, 2);
-    lcd.write(5);
-    lcd.setCursor(19, 3);
-    lcd.write(5);
+    for ( int i = 0 ; i <= 3 ; i ++ ) {
+       lcd.setCursor(19, i);
+       lcd.write(5);      
+    }
   } else {
-    lcd.setCursor(19, 0);
-    lcd.print(" ");
-    lcd.setCursor(19, 1);
-    lcd.print(" ");
-    lcd.setCursor(19, 2);
-    lcd.print(" ");
-    lcd.setCursor(19, 3);
-    lcd.print(" ");
+    for ( int l =0 ; l <= 3 ; l ++ ) {
+       lcd.setCursor(19, l);
+       lcd.write(" ");     
+    } 
   }
+}
+
+void displayTemperaturedigit(float Temperature)
+{
+  int abs_Temperature    abs(Temperature);
+  int int_Temperature    = int(abs_Temperature);
+  int length_Temperature = String(int_Temperature).length;
+
+  Serial.print(" abs ===> ");
+  Serial.print(abs_Temperature);
+  Serial.print(" int ===> ");
+  Serial.print(int_Temperature);
+  Serial.print(" leng ===> ");
+  Serial.println(length_Temperature);
+
+
 }
 
 void displayTemperature()
 {
 
   lcd.setCursor(2, 1);
-  lcd.print((T1 + T2) / 2, 1);
-  lcd.print((char)223); //degree sign
+  if ( ((T1 + T2) / 2) >= 10 ) {
+    lcd.print((T1 + T2) / 2, 1);
+    lcd.print((char)223); //degree sign
+    lcd.print(" ");
+  } else {
+    lcd.print(" ");
+    lcd.print((T1 + T2) / 2, 1);
+    lcd.print((char)223); //degree sign
+    lcd.print(" ");
+  } 
 
   float tempdiff = OT - ((T1 + T2) / 2) ;
 
   if ( OT > 0 ) {
-    lcd.print(" ");
-    lcd.print(OT, 1);
-    lcd.print((char)223); //degree sign
-    lcd.print(" ");
+    lcd.setCursor(8, 1);
+    if ( OT >= 10 ) {
+      lcd.print(OT, 1);
+      lcd.print((char)223); //degree sign
+      lcd.print(" ");
+    } else {
+      lcd.print(" ");
+      lcd.print(OT, 1);
+      lcd.print((char)223); //degree sign
+      lcd.print(" ");      
+    }
 
     if ( tempdiff >= 0 ) {
       lcd.print("+");
     }
-    lcd.print(OT - ((T1 + T2) / 2), 1);
-    lcd.print((char)223); //degree sign
+
+    if ( tempdiff >= 10 ) {
+      lcd.print(tempdiff, 1);
+    } else {
+      lcd.print(" ");      
+      lcd.print(tempdiff, 1);
+    }
+
   }
 
   lcd.setCursor(2, 2);
-  lcd.print(H, 1);
+  if ( H >= 10 ) {
+    lcd.print(H, 1);
+  } else {
+    lcd.print(" ");      
+    lcd.print(H, 1);   
+  }
+
   lcd.print("%");
 }
 
