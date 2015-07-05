@@ -180,19 +180,19 @@ void parseMqttMsg(String payload, String receivedtopic) {
     return;
   }
 
-// topic 
-// raspberrypi/doorpir
-// esp8266/arduino/s07 : power
-// esp8266/arduino/s04 : OUTSIDE
-// esp8266/arduino/s06 : Scale
-// esp8266/arduino/s02  : T, H
+  // topic
+  // raspberrypi/doorpir
+  // esp8266/arduino/s07 : power
+  // esp8266/arduino/s04 : OUTSIDE
+  // esp8266/arduino/s06 : Scale
+  // esp8266/arduino/s02  : T, H
 
   if ( receivedtopic == "esp8266/arduino/s02" ) {
     H   = root["Humidity"];
     T1  = root["Temperature"];
     T2  = root["DS18B20"];
   }
-  
+
   if ( receivedtopic == "esp8266/arduino/s04" ) {
     OT  = root["OUTSIDE"];
   }
@@ -390,7 +390,7 @@ void loop()
 void checkDisplayValue() {
   if ( PW != OLD_PW )
   {
-    displaypowerAvg();
+    displaypowerAvg(PW);
     OLD_PW = PW;
   }
 
@@ -443,30 +443,17 @@ void checkDisplayValue() {
 
 }
 
-void displaypowerAvg()
+void displaypowerAvg(float Power)
 {
+  String str_Power = String(int(Power));
+  int length_Power = str_Power.length();
+
   lcd.setCursor(10, 2);
-  if ( PW < 10 ) {
-    lcd.print(" ");
-    lcd.print(" ");
-    lcd.print(" ");
-    lcd.print(PW, 0);
-   
-  } else if ( 10 <= PW < 99 ) {
-    lcd.print(" ");
-    lcd.print(" ");
-    lcd.print(PW, 0);
-
-  } else if ( 100 <= PW < 1000 ) {
-    lcd.print(" ");
-    lcd.print(PW, 0);
-
-  } else if ( PW >= 1000 ) {
-    lcd.print(PW, 0);
+  for ( int i = 0; i < ( 4 - length_Power ) ; i++ ) {
+      lcd.print(" ");
   }
-
+  lcd.print(Power, 0);
   lcd.print("W");
-
 }
 
 void displayNemoWeightAvg()
@@ -479,14 +466,14 @@ void displayPIR()
   if ( PIR == 1)
   {
     for ( int i = 0 ; i <= 3 ; i ++ ) {
-       lcd.setCursor(19, i);
-       lcd.write(5);      
+      lcd.setCursor(19, i);
+      lcd.write(5);
     }
   } else {
     for ( int l = 0 ; l <= 3 ; l ++ ) {
-       lcd.setCursor(19, l);
-       lcd.write(" ");     
-    } 
+      lcd.setCursor(19, l);
+      lcd.print(" ");
+    }
   }
 }
 
@@ -496,7 +483,7 @@ void displayTemperaturedigit(float Temperature)
   int length_Temperature = str_Temperature.length();
 
   for ( int i = 0; i < ( 3 - length_Temperature ) ; i++ ) {
-      lcd.write(" ");
+    lcd.print(" ");
   }
   lcd.print(Temperature, 1);
 }
@@ -525,19 +512,17 @@ void displayTemperature()
 
     lcd.setCursor(15, 1);
     lcd.print(abs(tempdiff), 1);
-    if ( n = 1) {
-            lcd.write(" ");
+    if ( length_tempdiff == 1) {
+      lcd.print(" ");
     }
-
   }
-
 
   lcd.setCursor(2, 2);
   if ( H >= 10 ) {
     lcd.print(H, 1);
   } else {
-    lcd.print(" ");      
-    lcd.print(H, 1);   
+    lcd.print(" ");
+    lcd.print(H, 1);
   }
 
 }
@@ -585,8 +570,8 @@ void requestSharp()
   if (( 1 < x < 1024 ) && ( x != OLD_x )) {
     float calcVoltage = x * (5.0 / 1024.0);
     if ( (0.17 * calcVoltage - 0.1) > 0 ) {
-       dustDensity = 0.17 * calcVoltage - 0.1;
-       OLD_x = x ;
+      dustDensity = 0.17 * calcVoltage - 0.1;
+      OLD_x = x ;
     }
     // //    0 ~ 0.5
   }
