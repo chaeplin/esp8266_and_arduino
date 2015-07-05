@@ -332,12 +332,20 @@ void setup() {
   lcd.setCursor(0, 2);
   lcd.write(2);
 
-  lcd.setCursor(0, 3);
+  lcd.setCursor(0, 3);  // dust
   lcd.write(3);
 
-  lcd.setCursor(8, 2);
+  lcd.setCursor(8, 2);  // power
   lcd.write(6);
 
+  lcd.setCursor(6, 1);
+  lcd.print((char)223); //degree sign
+
+  lcd.setCursor(12, 1);
+  lcd.print((char)223); //degree sign
+
+  lcd.setCursor(6, 2);
+  lcd.print("%");
 
   H  = -1000 ;
   T1 = -1000 ;
@@ -475,7 +483,7 @@ void displayPIR()
        lcd.write(5);      
     }
   } else {
-    for ( int l =0 ; l <= 3 ; l ++ ) {
+    for ( int l = 0 ; l <= 3 ; l ++ ) {
        lcd.setCursor(19, l);
        lcd.write(" ");     
     } 
@@ -484,62 +492,45 @@ void displayPIR()
 
 void displayTemperaturedigit(float Temperature)
 {
-  int abs_Temperature    abs(Temperature);
-  int int_Temperature    = int(abs_Temperature);
-  int length_Temperature = String(int_Temperature).length;
+  String str_Temperature = String(int(Temperature)) ;
+  int length_Temperature = str_Temperature.length();
 
-  Serial.print(" abs ===> ");
-  Serial.print(abs_Temperature);
-  Serial.print(" int ===> ");
-  Serial.print(int_Temperature);
-  Serial.print(" leng ===> ");
-  Serial.println(length_Temperature);
-
-
+  for ( int i = 0; i < ( 3 - length_Temperature ) ; i++ ) {
+      lcd.write(" ");
+  }
+  lcd.print(Temperature, 1);
 }
 
 void displayTemperature()
 {
+  lcd.setCursor(1, 1);
+  displayTemperaturedigit((T1 + T2) / 2);
 
-  lcd.setCursor(2, 1);
-  if ( ((T1 + T2) / 2) >= 10 ) {
-    lcd.print((T1 + T2) / 2, 1);
-    lcd.print((char)223); //degree sign
-    lcd.print(" ");
-  } else {
-    lcd.print(" ");
-    lcd.print((T1 + T2) / 2, 1);
-    lcd.print((char)223); //degree sign
-    lcd.print(" ");
-  } 
+  lcd.setCursor(7, 1);
 
-  float tempdiff = OT - ((T1 + T2) / 2) ;
+  if ( OT != -1000 ) {
 
-  if ( OT > 0 ) {
-    lcd.setCursor(8, 1);
-    if ( OT >= 10 ) {
-      lcd.print(OT, 1);
-      lcd.print((char)223); //degree sign
-      lcd.print(" ");
-    } else {
-      lcd.print(" ");
-      lcd.print(OT, 1);
-      lcd.print((char)223); //degree sign
-      lcd.print(" ");      
-    }
+    float tempdiff = OT - ((T1 + T2) / 2) ;
+    displayTemperaturedigit(OT);
 
-    if ( tempdiff >= 0 ) {
+    lcd.setCursor(14, 1);
+    if ( tempdiff > 0 ) {
       lcd.print("+");
+    } else if ( tempdiff < 0 ) {
+      lcd.print("-");
     }
 
-    if ( tempdiff >= 10 ) {
-      lcd.print(tempdiff, 1);
-    } else {
-      lcd.print(" ");      
-      lcd.print(tempdiff, 1);
+    String str_tempdiff = String(int abs(tempdiff));
+    int length_tempdiff = str_tempdiff.length();
+
+    lcd.setCursor(15, 1);
+    lcd.print(abs(tempdiff), 1);
+    if ( n = 1) {
+            lcd.write(" ");
     }
 
   }
+
 
   lcd.setCursor(2, 2);
   if ( H >= 10 ) {
@@ -549,8 +540,8 @@ void displayTemperature()
     lcd.print(H, 1);   
   }
 
-  lcd.print("%");
 }
+
 
 void displaydustDensity()
 {
@@ -591,10 +582,12 @@ void requestSharp()
     Serial.println(x);
   }
 
-  if (( x < 1024 ) && (x != OLD_x )) {
+  if (( 1 < x < 1024 ) && ( x != OLD_x )) {
     float calcVoltage = x * (5.0 / 1024.0);
-    dustDensity = 0.17 * calcVoltage - 0.1;
-    OLD_x = x ;
+    if ( (0.17 * calcVoltage - 0.1) > 0 ) {
+       dustDensity = 0.17 * calcVoltage - 0.1;
+       OLD_x = x ;
+    }
     // //    0 ~ 0.5
   }
 
