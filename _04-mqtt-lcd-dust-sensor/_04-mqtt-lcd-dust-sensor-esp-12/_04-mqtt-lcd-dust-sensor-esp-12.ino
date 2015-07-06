@@ -388,7 +388,7 @@ void loop()
 }
 
 void checkDisplayValue() {
-  if ( PW != OLD_PW )
+  if (( PW != OLD_PW ) && ( 0 <= PW < 10000 ))
   {
     displaypowerAvg(PW);
     OLD_PW = PW;
