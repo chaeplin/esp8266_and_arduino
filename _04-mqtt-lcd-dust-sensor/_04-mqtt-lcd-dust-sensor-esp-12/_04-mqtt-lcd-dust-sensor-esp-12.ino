@@ -347,6 +347,9 @@ void setup() {
   lcd.setCursor(6, 2);
   lcd.print("%");
 
+  lcd.setCursor(14, 2);
+  lcd.print("W");
+
   H  = -1000 ;
   T1 = -1000 ;
   T2 = -1000 ;
@@ -449,11 +452,12 @@ void displaypowerAvg(float Power)
   int length_Power = str_Power.length();
 
   lcd.setCursor(10, 2);
-  for ( int i = 0; i < ( 4 - length_Power ) ; i++ ) {
-      lcd.print(" ");
+  if ( 1 <= length_Power <=4 ) {  
+    for ( int i = 0; i < ( 4 - length_Power ) ; i++ ) {
+        lcd.print(" ");
+    }
+    lcd.print(Power, 0);
   }
-  lcd.print(Power, 0);
-  lcd.print("W");
 }
 
 void displayNemoWeightAvg()
