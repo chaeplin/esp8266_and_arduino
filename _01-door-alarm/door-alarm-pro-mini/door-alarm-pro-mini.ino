@@ -40,7 +40,8 @@ void setup()
 {
   Serial.begin(38400);
   Serial.println("Starting sleep test");
-  delay(100);  
+  delay(100);
+  
   pinMode(wakeUpPin, INPUT_PULLUP);
 
   doorStatus = digitalRead(wakeUpPin);

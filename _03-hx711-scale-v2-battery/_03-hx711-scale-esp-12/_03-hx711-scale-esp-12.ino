@@ -8,6 +8,14 @@
 #endif
 #include <Wire.h>  /
 
+
+extern "C"{
+  #include "user_interface.h"
+}
+
+extern "C" uint16_t readvdd33(void);
+
+
 // wifi
 #ifdef __IS_MY_HOME
   #include "/usr/local/src/ap_setting.h"
@@ -20,32 +28,30 @@ char* hellotopic = "HELLO";
 
 String clientName;
 WiFiClient wifiClient;
+String payload;
 
 IPAddress server(192, 168, 10, 10);
 PubSubClient client(wifiClient, server);
 
-int inuse = LOW;
-#define nemoisOnPin 13 // pro mini 10
-
-void callback(const MQTT::Publish& pub) {
-}
-
+int msgsentPin = 12 ; // espRfStatePin
+int vdd ;
 
 void setup() {
   Serial.begin(38400);
   //Wire.pins(4, 5);
   Wire.begin(4,5);
   Serial.println("HX711 START");
-  delay(20);
 
-  pinMode(nemoisOnPin,INPUT);
+  pinMode(msgsentPin, OUTPUT);
+
+  digitalWrite(msgsentPin, HIGH);
+  delay(20);
 
   Serial.println();
   Serial.println();
   Serial.print("Connecting to ");
   Serial.println(ssid);
 
-  client.set_callback(callback);
 
   WiFi.mode(WIFI_STA);
 
@@ -66,7 +72,6 @@ void setup() {
   Serial.println("IP address: ");
   Serial.println(WiFi.localIP());
 
-
   clientName += "esp8266-";
   uint8_t mac[6];
   WiFi.macAddress(mac);
@@ -74,51 +79,21 @@ void setup() {
   clientName += "-";
   clientName += String(micros() & 0xff, 16);
 
-  Serial.print("Connecting to ");
-  Serial.print(server);
-  Serial.print(" as ");
-  Serial.println(clientName);
+  Serial.println(millis() - startMills);
 
-  if (client.connect((char*) clientName.c_str())) {
-    Serial.println("Connected to MQTT broker");
-    Serial.print("Topic is: ");
-    Serial.println(topic);
-
-    if (client.publish(hellotopic, "hello from ESP8266 s06")) {
-      Serial.println("Publish ok");
-    } else {
-      Serial.println("Publish failed");
-    }
-
-  } else {
-    Serial.println("MQTT connect failed");
-    Serial.println("Will reset and try again...");
-    abort();
-  }
+  requestHx711();
+  sendHx711(payload);
 
 }
 
 
 void loop() {
-  inuse = digitalRead(nemoisOnPin);
-  if ( inuse == HIGH ) {
-    requestHx711();
-  }
-  delay(500); 
-  client.loop();
+  delay(100);
+  Serial.println(millis() - startMills);
+  Serial.println("going to sleep");
+  ESP.deepSleep(0);
 }
 
-
-String macToStr(const uint8_t* mac)
-{
-  String result;
-  for (int i = 0; i < 6; ++i) {
-    result += String(mac[i], 16);
-    if (i < 5)
-      result += ':';
-  }
-  return result;
-}
 
 
 void requestHx711() {
@@ -136,27 +111,44 @@ void requestHx711() {
      Serial.print("Raw Signal Value: ");
      Serial.print(x);
 
-     String payload = "{\"NemoWeight\":";
+     vdd = readvdd33();
+
+     payload = "{\"NemoWeight\":";
      payload += x;
+     payload += ",\"vdd\":";
+     payload += vdd;
      payload += "}";
 
-    sendHx711(payload);
 }
 
 
-void sendHx711(String payload) {
-  if (!client.connected()) {
-    if (client.connect((char*) clientName.c_str())) {
-      Serial.println("Connected to MQTT broker again HX711");
-      Serial.print("Topic is: ");
-      Serial.println(topic);
+void sendHx711(String payload)
+{
+
+  if (
+        client.connect(MQTT::Connect((char*) clientName.c_str())
+                .set_clean_session()
+                .set_will("status", "down")
+                .set_keepalive(2))
+    ) {
+    Serial.println("Connected to MQTT broker");
+    Serial.print("Topic is: ");
+    Serial.println(topic);
+
+    if (client.publish(hellotopic, "hello from esp8266/arduino/s06")) {
+      Serial.println("Hello Publish ok");
     }
     else {
-      Serial.println("MQTT connect failed");
-      Serial.println("Will reset and try again...");
-      abort();
+      Serial.println("Hello Publish failed");
     }
+
   }
+  else {
+    Serial.println("MQTT connect failed");
+    Serial.println("Will reset and try again...");
+    abort();
+  }
+
 
   if (client.connected()) {
     Serial.print("Sending payload: ");
@@ -164,11 +156,28 @@ void sendHx711(String payload) {
 
     if (client.publish(topic, (char*) payload.c_str())) {
       Serial.println("Publish ok");
+      Serial.println(millis() - startMills);
+      client.disconnect();
+      Serial.println("set msgsentPin to LOW");
+      digitalWrite(msgsentPin, LOW);
     }
     else {
       Serial.println("Publish failed");
+      abort();
     }
   }
 
+}
+
+
+String macToStr(const uint8_t* mac)
+{
+  String result;
+  for (int i = 0; i < 6; ++i) {
+    result += String(mac[i], 16);
+    if (i < 5)
+      result += ':';
+  }
+  return result;
 }
 
