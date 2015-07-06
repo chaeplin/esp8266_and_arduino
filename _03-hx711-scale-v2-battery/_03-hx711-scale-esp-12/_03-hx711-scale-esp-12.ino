@@ -30,6 +30,9 @@ String clientName;
 WiFiClient wifiClient;
 String payload;
 
+long startMills ;
+
+
 IPAddress server(192, 168, 10, 10);
 PubSubClient client(wifiClient, server);
 
@@ -38,6 +41,7 @@ int vdd ;
 
 void setup() {
   Serial.begin(38400);
+  startMills = millis();
   //Wire.pins(4, 5);
   Wire.begin(4,5);
   Serial.println("HX711 START");
@@ -113,6 +117,10 @@ void requestHx711() {
 
      vdd = readvdd33();
 
+     if ( x > 10000 ) {
+        x = 0;
+     }
+
      payload = "{\"NemoWeight\":";
      payload += x;
      payload += ",\"vdd\":";
@@ -124,7 +132,6 @@ void requestHx711() {
 
 void sendHx711(String payload)
 {
-
   if (
         client.connect(MQTT::Connect((char*) clientName.c_str())
                 .set_clean_session()

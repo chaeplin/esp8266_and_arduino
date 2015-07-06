@@ -52,6 +52,9 @@ PubSubClient client(wifiClient, server);
 void setup()
 {
   Serial.begin(38400);
+
+  startMills = millis();
+
   Serial.println("Starting door alarm"); 
   pinMode(msgsentPin, OUTPUT);
   pinMode(doorstatusPin, INPUT);

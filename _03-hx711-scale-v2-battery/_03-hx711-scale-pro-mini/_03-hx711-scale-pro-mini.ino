@@ -25,9 +25,9 @@ int wakeUp2Pin     = 3;
 //
 int hx711PowerPin  = 4;
 
-// int espnemoIsonPadPin = 10;
-int espResetpin       = 11;
-int espRfStatePin     = 12; 
+int espnemoIsonPadPin = 10;
+int espResetPin       = 11;
+int espRfStatePin     = 12;
 
 int Measured ;
 int toI2cMeasured ;
@@ -40,7 +40,7 @@ int espRfstate = HIGH;
 
 // HX711.DOUT  - pin #A1
 // HX711.PD_SCK - pin #A0
-HX711 scale(A1, A0);  
+HX711 scale(A1, A0);
 
 // smoothing
 // https://www.arduino.cc/en/Tutorial/Smoothing
@@ -66,13 +66,13 @@ void setup() {
   pinMode(wakeUp2Pin, INPUT_PULLUP);
 
   pinMode(hx711PowerPin, OUTPUT);
-  
- // pinMode(espnemoIsonPadPin, OUTPUT);
-  pinMode(espResetpin, OUTPUT);
+
+  pinMode(espnemoIsonPadPin, OUTPUT);
+  pinMode(espResetPin, OUTPUT);
   pinMode(espRfStatePin, INPUT);
 
-  digitalWrite(hx711PowerPin, HIGH)
- // digitalWrite(espnemoIsonPadPin, LOW)
+  digitalWrite(hx711PowerPin, HIGH);
+  digitalWrite(espnemoIsonPadPin, LOW);
   digitalWrite(espResetPin, HIGH);
 
   attachInterrupt(0, WakeUp, CHANGE);
@@ -80,11 +80,11 @@ void setup() {
 
   startMills = millis();
 
-  scale.set_scale(23040.f);  
-  scale.tare();                 
-  
-  Wire.begin(2);                
-  Wire.onRequest(requestEvent); 
+  scale.set_scale(23040.f);
+  scale.tare();
+
+  Wire.begin(2);
+  Wire.onRequest(requestEvent);
 
   scale.power_down();
   delay(250);
@@ -93,6 +93,7 @@ void setup() {
     readings[thisReading] = 0 ;
 
   nemoIsoffPad = 0;
+
   sleepNow();
 
 }
@@ -106,22 +107,22 @@ void sleepNow()
   attachInterrupt(0, WakeUp, CHANGE);
   attachInterrupt(1, WakeUp, CHANGE);
 
-  sleep_mode();   
+  sleep_mode();
   sleep_disable();
   detachInterrupt(0);
-  detachInterrupt(1); 
+  detachInterrupt(1);
 
   scale.power_up();
   delay(400);
   Serial.println("Wake up at sleepNow");
-  
+
 }
 
-void WakeUp()   
-{ 
-    Serial.print("======> Wake up :  ");
-    Serial.println(millis() - startMills);
-    espRfstate = HIGH;
+void WakeUp()
+{
+  Serial.print("======> Wake up :  ");
+  Serial.println(millis() - startMills);
+  espRfstate = HIGH;
 }
 
 
@@ -139,76 +140,55 @@ void loop()
     if (indexof >= numReadings)
       indexof = 0;
 
-    average = total / numReadings;  
+    average = total / numReadings;
 
   }
 
   if ( average > 500 ) {
-      toI2cMeasured = average;
+    toI2cMeasured = average;
   }
 
   if ( Measured < 500 ) {
-      nemoIsoffPad = nemoIsoffPad + 1 ;
+    nemoIsoffPad = nemoIsoffPad + 1 ;
   }
-  
-  if ( nemoIsoffPad > 10 ) {
-      espReset();
-      while ( digitalRead(espRfStatePin) != LOW ) {
-            delay(500);
-            Serial.print(".");        
-      }
 
+  if ( nemoIsoffPad > 10 ) {
+    digitalWrite(espnemoIsonPadPin, HIGH);
+    espReset();
+    delay(5000);
+    if  ( digitalRead(espRfStatePin) == LOW ) {
       Serial.println(millis() - startMills);
       Serial.println("msg sent");
       scale.power_down();
+      digitalWrite(espnemoIsonPadPin, LOW);
       sleepNow();
+    } else {
+      scale.power_down();
+      digitalWrite(espnemoIsonPadPin, LOW);
+      sleepNow();
+    }
+  }
+    delay(100);
+
+
   }
 
-  delay(10);
 
-
-}
-
-/*
-void loop() {
-  
-  Serial.println(millis() - startMills);
-
-  Measured = int( scale.get_units(10) * 1000 );
-  
-  if ( Measured > 50 ) {
-    toI2cMeasured = Measured ;
-    digitalWrite(espRfStatePin,HIGH);
-  } else {
-    digitalWrite(espRfStatePin,LOW);
+  void espReset()
+  {
+    Serial.println("Reset ESP");
+    digitalWrite(espResetPin, LOW);
+    delay(10);
+    digitalWrite(espResetPin, HIGH);
   }
-  Serial.print("Measured: \t");
-  Serial.print(Measured);
-  Serial.print("\t");
-  Serial.println(toI2cMeasured);
-  
-  scale.power_down();             // put the ADC in sleep mode
-  delay(100);
-  scale.power_up();
-  
-}
-*/
 
-void espReset()
-{
-  Serial.println("Reset ESP");
-  digitalWrite(espResetPin, LOW);
-  delay(10);
-  digitalWrite(espResetPin, HIGH);
-}
+  void requestEvent()
+  {
+    byte myArray[2];
+    myArray[0] = (toI2cMeasured >> 8 ) & 0xFF;
+    myArray[1] = toI2cMeasured & 0xFF;
 
-void requestEvent()
-{
-  byte myArray[2];
-  myArray[0] = (toI2cMeasured >> 8 ) & 0xFF;
-  myArray[1] = toI2cMeasured & 0xFF;
-  
-  Wire.write(myArray, 2); // respond with message of 6 bytes
-}
+    Wire.write(myArray, 2); // respond with message of 6 bytes
+  }
 
 
