@@ -70,12 +70,18 @@ void setup() {
   digitalWrite(espnemoIsOnPadPin, LOW);
   digitalWrite(espResetPin, HIGH);
 
-  attachInterrupt(0, WakeUp, RISING);
-
   startMills = millis();
+
+  Serial.println("Initializing scale : start");
+  delay(5000);
 
   scale.set_scale(23040.f);
   scale.tare();
+
+  Serial.println("Initializing scale : done");
+
+
+  attachInterrupt(0, WakeUp, CHANGE);
 
   Wire.begin(2);
   Wire.onRequest(requestEvent);
@@ -83,10 +89,10 @@ void setup() {
   scale.power_down();
   delay(250);
 
-/*
-  for (int thisReading = 0; thisReading < numReadings; thisReading++)
-    readings[thisReading] = 0 ;
-*/
+  /*
+    for (int thisReading = 0; thisReading < numReadings; thisReading++)
+      readings[thisReading] = 0 ;
+  */
 
   sleepNow();
 
@@ -103,7 +109,7 @@ void sleepNow()
   delay(100);
   set_sleep_mode(SLEEP_MODE_PWR_DOWN);
   sleep_enable();
-  attachInterrupt(0, WakeUp, RISING);
+  attachInterrupt(0, WakeUp, CHANGE);
 
   sleep_mode();
   sleep_disable();
@@ -122,20 +128,26 @@ void sleepNow()
 void WakeUp()
 {
   Serial.print("======> Wake up :  ");
-  Serial.println(millis() - startMills);
   startMills = millis();
+  Serial.println(millis() - startMills);
 }
 
 void check_pad_status()
 {
-  Measured = int( scale.get_units(5) * 1000 );
+  Serial.print("======> checking pad :  ");
+  Serial.println(millis() - startMills);
+  Measured = int( scale.get_units(10) * 1000 );
+  Serial.print("======> weight : ");
+  Serial.print(Measured);
+  Serial.print(" ==> ");
+  Serial.println(millis() - startMills);
   if ( Measured > 500 )
   {
-    Serial.print("======> tilting detected, nemo is on pad");
+    Serial.println("======> tilting detected, nemo is on pad");
     digitalWrite(espnemoIsOnPadPin, HIGH);
     espReset();
   } else {
-    Serial.print("======> tilting detected, but nemo is not on pad");
+    Serial.println("======> tilting detected, but nemo is not on pad");
     sleepNow();
   }
 
@@ -143,25 +155,41 @@ void check_pad_status()
 
 void loop()
 {
-    check_pad_status();
-    delay(500);
+  Serial.print("======> checking weight :  ");
+  Serial.println(millis() - startMills);  
+
+  Measured = int( scale.get_units(5) * 1000 );
+
+  Serial.print("======> weight : ");
+  Serial.print(Measured);
+  Serial.print(" ==> ");
+  Serial.println(millis() - startMills);
+    
+  if ( Measured > 500 )
+  {
+    Serial.println("======> nemo is on pad now");
+  } else {
+    Serial.println("======> nemo is not on pad");
+    sleepNow();
+  }
+  delay(500);
 }
 
 void espReset()
 {
-    Serial.println("Reset ESP");
-    digitalWrite(espResetPin, LOW);
-    delay(10);
-    digitalWrite(espResetPin, HIGH);
+  Serial.println("Reset ESP");
+  digitalWrite(espResetPin, LOW);
+  delay(10);
+  digitalWrite(espResetPin, HIGH);
 }
 
 void requestEvent()
 {
-    byte myArray[2];
-    myArray[0] = (toI2cMeasured >> 8 ) & 0xFF;
-    myArray[1] = toI2cMeasured & 0xFF;
+  byte myArray[2];
+  myArray[0] = (Measured >> 8 ) & 0xFF;
+  myArray[1] = Measured & 0xFF;
 
-    Wire.write(myArray, 2); // respond with message of 6 bytes
+  Wire.write(myArray, 2); // respond with message of 6 bytes
 }
 
 
