@@ -614,8 +614,9 @@ void senddustDensity()
   payload = " {\"dustDensity\":";
   payload += dustDensity;
   payload += "}";
-
-  sendmqttMsg(payload);
+  if ( dustDensity < 0.6 ) {
+    sendmqttMsg(payload);
+  }
 }
 
 void sendmqttMsg(String payload)
