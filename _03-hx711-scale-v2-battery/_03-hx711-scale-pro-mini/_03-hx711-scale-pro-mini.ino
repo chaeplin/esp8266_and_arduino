@@ -19,6 +19,7 @@ A3, A4 --> I2C to esp8266 4, 5
 
 // tilt switch
 int wakeUpPin     = 2;
+int wakeUpPin2    = 3;
 
 //
 int hx711PowerPin  = 4;
@@ -60,20 +61,21 @@ void setup() {
   delay(100);
 
   pinMode(wakeUpPin, INPUT_PULLUP);
+  pinMode(wakeUpPin2, INPUT_PULLUP);
   pinMode(hx711PowerPin, OUTPUT);
 
   pinMode(espnemoIsOnPadPin, OUTPUT);
   pinMode(espResetPin, OUTPUT);
   pinMode(espRfStatePin, INPUT);
 
-  digitalWrite(hx711PowerPin, HIGH);
   digitalWrite(espnemoIsOnPadPin, LOW);
   digitalWrite(espResetPin, HIGH);
+  digitalWrite(hx711PowerPin, HIGH);
 
   startMills = millis();
 
   Serial.println("Initializing scale : start");
-  delay(5000);
+  delay(2000);
 
   scale.set_scale(23040.f);
   scale.tare();
@@ -82,6 +84,7 @@ void setup() {
 
 
   attachInterrupt(0, WakeUp, CHANGE);
+  attachInterrupt(1, WakeUp, CHANGE);
 
   Wire.begin(2);
   Wire.onRequest(requestEvent);
@@ -110,18 +113,19 @@ void sleepNow()
   set_sleep_mode(SLEEP_MODE_PWR_DOWN);
   sleep_enable();
   attachInterrupt(0, WakeUp, CHANGE);
-
+  attachInterrupt(1, WakeUp, CHANGE);
+  
   sleep_mode();
+  
   sleep_disable();
 
+  detachInterrupt(1);
   detachInterrupt(0);
 
   Serial.println("Wake up at sleepNow");
   Serial.println(millis() - startMills);
 
   scale.power_up();
-  delay(400);
-
   check_pad_status();
 }
 
@@ -133,15 +137,16 @@ void WakeUp()
 }
 
 void check_pad_status()
-{
+{ 
   Serial.print("======> checking pad :  ");
+  delay(500);
   Serial.println(millis() - startMills);
-  Measured = int( scale.get_units(10) * 1000 );
+  Measured = int( scale.get_units(5) * 1000 );
   Serial.print("======> weight : ");
   Serial.print(Measured);
   Serial.print(" ==> ");
   Serial.println(millis() - startMills);
-  if ( Measured > 500 )
+  if ( Measured > 50 )
   {
     Serial.println("======> tilting detected, nemo is on pad");
     digitalWrite(espnemoIsOnPadPin, HIGH);
@@ -165,7 +170,7 @@ void loop()
   Serial.print(" ==> ");
   Serial.println(millis() - startMills);
     
-  if ( Measured > 500 )
+  if ( Measured > 50 )
   {
     Serial.println("======> nemo is on pad now");
   } else {

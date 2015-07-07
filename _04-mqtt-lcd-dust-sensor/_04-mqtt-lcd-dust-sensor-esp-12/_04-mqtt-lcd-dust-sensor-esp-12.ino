@@ -47,7 +47,7 @@ volatile float T1 ;
 volatile float T2 ;
 volatile float OT ;
 volatile float PW ;
-volatile float NW ;
+volatile int NW ;
 volatile int PIR  ;
 float dustDensity ;
 
@@ -56,7 +56,7 @@ float OLD_T1 ;
 float OLD_T2 ;
 float OLD_OT ;
 float OLD_PW ;
-float OLD_NW ;
+int OLD_NW ;
 int OLD_PIR  ;
 float OLD_dustDensity ;
 
@@ -149,6 +149,17 @@ byte powericon[8] = //icon for dustDensity droplet
   B01100,
 };
 
+byte nemoicon[8] = //icon for dustDensity droplet
+{
+  B10001,
+  B11001,
+  B11101,
+  B10101,
+  B10101,
+  B10011,
+  B10011,
+  B10011,
+};
 
 
 PubSubClient client(wifiClient, server);
@@ -325,6 +336,7 @@ void setup() {
   lcd.createChar(4, dustDensityfill);
   lcd.createChar(5, pirfill);
   lcd.createChar(6, powericon);
+  lcd.createChar(7, nemoicon);
 
   lcd.setCursor(0, 1);
   lcd.write(1);
@@ -337,6 +349,9 @@ void setup() {
 
   lcd.setCursor(8, 2);  // power
   lcd.write(6);
+
+  lcd.setCursor(13, 3);
+  lcd.write(7);
 
   lcd.setCursor(6, 1);
   lcd.print((char)223); //degree sign
@@ -399,7 +414,11 @@ void checkDisplayValue() {
 
   if ( NW != OLD_NW )
   {
-    displayNemoWeightAvg();
+    if ( OLD_NW == -1000 ) {
+      displayNemoWeightAvg(NW);
+    } else {
+      displayNemoWeightAvg(OLD_NW);
+    }
     OLD_NW = NW;
   }
 
@@ -452,17 +471,24 @@ void displaypowerAvg(float Power)
   int length_Power = str_Power.length();
 
   lcd.setCursor(10, 2);
-  if ( 1 <= length_Power <=4 ) {  
-    for ( int i = 0; i < ( 4 - length_Power ) ; i++ ) {
-        lcd.print(" ");
-    }
-    lcd.print(Power, 0);
+  for ( int i = 0; i < ( 4 - length_Power ) ; i++ ) {
+    lcd.print(" ");
   }
+  lcd.print(str_Power);
+
 }
 
-void displayNemoWeightAvg()
+void displayNemoWeightAvg(int nemoWeight)
 {
+  String str_nemoWeight = String(nemoWeight);
+  int length_nemoWeight = str_nemoWeight.length();
 
+  lcd.setCursor(15, 3);
+
+  for ( int i = 0; i < ( 4 - length_nemoWeight ) ; i++ ) {
+    lcd.print(" ");
+  }
+  lcd.print(str_nemoWeight);
 }
 
 void displayPIR()
@@ -548,7 +574,7 @@ void displaydustDensity()
     lcd.write(4);
   }
 
-  for ( int o = 0 ; o <= ( 10 - n) ; o++) {
+  for ( int o = 0 ; o < ( 10 - n) ; o++) {
     lcd.print(" ");
   }
 }
