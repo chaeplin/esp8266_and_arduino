@@ -42,13 +42,13 @@ WiFiClient wifiClient;
 WiFiUDP udp;
 
 // volatile
-float H  ;
-float T1 ;
-float T2 ;
-float OT ;
-float PW ;
-float NW ;
-int PIR  ;
+volatile float H  ;
+volatile float T1 ;
+volatile float T2 ;
+volatile float OT ;
+volatile float PW ;
+volatile float NW ;
+volatile int PIR  ;
 float dustDensity ;
 
 float OLD_H  ;
@@ -202,7 +202,7 @@ void parseMqttMsg(String payload, String receivedtopic) {
   }
 
   if ( receivedtopic == "esp8266/arduino/s06" ) {
-    NW  = root["NemoWeightAvg"];
+    NW  = root["NemoWeight"];
   }
 
   if ( receivedtopic == "raspberrypi/doorpir" )
