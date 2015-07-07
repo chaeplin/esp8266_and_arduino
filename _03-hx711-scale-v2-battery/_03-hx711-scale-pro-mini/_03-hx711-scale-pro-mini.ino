@@ -3,8 +3,7 @@
 A0, A1 --> HX711
 A3, A4 --> I2C to esp8266 4, 5
 
-2 - int 0 - tilt sw - gnd : INPUT_PULLUP
-3 - int 1 - tilt sw - gnd : INPUT_PULLUP
+2 - int 0 - tilt sw * 2- gnd : INPUT_PULLUP
 4 - hx711 power : OUT
 
 10 - esp 13    : OUT   - nemo is on pad
@@ -19,29 +18,26 @@ A3, A4 --> I2C to esp8266 4, 5
 #include <Wire.h>
 
 // tilt switch
-int wakeUp1Pin     = 2;
-int wakeUp2Pin     = 3;
+int wakeUpPin     = 2;
 
 //
 int hx711PowerPin  = 4;
 
-int espnemoIsonPadPin = 10;
+int espnemoIsOnPadPin = 10;
 int espResetPin       = 11;
 int espRfStatePin     = 12;
 
 int Measured ;
-int toI2cMeasured ;
+int espRfstate ;
 
-long startMills;
+volatile long startMills;
 
-int nemoIsoffPad ;
-
-int espRfstate = HIGH;
 
 // HX711.DOUT  - pin #A1
 // HX711.PD_SCK - pin #A0
 HX711 scale(A1, A0);
 
+/*
 // smoothing
 // https://www.arduino.cc/en/Tutorial/Smoothing
 // Define the number of samples to keep track of.  The higher the number,
@@ -56,27 +52,25 @@ int indexof = 0;                // the indexof of the current reading
 int total = 0;                  // the running total
 int average = 0;                // the average
 
+*/
 
 void setup() {
   Serial.begin(38400);
   Serial.println("pet pad scale started");
   delay(100);
 
-  pinMode(wakeUp1Pin, INPUT_PULLUP);
-  pinMode(wakeUp2Pin, INPUT_PULLUP);
-
+  pinMode(wakeUpPin, INPUT_PULLUP);
   pinMode(hx711PowerPin, OUTPUT);
 
-  pinMode(espnemoIsonPadPin, OUTPUT);
+  pinMode(espnemoIsOnPadPin, OUTPUT);
   pinMode(espResetPin, OUTPUT);
   pinMode(espRfStatePin, INPUT);
 
   digitalWrite(hx711PowerPin, HIGH);
-  digitalWrite(espnemoIsonPadPin, LOW);
+  digitalWrite(espnemoIsOnPadPin, LOW);
   digitalWrite(espResetPin, HIGH);
 
-  attachInterrupt(0, WakeUp, CHANGE);
-  attachInterrupt(1, WakeUp, CHANGE);
+  attachInterrupt(0, WakeUp, RISING);
 
   startMills = millis();
 
@@ -89,10 +83,10 @@ void setup() {
   scale.power_down();
   delay(250);
 
+/*
   for (int thisReading = 0; thisReading < numReadings; thisReading++)
     readings[thisReading] = 0 ;
-
-  nemoIsoffPad = 0;
+*/
 
   sleepNow();
 
@@ -101,94 +95,73 @@ void setup() {
 void sleepNow()
 {
   Serial.println("Going sleep");
+
+  scale.power_down();
+  digitalWrite(espnemoIsOnPadPin, LOW);
+
+
   delay(100);
   set_sleep_mode(SLEEP_MODE_PWR_DOWN);
   sleep_enable();
-  attachInterrupt(0, WakeUp, CHANGE);
-  attachInterrupt(1, WakeUp, CHANGE);
+  attachInterrupt(0, WakeUp, RISING);
 
   sleep_mode();
   sleep_disable();
+
   detachInterrupt(0);
-  detachInterrupt(1);
+
+  Serial.println("Wake up at sleepNow");
+  Serial.println(millis() - startMills);
 
   scale.power_up();
   delay(400);
-  Serial.println("Wake up at sleepNow");
 
+  check_pad_status();
 }
 
 void WakeUp()
 {
   Serial.print("======> Wake up :  ");
   Serial.println(millis() - startMills);
-  espRfstate = HIGH;
+  startMills = millis();
 }
 
+void check_pad_status()
+{
+  Measured = int( scale.get_units(5) * 1000 );
+  if ( Measured > 500 )
+  {
+    Serial.print("======> tilting detected, nemo is on pad");
+    digitalWrite(espnemoIsOnPadPin, HIGH);
+    espReset();
+  } else {
+    Serial.print("======> tilting detected, but nemo is not on pad");
+    sleepNow();
+  }
+
+}
 
 void loop()
 {
+    check_pad_status();
+    delay(500);
+}
 
-  Measured = int( scale.get_units(5) * 1000 );
-
-  if ( Measured > 500 ) {
-
-    total = total - readings[indexof];
-    readings[indexof] = Measured;
-    total = total + readings[indexof];
-    indexof = indexof + 1;
-    if (indexof >= numReadings)
-      indexof = 0;
-
-    average = total / numReadings;
-
-  }
-
-  if ( average > 500 ) {
-    toI2cMeasured = average;
-  }
-
-  if ( Measured < 500 ) {
-    nemoIsoffPad = nemoIsoffPad + 1 ;
-  }
-
-  if ( nemoIsoffPad > 10 ) {
-    digitalWrite(espnemoIsonPadPin, HIGH);
-    espReset();
-    delay(5000);
-    if  ( digitalRead(espRfStatePin) == LOW ) {
-      Serial.println(millis() - startMills);
-      Serial.println("msg sent");
-      scale.power_down();
-      digitalWrite(espnemoIsonPadPin, LOW);
-      sleepNow();
-    } else {
-      scale.power_down();
-      digitalWrite(espnemoIsonPadPin, LOW);
-      sleepNow();
-    }
-  }
-    delay(100);
-
-
-  }
-
-
-  void espReset()
-  {
+void espReset()
+{
     Serial.println("Reset ESP");
     digitalWrite(espResetPin, LOW);
     delay(10);
     digitalWrite(espResetPin, HIGH);
-  }
+}
 
-  void requestEvent()
-  {
+void requestEvent()
+{
     byte myArray[2];
     myArray[0] = (toI2cMeasured >> 8 ) & 0xFF;
     myArray[1] = toI2cMeasured & 0xFF;
 
     Wire.write(myArray, 2); // respond with message of 6 bytes
-  }
+}
 
 
