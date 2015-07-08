@@ -146,7 +146,7 @@ void check_pad_status()
   Serial.print(Measured);
   Serial.print(" ==> ");
   Serial.println(millis() - startMills);
-  if ( Measured > 50 )
+  if ( Measured > 500 )
   {
     Serial.println("======> tilting detected, nemo is on pad");
     digitalWrite(espnemoIsOnPadPin, HIGH);
@@ -170,7 +170,7 @@ void loop()
   Serial.print(" ==> ");
   Serial.println(millis() - startMills);
     
-  if ( Measured > 50 )
+  if ( Measured > 500 )
   {
     Serial.println("======> nemo is on pad now");
   } else {
