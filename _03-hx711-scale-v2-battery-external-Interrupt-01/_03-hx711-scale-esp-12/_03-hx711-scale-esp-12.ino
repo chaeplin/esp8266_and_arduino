@@ -116,7 +116,6 @@ void setup() {
 
 
 void loop() {
- 
   int inuse = digitalRead(nemoisOnPadPin);
   
   if ( inuse == HIGH ) {
@@ -125,7 +124,7 @@ void loop() {
   } else {
     SleepNow();
   }
-  delay(500);
+  delay(1000);
 }
 
 

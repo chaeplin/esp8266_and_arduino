@@ -176,7 +176,7 @@ void loop()
     Serial.println("======> nemo is not on pad");
     sleepNow();
   }
-  delay(500);
+  delay(1000);
 }
 
 void espReset()
