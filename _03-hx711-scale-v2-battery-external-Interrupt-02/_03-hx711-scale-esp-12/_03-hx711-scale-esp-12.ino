@@ -91,11 +91,11 @@ void setup() {
   Serial.println(clientName);
 
   int inuse = digitalRead(nemoisOnPadPin);
-  
+
   if ( inuse == HIGH ) {
     requestHx711();
     sendHx711(payload);
-  } 
+  }
 }
 
 
@@ -133,7 +133,7 @@ void requestHx711() {
 
   if ( x == 65535 ) {
     Serial.println("scale is sleeping");
-    SleepNow();
+    return;
   } else {
 
     payload = "{\"NemoWeight\":";
@@ -141,9 +141,9 @@ void requestHx711() {
     payload += ",\"vdd\":";
     payload += vdd;
     payload += ",\"pro\":";
-    payload += y;    
+    payload += y;
     payload += "}";
-    
+
   }
 
 }
@@ -152,11 +152,11 @@ void requestHx711() {
 void sendHx711(String payload) {
 
   if (
-        client.connect(MQTT::Connect((char*) clientName.c_str())
-                .set_clean_session()
-                .set_will("status", "down")
-                .set_keepalive(2))
-    ) {
+    client.connect(MQTT::Connect((char*) clientName.c_str())
+                   .set_clean_session()
+                   .set_will("status", "down")
+                   .set_keepalive(2))
+  ) {
     Serial.println("Connected to MQTT broker");
     Serial.print("Topic is: ");
     Serial.println(topic);
@@ -181,10 +181,10 @@ void sendHx711(String payload) {
     Serial.println(payload);
 
     if (
-            client.publish(MQTT::Publish(topic, (char*) payload.c_str())
-                .set_retain()
-               )     
-      ) {
+      client.publish(MQTT::Publish(topic, (char*) payload.c_str())
+                     .set_retain()
+                    )
+    ) {
       Serial.println("Publish ok");
       Serial.println(millis() - startMills);
       client.disconnect();

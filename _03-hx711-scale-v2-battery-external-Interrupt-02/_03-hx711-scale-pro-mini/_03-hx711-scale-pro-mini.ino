@@ -42,7 +42,7 @@ int IsEspReseted = LOW ;
 // vcc
 const float VccMin   = 0.0;           // Minimum expected Vcc level, in Volts.
 const float VccMax   = 3.4;           // Maximum expected Vcc level, in Volts.
-const float VccCorrection = 1.0/1.0;  // Measured Vcc by multimeter divided by reported Vcc
+const float VccCorrection = 1.0 / 1.0; // Measured Vcc by multimeter divided by reported Vcc
 
 Vcc vcc(VccCorrection);
 
@@ -70,7 +70,7 @@ void setup() {
   Serial.begin(38400);
   Serial.println("pet pad scale started");
   delay(100);
-  
+
   Wire.begin(2);
   Wire.onRequest(requestEvent);
 
@@ -98,9 +98,9 @@ void setup() {
 
   for (int thisReading = 0; thisReading < numReadings; thisReading++)
     readings[thisReading] = 0 ;
-  
+
   sleepNow();
-    
+
 
 }
 
@@ -123,9 +123,9 @@ void sleepNow()
   set_sleep_mode(SLEEP_MODE_PWR_DOWN);
   sleep_enable();
   attachInterrupt(0, WakeUp, CHANGE);
-  
+
   sleep_mode();
-  
+
   sleep_disable();
   detachInterrupt(0);
 
@@ -144,7 +144,7 @@ void WakeUp()
 }
 
 void check_pad_status()
-{  
+{
   digitalWrite(ledPowerPin, HIGH);
 
   Serial.print("======> checking pad :  ");
@@ -166,7 +166,7 @@ void check_pad_status()
     digitalWrite(espnemoIsOnPadPin, HIGH);
     espReset();
     */
-   
+
   } else {
     Serial.println("======> tilting detected, but nemo is not on pad");
     sleepNow();
@@ -178,7 +178,7 @@ void loop()
 {
 
   Serial.print("======> checking weight :  ");
-  Serial.println(millis() - startMills);  
+  Serial.println(millis() - startMills);
 
   Measured = int( scale.get_units(5) * 1000 );
 
@@ -187,28 +187,35 @@ void loop()
   Serial.print(" ==> ");
   Serial.println(millis() - startMills);
 
-   if ( Measured > 500 ) 
+  if ( Measured > 500 )
   {
     Serial.println("======> nemo is on pad now");
-     
-    total= total - readings[index];         
-    readings[index] = analogRead(inputPin); 
-    total= total + readings[index];       
-    index = index + 1;                    
 
-    if (index >= numReadings)              
-      index = 0;                           
+    total = total - readings[indexof];
+    readings[indexof] = Measured;
+    total = total + readings[indexof];
+    indexof = indexof + 1;
 
-    average = total / numReadings;         
+    if (indexof >= numReadings)
+      indexof = 0;
+
+    average = total / numReadings;
+
+    Serial.print("======> average : ");
+    Serial.print(average);
+    Serial.print(" ==> ");
+    Serial.println(millis() - startMills);
 
   } else {
-      Serial.println("======> nemo is not on pad now");    
-      Attempt++;
-  } 
+    Serial.println("======> nemo is not on pad now");
+    Attempt++;
+  }
 
-  if ((( average > 4000 ) && ( Measured < 500) ) && ( IsEspReseted == LOW ))
+  if ((( average > 3000 ) && ( Measured < 500) ) && ( IsEspReseted == LOW ))
   {
-    VccValue = vcc.Read_Volts();
+    VccValue = vcc.Read_Volts() * 1000 ;
+    Serial.print("======> VCC ");
+    Serial.println(VccValue);
     digitalWrite(espnemoIsOnPadPin, HIGH);
     espReset();
     IsEspReseted = HIGH;
@@ -216,18 +223,18 @@ void loop()
     delay(5000);
   }
 
-  if ( Attempt == 10 ) 
+  if ( Attempt == 10 )
   {
-    Serial.println("======> I2C or Measurement has problem");       
+    Serial.println("======> I2C or Measurement has problem");
     sleepNow();
   }
 
-  if ( MeasuredIsSent = HIGH )
+  if ( MeasuredIsSent == HIGH )
   {
-    Serial.println("======> I2C msg has sent");          
+    Serial.println("======> I2C msg has sent");
     sleepNow();
   }
-  
+
   delay(500);
 
 }
@@ -243,12 +250,13 @@ void espReset()
 void requestEvent()
 {
   byte myArray[4];
-  myArray[0] = (Measured >> 8 ) & 0xFF;
-  myArray[1] = Measured & 0xFF;
-  myArray[2] = (VccValue >> 8 ) & 0xFF;
-  myArray[3] = VccValue & 0xFF;
 
-  Wire.write(myArray, 4); 
+  myArray[0] = (average >> 8 ) & 0xFF;
+  myArray[1] = average & 0xFF;
+  myArray[2] = (int(VccValue) >> 8 ) & 0xFF;
+  myArray[3] = int(VccValue) & 0xFF;
+
+  Wire.write(myArray, 4);
 
   MeasuredIsSent = HIGH;
 }
