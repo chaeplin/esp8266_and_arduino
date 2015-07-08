@@ -90,46 +90,16 @@ void setup() {
   Serial.print(" as ");
   Serial.println(clientName);
 
-  if (
-          client.connect(MQTT::Connect((char*) clientName.c_str())
-                .set_clean_session()
-                .set_will("status", "down")
-                .set_keepalive(2))
-    ) {
-    Serial.println("Connected to MQTT broker");
-    Serial.print("Topic is: ");
-    Serial.println(topic);
-
-    if (client.publish(hellotopic, "hello from ESP8266 s06")) {
-      Serial.println("Publish ok");
-    } else {
-      Serial.println("Publish failed");
-    }
-
-  } else {
-    Serial.println("MQTT connect failed");
-    Serial.println("Will reset and try again...");
-    abort();
-  }
-
-}
-
-
-void loop() {
- 
   int inuse = digitalRead(nemoisOnPadPin);
   
   if ( inuse == HIGH ) {
     requestHx711();
     sendHx711(payload);
-  } else {
-    SleepNow();
-  }
-  delay(500);
+  } 
 }
 
 
-void SleepNow() {
+void loop() {
   Serial.println(millis() - startMills);
   Serial.println("going to sleep");
   delay(200);
@@ -138,30 +108,40 @@ void SleepNow() {
 }
 
 void requestHx711() {
-  Wire.requestFrom(2, 2);
+  Wire.requestFrom(2, 4);
 
-  int x;
-  byte a, b;
+  int x, y;
+  byte a, b, c, d;
 
   a = Wire.read();
   b = Wire.read();
+  c = Wire.read();
+  d = Wire.read();
 
   x = a;
   x = x << 8 | b;
 
+  y = c;
+  y = y << 8 | d;
+
   Serial.print("Raw Signal Value: ");
   Serial.println(x);
+
+  Serial.print("VDD Signal Value: ");
+  Serial.println(y);
+
 
   if ( x == 65535 ) {
     Serial.println("scale is sleeping");
     SleepNow();
   } else {
-   // vdd = readvdd33();
-    
+
     payload = "{\"NemoWeight\":";
     payload += x;
     payload += ",\"vdd\":";
     payload += vdd;
+    payload += ",\"pro\":";
+    payload += y;    
     payload += "}";
     
   }
@@ -170,23 +150,31 @@ void requestHx711() {
 
 
 void sendHx711(String payload) {
-  if (!client.connected()) {
-    if (
-                client.connect(MQTT::Connect((char*) clientName.c_str())
+
+  if (
+        client.connect(MQTT::Connect((char*) clientName.c_str())
                 .set_clean_session()
                 .set_will("status", "down")
                 .set_keepalive(2))
-      ) {
-      Serial.println("Connected to MQTT broker again HX711");
-      Serial.print("Topic is: ");
-      Serial.println(topic);
+    ) {
+    Serial.println("Connected to MQTT broker");
+    Serial.print("Topic is: ");
+    Serial.println(topic);
+
+    if (client.publish(hellotopic, "hello from esp8266/arduino/s06")) {
+      Serial.println("Hello Publish ok");
     }
     else {
-      Serial.println("MQTT connect failed");
-      Serial.println("Will reset and try again...");
-      abort();
+      Serial.println("Hello Publish failed");
     }
+
   }
+  else {
+    Serial.println("MQTT connect failed");
+    Serial.println("Will reset and try again...");
+    abort();
+  }
+
 
   if (client.connected()) {
     Serial.print("Sending payload: ");
@@ -198,9 +186,12 @@ void sendHx711(String payload) {
                )     
       ) {
       Serial.println("Publish ok");
+      Serial.println(millis() - startMills);
+      client.disconnect();
     }
     else {
       Serial.println("Publish failed");
+      abort();
     }
   }
 
