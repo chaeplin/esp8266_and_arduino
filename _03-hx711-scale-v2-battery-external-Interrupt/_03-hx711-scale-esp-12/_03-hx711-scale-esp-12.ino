@@ -36,7 +36,6 @@ long startMills ;
 IPAddress server(192, 168, 10, 10);
 PubSubClient client(wifiClient, server);
 
-int inuse = LOW;
 int nemoisOnPadPin = 13;
 
 int vdd ;
@@ -48,7 +47,7 @@ void setup() {
   Wire.begin(4, 5);
   Serial.println("pet pad scale started");
 
-  pinMode(nemoisOnPadPin, INPUT);
+  pinMode(nemoisOnPadPin, INPUT_PULLUP);
 
   Serial.println();
   Serial.println();
@@ -118,7 +117,7 @@ void setup() {
 
 void loop() {
  
-  inuse = digitalRead(nemoisOnPadPin);
+  int inuse = digitalRead(nemoisOnPadPin);
   
   if ( inuse == HIGH ) {
     requestHx711();

@@ -4,7 +4,7 @@ A0, A1 --> HX711
 A3, A4 --> I2C to esp8266 4, 5
 
 2 - int 0 - tilt sw * 2- gnd : INPUT_PULLUP
-4 - hx711 power : OUT
+4 - LED
 
 10 - esp 13    : OUT   - nemo is on pad
 11 - esp reset : OUT   - reset esp8266
@@ -19,17 +19,16 @@ A3, A4 --> I2C to esp8266 4, 5
 
 // tilt switch
 int wakeUpPin     = 2;
-int wakeUpPin2    = 3;
 
 //
-int hx711PowerPin  = 4;
+int ledPowerPin  = 4;
 
 int espnemoIsOnPadPin = 10;
 int espResetPin       = 11;
-int espRfStatePin     = 12;
+//int espRfStatePin     = 12;
 
-int Measured ;
-int espRfstate ;
+volatile int Measured ;
+//int espRfstate ;
 
 volatile long startMills;
 
@@ -61,16 +60,15 @@ void setup() {
   delay(100);
 
   pinMode(wakeUpPin, INPUT_PULLUP);
-  pinMode(wakeUpPin2, INPUT_PULLUP);
-  pinMode(hx711PowerPin, OUTPUT);
 
+  pinMode(ledPowerPin, OUTPUT);
   pinMode(espnemoIsOnPadPin, OUTPUT);
   pinMode(espResetPin, OUTPUT);
-  pinMode(espRfStatePin, INPUT);
+  //pinMode(espRfStatePin, INPUT);
 
   digitalWrite(espnemoIsOnPadPin, LOW);
-  digitalWrite(espResetPin, HIGH);
-  digitalWrite(hx711PowerPin, HIGH);
+  digitalWrite(espResetPin, LOW);
+  digitalWrite(ledPowerPin, LOW);
 
   startMills = millis();
 
@@ -82,9 +80,7 @@ void setup() {
 
   Serial.println("Initializing scale : done");
 
-
   attachInterrupt(0, WakeUp, CHANGE);
-  attachInterrupt(1, WakeUp, CHANGE);
 
   Wire.begin(2);
   Wire.onRequest(requestEvent);
@@ -107,19 +103,16 @@ void sleepNow()
 
   scale.power_down();
   digitalWrite(espnemoIsOnPadPin, LOW);
-
+  digitalWrite(ledPowerPin, LOW);
 
   delay(100);
   set_sleep_mode(SLEEP_MODE_PWR_DOWN);
   sleep_enable();
   attachInterrupt(0, WakeUp, CHANGE);
-  attachInterrupt(1, WakeUp, CHANGE);
   
   sleep_mode();
   
   sleep_disable();
-
-  detachInterrupt(1);
   detachInterrupt(0);
 
   Serial.println("Wake up at sleepNow");
@@ -137,15 +130,20 @@ void WakeUp()
 }
 
 void check_pad_status()
-{ 
+{  
+  digitalWrite(ledPowerPin, HIGH);
+
   Serial.print("======> checking pad :  ");
   delay(500);
   Serial.println(millis() - startMills);
-  Measured = int( scale.get_units(5) * 1000 );
+
+  Measured = int( scale.get_units(3) * 1000 );
+
   Serial.print("======> weight : ");
   Serial.print(Measured);
   Serial.print(" ==> ");
   Serial.println(millis() - startMills);
+
   if ( Measured > 500 )
   {
     Serial.println("======> tilting detected, nemo is on pad");
@@ -183,9 +181,9 @@ void loop()
 void espReset()
 {
   Serial.println("Reset ESP");
-  digitalWrite(espResetPin, LOW);
-  delay(10);
   digitalWrite(espResetPin, HIGH);
+  delay(10);
+  digitalWrite(espResetPin, LOW);
 }
 
 void requestEvent()
