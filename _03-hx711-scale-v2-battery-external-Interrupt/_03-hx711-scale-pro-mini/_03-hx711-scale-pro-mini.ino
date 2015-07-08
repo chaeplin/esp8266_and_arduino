@@ -58,6 +58,9 @@ void setup() {
   Serial.begin(38400);
   Serial.println("pet pad scale started");
   delay(100);
+  
+  Wire.begin(2);
+  Wire.onRequest(requestEvent);
 
   pinMode(wakeUpPin, INPUT_PULLUP);
 
@@ -68,25 +71,21 @@ void setup() {
 
   digitalWrite(espnemoIsOnPadPin, LOW);
   digitalWrite(espResetPin, LOW);
-  digitalWrite(ledPowerPin, LOW);
+  digitalWrite(ledPowerPin, HIGH);
 
   startMills = millis();
 
   Serial.println("Initializing scale : start");
-  delay(2000);
+  //delay(2000);
 
   scale.set_scale(23040.f);
   scale.tare();
 
+  scale.power_down();
   Serial.println("Initializing scale : done");
 
   attachInterrupt(0, WakeUp, CHANGE);
 
-  Wire.begin(2);
-  Wire.onRequest(requestEvent);
-
-  scale.power_down();
-  delay(250);
 
   /*
     for (int thisReading = 0; thisReading < numReadings; thisReading++)
@@ -94,6 +93,7 @@ void setup() {
   */
 
   sleepNow();
+    
 
 }
 
@@ -118,7 +118,6 @@ void sleepNow()
   Serial.println("Wake up at sleepNow");
   Serial.println(millis() - startMills);
 
-  scale.power_up();
   check_pad_status();
 }
 
@@ -127,6 +126,8 @@ void WakeUp()
   Serial.print("======> Wake up :  ");
   startMills = millis();
   Serial.println(millis() - startMills);
+  scale.power_up();
+
 }
 
 void check_pad_status()
@@ -181,9 +182,10 @@ void loop()
 void espReset()
 {
   Serial.println("Reset ESP");
-  digitalWrite(espResetPin, HIGH);
-  delay(10);
   digitalWrite(espResetPin, LOW);
+  delay(10);
+  digitalWrite(espResetPin, HIGH);
+  
 }
 
 void requestEvent()
