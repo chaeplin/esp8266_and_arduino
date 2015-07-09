@@ -8,12 +8,6 @@
 - alert : mqttwarn 
 
 
-![1](https://raw.githubusercontent.com/chaeplin/esp8266_and_arduino/master/_01-door-alarm/pics/01.png)
-![2](https://raw.githubusercontent.com/chaeplin/esp8266_and_arduino/master/_06-power-meter/pics/1.jpg)
-![3](https://raw.githubusercontent.com/chaeplin/esp8266_and_arduino/master/_02-mqtt-sw/pics/4.jpg)
-![4](https://raw.githubusercontent.com/chaeplin/esp8266_and_arduino/master/_03-hx711-scale/pics/1.jpg)
-![5](https://raw.githubusercontent.com/chaeplin/esp8266_and_arduino/master/_04-mqtt-lcd-dust-sensor/pics/3.jpg)
-
 #### _01-door-alarm ####
 - esp-12 +(gpio) pro mini
 - active buzzer, magnetic door sw, capacitor, battery
@@ -28,7 +22,7 @@
 
 #### _03-hx711-scale ####
 - esp-12 +(i2c) pro mini
-- hx711, load cell
+- hx711, load cell, tilt sw
 - pub measured weight of pet
 
 
@@ -49,3 +43,10 @@
 - CT sensor, line tracker
 - pub power usage
 
+
+
+![1](https://raw.githubusercontent.com/chaeplin/esp8266_and_arduino/master/_01-door-alarm/pics/01.png)
+![2](https://raw.githubusercontent.com/chaeplin/esp8266_and_arduino/master/_06-power-meter/pics/1.jpg)
+![3](https://raw.githubusercontent.com/chaeplin/esp8266_and_arduino/master/_02-mqtt-sw/pics/4.jpg)
+![4](https://raw.githubusercontent.com/chaeplin/esp8266_and_arduino/master/_03-hx711-scale/pics/1.jpg)
+![5](https://raw.githubusercontent.com/chaeplin/esp8266_and_arduino/master/_04-mqtt-lcd-dust-sensor/pics/3.jpg)
