@@ -59,7 +59,7 @@ HX711 scale(A1, A0);
 // respond to the input.  Using a constant rather than a normal variable lets
 // use this value to determine the size of the readings array.
 
-const int numReadings = 10;
+const int numReadings = 5;
 
 int readings[numReadings];      // the readings from the analog input
 int indexof = 0;                // the indexof of the current reading
@@ -83,7 +83,7 @@ void setup() {
   pinMode(espResetPin, OUTPUT);
 
   digitalWrite(espnemoIsOnPadPin, LOW);
-  digitalWrite(espResetPin, LOW);
+  digitalWrite(espResetPin, HIGH);
   digitalWrite(ledPowerPin, HIGH);
 
   startMills = millis();
@@ -98,11 +98,11 @@ void setup() {
 
   attachInterrupt(0, WakeUp, CHANGE);
 
-  for (int thisReading = 0; thisReading < numReadings; thisReading++)
+  for (int thisReading = 0; thisReading < numReadings; thisReading++) {
     readings[thisReading] = 0 ;
+  }
 
   sleepNow();
-
 
 }
 
@@ -151,11 +151,11 @@ void check_pad_status()
 
   Serial.print("======> checking pad :  ");
   delay(500);
-  Serial.println(millis() - startMills);
+  Serial.print(millis() - startMills);
 
   Measured = int( scale.get_units(3) * 1000 );
 
-  Serial.print("======> weight : ");
+  Serial.print(" ====> weight : ");
   Serial.print(Measured);
   Serial.print(" ==> ");
   Serial.println(millis() - startMills);
@@ -163,7 +163,6 @@ void check_pad_status()
   if ( Measured > 500 )
   {
     Serial.println("======> tilting detected, nemo is on pad");
-
     /*
     digitalWrite(espnemoIsOnPadPin, HIGH);
     espReset();
@@ -179,19 +178,18 @@ void check_pad_status()
 void loop()
 {
 
-  Serial.print("======> checking weight :  ");
-  Serial.println(millis() - startMills);
+  //Serial.print("=====> checking weight :  ");
+  //Serial.println(millis() - startMills);
 
   Measured = int( scale.get_units(5) * 1000 );
 
-  Serial.print("======> weight : ");
+  Serial.print("==> weight : ");
   Serial.print(Measured);
   Serial.print(" ==> ");
-  Serial.println(millis() - startMills);
 
-  if ( Measured > 500 )
+  if (( Measured > 500 ) && ( Measured > (average - 200)) )
   {
-    Serial.println("======> nemo is on pad now");
+    // Serial.println("======> nemo is on pad now");
 
     total = total - readings[indexof];
     readings[indexof] = Measured;
@@ -203,20 +201,23 @@ void loop()
 
     average = total / numReadings;
 
-    Serial.print("======> average : ");
-    Serial.print(average);
-    Serial.print(" ==> ");
-    Serial.println(millis() - startMills);
+    Serial.print("  average ==>  ");
+    Serial.println(average);
 
   } else {
-    Serial.println("======> nemo is not on pad now");
+    if ( Attempt == 1) {
+      Serial.println("");
+      Serial.print("============> nemo is not on pad now");
+    }
+    Serial.println("");
     Attempt++;
   }
 
-  if ((( average > 3000 ) && ( Measured < 500) ) && ( IsEspReseted == LOW ))
+  if ((( average > 1000 ) && ( Measured < 500) ) && ( IsEspReseted == LOW ))
   {
     VccValue = vcc.Read_Volts() * 1000 ;
-    Serial.print("======> VCC ");
+    Serial.println("");
+    Serial.print("==========> VCC ");
     Serial.println(VccValue);
     digitalWrite(espnemoIsOnPadPin, HIGH);
     espReset();
@@ -237,7 +238,7 @@ void loop()
     sleepNow();
   }
 
-  if ( MeasuredIsSent == HIGH )
+  if (( MeasuredIsSent == HIGH ) && ( Attempt == 1))
   {
     Serial.println("======> I2C msg has sent");
   }
@@ -245,7 +246,7 @@ void loop()
   if (( MeasuredIsSent == HIGH) && ( mqttMsgSent == HIGH ))
   {
     Serial.println("======> mqtt msg has sent");
-    sleepNow();   
+    sleepNow();
   }
 
   delay(500);
@@ -279,7 +280,7 @@ void receiveEvent(int howMany)
   int x = Wire.read();    // receive byte as an integer
   Serial.println(x);         // print the integer
   if ( x == 1 ) {
-     mqttMsgSent = HIGH;
+    mqttMsgSent = HIGH;
   }
 }
 
