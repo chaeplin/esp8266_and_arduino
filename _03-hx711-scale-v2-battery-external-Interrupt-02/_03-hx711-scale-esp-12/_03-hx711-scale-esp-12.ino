@@ -6,7 +6,7 @@
 #else
 #include <avr/pgmspace.h>
 #endif
-#include <Wire.h>  /
+#include <Wire.h>  
 
 
 extern "C" {
@@ -40,7 +40,8 @@ int nemoisOnPadPin = 13;
 
 int vdd ;
 
-void setup() {
+void setup() 
+{
   Serial.begin(38400);
   startMills = millis();
   //Wire.pins(4, 5);
@@ -99,7 +100,8 @@ void setup() {
 }
 
 
-void loop() {
+void loop() 
+{
   Serial.println(millis() - startMills);
   Serial.println("going to sleep");
   delay(200);
@@ -107,7 +109,16 @@ void loop() {
   delay(200);
 }
 
-void requestHx711() {
+void sendMsgSentSig() 
+{
+  int x = 1;
+  Wire.beginTransmission(2);
+  Wire.write(x);
+  Wire.endTransmission();
+}
+
+void requestHx711() 
+{
   Wire.requestFrom(2, 4);
 
   int x, y;
@@ -149,7 +160,8 @@ void requestHx711() {
 }
 
 
-void sendHx711(String payload) {
+void sendHx711(String payload) 
+{
 
   if (
     client.connect(MQTT::Connect((char*) clientName.c_str())
@@ -188,6 +200,7 @@ void sendHx711(String payload) {
       Serial.println("Publish ok");
       Serial.println(millis() - startMills);
       client.disconnect();
+      sendMsgSentSig();
     }
     else {
       Serial.println("Publish failed");

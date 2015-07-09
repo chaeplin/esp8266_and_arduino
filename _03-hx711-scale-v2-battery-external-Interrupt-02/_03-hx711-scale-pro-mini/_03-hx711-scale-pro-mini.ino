@@ -37,7 +37,8 @@ volatile long startMills;
 volatile int MeasuredIsSent = LOW;
 float VccValue = 0;
 int Attempt = 0;
-int IsEspReseted = LOW ;
+int IsEspReseted = LOW;
+int mqttMsgSent = LOW;
 
 // vcc
 const float VccMin   = 0.0;           // Minimum expected Vcc level, in Volts.
@@ -73,6 +74,7 @@ void setup() {
 
   Wire.begin(2);
   Wire.onRequest(requestEvent);
+  Wire.onReceive(receiveEvent);
 
   pinMode(wakeUpPin, INPUT_PULLUP);
 
@@ -220,19 +222,30 @@ void loop()
     espReset();
     IsEspReseted = HIGH;
     Attempt = 0;
-    delay(5000);
+    //delay(5000);
   }
 
-  if ( Attempt == 10 )
+  if (( Attempt == 10 ) && ( IsEspReseted == LOW ) )
   {
-    Serial.println("======> I2C or Measurement has problem");
+    Serial.println("======> Measurement has problem");
+    sleepNow();
+  }
+
+  if (( Attempt == 20 ) && ( MeasuredIsSent == LOW ) && ( IsEspReseted == HIGH ))
+  {
+    Serial.println("======> I2C has problem");
     sleepNow();
   }
 
   if ( MeasuredIsSent == HIGH )
   {
     Serial.println("======> I2C msg has sent");
-    sleepNow();
+  }
+
+  if (( MeasuredIsSent == HIGH) && ( mqttMsgSent == HIGH ))
+  {
+    Serial.println("======> mqtt msg has sent");
+    sleepNow();   
   }
 
   delay(500);
@@ -260,5 +273,15 @@ void requestEvent()
 
   MeasuredIsSent = HIGH;
 }
+
+void receiveEvent(int howMany)
+{
+  int x = Wire.read();    // receive byte as an integer
+  Serial.println(x);         // print the integer
+  if ( x == 1 ) {
+     mqttMsgSent = HIGH;
+  }
+}
+
 
 
