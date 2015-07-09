@@ -182,7 +182,7 @@ void loop()
   //Serial.println(millis() - startMills);
   if ( IsEspReseted == LOW ) {
       Measured = int( scale.get_units(5) * 1000 );
-
+      Serial.println("");
       Serial.print("==> weight : ");
       Serial.print(Measured);
       Serial.print(" ==> ");
@@ -220,7 +220,7 @@ void loop()
     Attempt++;
   }
 
-  if (( average > 1000 ) && ( Measured > (average - 200)) && ( IsEspReseted == LOW ))
+  if (( average > 1000 ) && ( Measured < (average - 500)) && ( IsEspReseted == LOW ))
   {
     VccValue = vcc.Read_Volts() * 1000 ;
     Serial.println("");

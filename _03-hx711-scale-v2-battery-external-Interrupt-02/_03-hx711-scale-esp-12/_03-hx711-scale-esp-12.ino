@@ -44,6 +44,7 @@ void setup()
   Serial.begin(38400);
   startMills = millis();
   //Wire.pins(4, 5);
+  delay(200);
   Wire.begin(4, 5);
   Serial.println("pet pad scale started");
 
@@ -71,10 +72,6 @@ void setup()
   Serial.println("IP address: ");
   Serial.println(WiFi.localIP());
 
-  delay(200);
-
-  vdd = readvdd33();
-
   clientName += "esp8266-";
   uint8_t mac[6];
   WiFi.macAddress(mac);
@@ -94,6 +91,7 @@ void setup()
 
 void loop() 
 {
+  vdd = readvdd33();
   delay(200);
   requestHx711();
   delay(200);
