@@ -417,7 +417,7 @@ void checkDisplayValue() {
     if ( OLD_NW == -1000 ) {
       displayNemoWeightAvg(NW);
     } else {
-      displayNemoWeightAvg(OLD_NW);
+      displayNemoWeightAvg(NW);
     }
     OLD_NW = NW;
   }
