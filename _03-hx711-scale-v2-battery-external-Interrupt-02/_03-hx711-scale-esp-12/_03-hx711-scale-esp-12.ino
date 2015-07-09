@@ -36,9 +36,8 @@ long startMills ;
 IPAddress server(192, 168, 10, 10);
 PubSubClient client(wifiClient, server);
 
-int nemoisOnPadPin = 13;
-
 int vdd ;
+int msgReceived = LOW ;
 
 void setup() 
 {
@@ -47,8 +46,6 @@ void setup()
   //Wire.pins(4, 5);
   Wire.begin(4, 5);
   Serial.println("pet pad scale started");
-
-  pinMode(nemoisOnPadPin, INPUT_PULLUP);
 
   Serial.println();
   Serial.println();
@@ -74,6 +71,7 @@ void setup()
   Serial.println("IP address: ");
   Serial.println(WiFi.localIP());
 
+  delay(200);
 
   vdd = readvdd33();
 
@@ -91,30 +89,27 @@ void setup()
   Serial.print(" as ");
   Serial.println(clientName);
 
-  int inuse = digitalRead(nemoisOnPadPin);
-
-  if ( inuse == HIGH ) {
-    requestHx711();
-    sendHx711(payload);
-  }
 }
 
 
 void loop() 
 {
+  delay(200);
+  requestHx711();
+  delay(200);
+
+  if ( msgReceived == HIGH )
+  {
+    sendHx711(payload);
+  }
+  delay(200);
+  
   Serial.println(millis() - startMills);
   Serial.println("going to sleep");
+
   delay(200);
   ESP.deepSleep(0);
   delay(200);
-}
-
-void sendMsgSentSig() 
-{
-  int x = 1;
-  Wire.beginTransmission(2);
-  Wire.write(x);
-  Wire.endTransmission();
 }
 
 void requestHx711() 
@@ -155,10 +150,19 @@ void requestHx711()
     payload += y;
     payload += "}";
 
+    msgReceived = HIGH ;
+
   }
 
 }
 
+void sendMsgSentSig() 
+{
+  int x = 1;
+  Wire.beginTransmission(2);
+  Wire.write(x);
+  Wire.endTransmission();
+}
 
 void sendHx711(String payload) 
 {
