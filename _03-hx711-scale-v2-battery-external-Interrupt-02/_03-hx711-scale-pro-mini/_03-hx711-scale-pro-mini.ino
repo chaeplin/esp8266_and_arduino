@@ -240,7 +240,7 @@ void loop()
           sleepNow();
       }
 
-      if (( mqttMsgSent == HIGH ) 
+      if ( mqttMsgSent == HIGH ) 
       {
         Serial.println("======> mqtt msg has sent");
         digitalWrite(ledPowerPin, LOW);
