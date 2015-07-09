@@ -162,11 +162,13 @@ void check_pad_status()
 
   if ( Measured > 500 )
   {
+    delat(2000);
+    int average_Measured = int( scale.get_units(5) * 1000 );
     Serial.println("======> tilting detected, nemo is on pad");
-    /*
-    digitalWrite(espnemoIsOnPadPin, HIGH);
-    espReset();
-    */
+
+    for (int thisReading = 0; thisReading < numReadings; thisReading++) {
+      readings[thisReading] = average_Measured ;
+    }
 
   } else {
     Serial.println("======> tilting detected, but nemo is not on pad");
@@ -178,79 +180,73 @@ void check_pad_status()
 void loop()
 {
 
-  //Serial.print("=====> checking weight :  ");
-  //Serial.println(millis() - startMills);
-  if ( IsEspReseted == LOW ) {
+  if ( IsEspReseted == LOW ) 
+  {
       Measured = int( scale.get_units(5) * 1000 );
-      Serial.println("");
       Serial.print("==> weight : ");
       Serial.print(Measured);
       Serial.print(" ==> ");
-  }
 
-  if (( Measured > 500 ) && ( Measured > (average - 200)) && ( IsEspReseted == LOW ) )
-  {
-    // Serial.println("======> nemo is on pad now");
+      if (( Measured > 500 ) && ( Measured > (average - 500)))
+      {
+            total = total - readings[indexof];
+            readings[indexof] = Measured;
+            total = total + readings[indexof];
+            indexof = indexof + 1;
 
-    total = total - readings[indexof];
-    readings[indexof] = Measured;
-    total = total + readings[indexof];
-    indexof = indexof + 1;
+            if (indexof >= numReadings) 
+            {
+              indexof = 0;
+            }
 
-    if (indexof >= numReadings)
-      indexof = 0;
+            average = total / numReadings;
 
-    average = total / numReadings;
+            Serial.print("  average ==>  ");
+            Serial.println(average);
+      } else {
+            Serial.println("");
+      }         
 
-    Serial.print("  average ==>  ");
-    Serial.println(average);
+      if ( Measured <= 500 ) 
+      {
+            if ( Attempt == 0 ) 
+            {
+              Serial.println("");
+              Serial.print("============> nemo is not on pad now");
+            }
+            Serial.println("");
+            Attempt++;
+      }
 
-  }  
+      if ( Attempt == 10 )
+      {
+            Serial.println("======> Measurement has problem");
+            sleepNow();
+      }
 
-  if ( ( Measured <= 500 ) && ( IsEspReseted == LOW ) ) {
-    if ( Attempt == 1) {
-      Serial.println("");
-      Serial.print("============> nemo is not on pad now");
-    }
-    Serial.println("");
-    Attempt++;
+      if (( average > 1000 ) && ( Measured < (average - 1000)) )
+      {
+            VccValue = vcc.Read_Volts() * 1000 ;
+            Serial.println("");
+            Serial.print("==========> VCC ");
+            Serial.println(VccValue);
+            espReset();
+            IsEspReseted = HIGH;
+            Attempt = 0;
+      }
+      delay(500);
   }
 
   if ( IsEspReseted == HIGH ) {
-    Attempt++;
+      Attempt++;
+      if ( Attempt == 20 ) 
+      {
+          Serial.println("======> I2C has problem");
+          sleepNow();
+      }
+      delay(1000);
   }
 
-  if (( average > 1000 ) && ( Measured < (average - 500)) && ( IsEspReseted == LOW ))
-  {
-    VccValue = vcc.Read_Volts() * 1000 ;
-    Serial.println("");
-    Serial.print("==========> VCC ");
-    Serial.println(VccValue);
-    //digitalWrite(espnemoIsOnPadPin, HIGH);
-    espReset();
-    digitalWrite(ledPowerPin, LOW);
-    delay(200);
-    digitalWrite(ledPowerPin, HIGH);
-    delay(200);
-    digitalWrite(ledPowerPin, LOW);
-    delay(200);
-    digitalWrite(ledPowerPin, HIGH);
-    IsEspReseted = HIGH;
-    Attempt = 0;
-    //delay(5000);
-  }
-
-  if (( Attempt == 20 ) && ( IsEspReseted == LOW ) )
-  {
-    Serial.println("======> Measurement has problem");
-    sleepNow();
-  }
-
-  if (( Attempt == 20 ) && ( IsEspReseted == HIGH ))
-  {
-    Serial.println("======> I2C has problem");
-    sleepNow();
-  }
 
   if ( mqttMsgSent == HIGH )
   {
@@ -261,12 +257,6 @@ void loop()
     sleepNow();
   }
 
-  if ( IsEspReseted == LOW )
-  {
-    delay(500);
-  } else {
-    delay(1000);
-  }
 }
 
 void espReset()
@@ -275,6 +265,15 @@ void espReset()
   digitalWrite(espResetPin, LOW);
   delay(10);
   digitalWrite(espResetPin, HIGH);
+
+  digitalWrite(ledPowerPin, LOW);
+  delay(100);
+  digitalWrite(ledPowerPin, HIGH);
+  delay(100);
+  digitalWrite(ledPowerPin, LOW);
+  delay(100);
+  digitalWrite(ledPowerPin, HIGH);
+
 }
 
 void requestEvent()
