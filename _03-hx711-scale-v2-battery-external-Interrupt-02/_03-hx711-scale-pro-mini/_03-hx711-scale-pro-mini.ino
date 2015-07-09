@@ -162,13 +162,7 @@ void check_pad_status()
 
   if ( Measured > 500 )
   {
-    delat(2000);
-    int average_Measured = int( scale.get_units(5) * 1000 );
     Serial.println("======> tilting detected, nemo is on pad");
-
-    for (int thisReading = 0; thisReading < numReadings; thisReading++) {
-      readings[thisReading] = average_Measured ;
-    }
 
   } else {
     Serial.println("======> tilting detected, but nemo is not on pad");
@@ -185,7 +179,7 @@ void loop()
       Measured = int( scale.get_units(5) * 1000 );
       Serial.print("==> weight : ");
       Serial.print(Measured);
-      Serial.print(" ==> ");
+      Serial.print("   ==> ");
 
       if (( Measured > 500 ) && ( Measured > (average - 500)))
       {
@@ -214,7 +208,6 @@ void loop()
               Serial.println("");
               Serial.print("============> nemo is not on pad now");
             }
-            Serial.println("");
             Attempt++;
       }
 
@@ -228,7 +221,9 @@ void loop()
       {
             VccValue = vcc.Read_Volts() * 1000 ;
             Serial.println("");
-            Serial.print("==========> VCC ");
+            Serial.print("==========> average ");
+            Serial.print(average) ;
+            Serial.print("   =====> VCC ");
             Serial.println(VccValue);
             espReset();
             IsEspReseted = HIGH;
