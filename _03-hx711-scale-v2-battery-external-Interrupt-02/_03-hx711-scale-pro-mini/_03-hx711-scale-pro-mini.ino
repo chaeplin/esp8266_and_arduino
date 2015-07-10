@@ -40,6 +40,8 @@ float VccValue = 0;
 int Attempt = 0;
 int IsEspReseted = LOW;
 int mqttMsgSent = LOW;
+int nofchecked = 0;
+int averagetosend = 0;
 
 // vcc
 const float VccMin   = 0.0;           // Minimum expected Vcc level, in Volts.
@@ -85,10 +87,6 @@ void setup() {
 
   attachInterrupt(0, WakeUp, CHANGE);
 
-  for (int thisReading = 0; thisReading < numReadings; thisReading++) {
-    readings[thisReading] = 0 ;
-  }
-
   sleepNow();
 
 }
@@ -98,7 +96,7 @@ void sleepNow()
   Serial.println("Going sleep");
 
   scale.power_down();
- 
+
   //digitalWrite(espnemoIsOnPadPin, LOW);
   digitalWrite(ledPowerPin, LOW);
 
@@ -117,8 +115,12 @@ void sleepNow()
   Serial.println(millis() - startMills);
 
   MeasuredIsSent = LOW;
+  mqttMsgSent = LOW;
+  IsEspReseted = LOW;
+  
   Attempt = 0;
-
+  nofchecked = 0;
+  ave.push(0);
   check_pad_status();
 }
 
@@ -138,14 +140,14 @@ void check_pad_status()
   delay(500);
   Serial.print(millis() - startMills);
 
-  Measured = int( scale.get_units(3) * 1000 );
+  Measured = int( scale.get_units(5) * 1000 );
 
   Serial.print(" ====> weight : ");
   Serial.print(Measured);
   Serial.print(" ==> ");
   Serial.println(millis() - startMills);
 
-  if ( Measured > 500 )
+  if ( Measured > 100 )
   {
     Serial.println("======> tilting detected, nemo is on pad");
 
@@ -159,63 +161,83 @@ void check_pad_status()
 void loop()
 {
 
-  if ( IsEspReseted == LOW ) 
+  if ( IsEspReseted == LOW )
   {
-      Measured = int( scale.get_units(5) * 1000 );
-      Serial.print("==> weight : ");
-      Serial.print(Measured);
-      Serial.println("   ==> ");
+    Measured = int( scale.get_units(5) * 1000 );
+    Serial.print("==> weight : ");
+    Serial.print(Measured);
+    Serial.print(" ==> no ==> ");
+    Serial.print(nofchecked);
+    Serial.print(" ==> avg ==> ");
+    Serial.print(ave.mean());  
+    Serial.print(" ==> max - min ==> ");
+    Serial.print( ave.maximum() - ave.minimum() );  
+    Serial.print(" ==> stddev ==> ");
+    Serial.println(ave.stddev());            
 
-      if ( Measured > 1000 ) {
-            ave.push(Measured);
-            Attempt == 0 ;
-      }
+    if ( Measured > 500 ) {
+      ave.push(Measured);
+      Attempt = 0 ;
+    }
 
-      if ( ((ave.maximum() - ave.minimum()) < 100 ) && ( ave.stddev() < 50))
+    if ( ((ave.maximum() - ave.minimum()) < 100 ) && ( ave.stddev() < 50) && nofchecked > 10 )
+    {
+      averagetosend = int(ave.mean());
+      VccValue = vcc.Read_Volts() * 1000 ;
+
+      espReset();
+      IsEspReseted = HIGH;
+
+      Attempt = 0;
+
+      Serial.println("");
+      Serial.print("==========> averagetosend ");
+      Serial.print(ave.mean()) ;
+      Serial.print("   =====> VCC ");
+      Serial.println(VccValue);
+
+    }
+
+    if ( Measured < 500 )  {
+      if ( Attempt == 0 )
       {
-            VccValue = vcc.Read_Volts() * 1000 ;
-            Serial.println("");
-            Serial.print("==========> average ");
-            Serial.print(average) ;
-            Serial.print("   =====> VCC ");
-            Serial.println(VccValue);
-            espReset();
-            Attempt = 0;
+        Serial.println("");
+        Serial.print("============> nemo is not on pad now");
       }
-
-      if ( Measured < 1000 )  {
-          if ( Attempt == 0 ) 
-            {
-              Serial.println("");
-              Serial.print("============> nemo is not on pad now");
-            }
-            Attempt++;
-      }
-
-      if ( Attempt == 30 ){
-            Serial.println("======> Measurement has problem");
-            sleepNow();
-      }
-
-      delay(300);
-  } else {
       Attempt++;
-      if ( Attempt == 20 ) 
-      {
-          Serial.println("======> I2C has problem");
-          sleepNow();
-      }
+    }
 
-      if ( mqttMsgSent == HIGH ) 
-      {
-        Serial.println("======> mqtt msg has sent");
-        digitalWrite(ledPowerPin, LOW);
-        delay(300);
-        digitalWrite(ledPowerPin, HIGH);    
-        sleepNow();
-      }
+    if ( Attempt == 20 ) {
+      Serial.println("======> Measurement has problem");
+      sleepNow();
+    }
 
-      delay(1000);
+    nofchecked++;
+    delay(100);
+
+  }
+
+  
+  if (  IsEspReseted == HIGH )  
+  {
+    Attempt++;
+    if ( Attempt == 20 )
+    {
+      Serial.println("======> I2C has problem");
+      sleepNow();
+    }
+
+    if ( mqttMsgSent == HIGH )
+    {
+      Serial.println("======> mqtt msg has sent");
+      digitalWrite(ledPowerPin, LOW);
+      delay(300);
+      digitalWrite(ledPowerPin, HIGH);
+      IsEspReseted = LOW;
+      sleepNow();
+    }
+
+    delay(1000);
   }
 
 }
@@ -226,8 +248,6 @@ void espReset()
   digitalWrite(espResetPin, LOW);
   delay(10);
   digitalWrite(espResetPin, HIGH);
-
-  IsEspReseted = HIGH;
 
   digitalWrite(ledPowerPin, LOW);
   delay(100);
@@ -243,14 +263,15 @@ void requestEvent()
 {
   byte myArray[4];
 
-  myArray[0] = (int(ave.mean()) >> 8 ) & 0xFF;
-  myArray[1] = int(ave.mean()) & 0xFF;
+  myArray[0] = (averagetosend >> 8 ) & 0xFF;
+  myArray[1] = averagetosend & 0xFF;
   myArray[2] = (int(VccValue) >> 8 ) & 0xFF;
   myArray[3] = int(VccValue) & 0xFF;
 
   Wire.write(myArray, 4);
-
+  
   MeasuredIsSent = HIGH;
+  
 }
 
 void receiveEvent(int howMany)
