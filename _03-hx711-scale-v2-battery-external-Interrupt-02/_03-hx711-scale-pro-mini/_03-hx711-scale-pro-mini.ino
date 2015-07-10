@@ -20,6 +20,7 @@ A3, A4 --> I2C to esp8266 4, 5
 #include "HX711.h"
 #include <Wire.h>
 #include <Vcc.h>
+#include <Average.h>
 
 // tilt switch
 const int wakeUpPin     = 2;
@@ -51,21 +52,7 @@ Vcc vcc(VccCorrection);
 // HX711.PD_SCK - pin #A0
 HX711 scale(A1, A0);
 
-
-// smoothing
-// https://www.arduino.cc/en/Tutorial/Smoothing
-// Define the number of samples to keep track of.  The higher the number,
-// the more the readings will be smoothed, but the slower the output will
-// respond to the input.  Using a constant rather than a normal variable lets
-// use this value to determine the size of the readings array.
-
-const int numReadings = 5;
-
-int readings[numReadings];      // the readings from the analog input
-int indexof = 0;                // the indexof of the current reading
-int total = 0;                  // the running total
-int average = 0;                // the average
-
+Average<float> ave(10);
 
 void setup() {
   Serial.begin(38400);
@@ -177,62 +164,41 @@ void loop()
       Measured = int( scale.get_units(5) * 1000 );
       Serial.print("==> weight : ");
       Serial.print(Measured);
-      Serial.print("   ==> ");
+      Serial.println("   ==> ");
 
-      if (( Measured >= 500 ) && ( Measured > (average - 500)))
+      if ( Measured > 1000 ) {
+            ave.push(Measured);
+            Attempt == 0 ;
+      }
+
+      if ( ((ave.maximum() - ave.minimum()) < 100 ) && ( ave.stddev() < 50))
       {
-            total = total - readings[indexof];
-            readings[indexof] = Measured;
-            total = total + readings[indexof];
-            indexof = indexof + 1;
-
-            if (indexof >= numReadings) 
-            {
-              indexof = 0;
-            }
-
-            average = total / numReadings;
-
-            Serial.print("  average ==>  ");
-            Serial.println(average);
-      } else {
+            VccValue = vcc.Read_Volts() * 1000 ;
             Serial.println("");
-      }         
+            Serial.print("==========> average ");
+            Serial.print(average) ;
+            Serial.print("   =====> VCC ");
+            Serial.println(VccValue);
+            espReset();
+            Attempt = 0;
+      }
 
-      if ( Measured < 500 ) 
-      {
-            if ( Attempt == 0 ) 
+      if ( Measured < 1000 )  {
+          if ( Attempt == 0 ) 
             {
               Serial.println("");
               Serial.print("============> nemo is not on pad now");
             }
             Attempt++;
-
-            if ( average > 3000 )
-            {
-                  VccValue = vcc.Read_Volts() * 1000 ;
-                  Serial.println("");
-                  Serial.print("==========> average ");
-                  Serial.print(average) ;
-                  Serial.print("   =====> VCC ");
-                  Serial.println(VccValue);
-                  espReset();
-                  Attempt = 0;
-            }
-
-      } else {
-            Attempt == 0 ;
       }
 
-      if ( Attempt == 20 )
-      {
+      if ( Attempt == 30 ){
             Serial.println("======> Measurement has problem");
             sleepNow();
       }
-      delay(500);
 
+      delay(300);
   } else {
-
       Attempt++;
       if ( Attempt == 20 ) 
       {
@@ -277,8 +243,8 @@ void requestEvent()
 {
   byte myArray[4];
 
-  myArray[0] = (average >> 8 ) & 0xFF;
-  myArray[1] = average & 0xFF;
+  myArray[0] = (int(ave.mean()) >> 8 ) & 0xFF;
+  myArray[1] = int(ave.mean()) & 0xFF;
   myArray[2] = (int(VccValue) >> 8 ) & 0xFF;
   myArray[3] = int(VccValue) & 0xFF;
 

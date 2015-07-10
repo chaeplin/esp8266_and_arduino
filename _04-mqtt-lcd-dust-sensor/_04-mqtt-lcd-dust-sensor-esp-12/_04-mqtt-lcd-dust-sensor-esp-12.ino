@@ -569,7 +569,7 @@ void displaydustDensity()
     Serial.println(int(dustDensity / 0.05));
   }
 
-  for ( int i = 0 ; i <= n ; i++) {
+  for ( int i = 0 ; i < n ; i++) {
     lcd.setCursor(2 + i, 3);
     lcd.write(4);
   }
