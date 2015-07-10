@@ -8,7 +8,7 @@
 - alert : mqttwarn 
 
 
-### Library
+### Library ###
 - https://github.com/Imroy/pubsubclient
 - https://github.com/milesburton/Arduino-Temperature-Control-Library
 - https://github.com/adafruit/DHT-sensor-library
@@ -16,6 +16,10 @@
 - https://github.com/Makuna/Rtc
 - LiquidCrystal_I2C.h
 - https://github.com/openenergymonitor/EmonLib
+- https://github.com/bblanchon/ArduinoJson
+- https://github.com/MajenkoLibraries/Average
+- https://github.com/Yveaux/arduino_vcc
+- https://github.com/PaulStoffregen/Time
 
 
 
