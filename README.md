@@ -8,6 +8,18 @@
 - alert : mqttwarn 
 
 
+### Library
+- https://github.com/Imroy/pubsubclient
+- https://github.com/milesburton/Arduino-Temperature-Control-Library
+- https://github.com/adafruit/DHT-sensor-library
+- https://github.com/bogde/HX711
+- https://github.com/Makuna/Rtc
+- LiquidCrystal_I2C.h
+- https://github.com/openenergymonitor/EmonLib
+
+
+
+
 #### _01-door-alarm ####
 - esp-12 +(gpio) pro mini
 - active buzzer, magnetic door sw, capacitor, battery
