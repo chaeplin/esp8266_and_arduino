@@ -86,21 +86,7 @@ byte picatura[8] = //icon for water droplet
   B01110,
 };
 
-/*
-byte dustDensityicon[8] = //icon for dustDensity droplet
-{
-  B00000,
-  B01110,
-  B01010,
-  B01110,
-  B01110,
-  B01010,
-  B01110,
-  B00000,
-};
-*/
-
-byte dustDensityicon[8] = //icon for dustDensity droplet
+byte dustDensityicon[8] = 
 {
   B11111,
   B11111,
@@ -112,7 +98,7 @@ byte dustDensityicon[8] = //icon for dustDensity droplet
   B11111,
 };
 
-byte dustDensityfill[8] = //icon for dustDensity droplet
+byte dustDensityfill[8] = 
 {
   B00000,
   B11111,
@@ -125,7 +111,7 @@ byte dustDensityfill[8] = //icon for dustDensity droplet
 };
 
 
-byte pirfill[8] = //icon for dustDensity droplet
+byte pirfill[8] = 
 {
   B00111,
   B00111,
@@ -137,29 +123,42 @@ byte pirfill[8] = //icon for dustDensity droplet
   B00111,
 };
 
-byte powericon[8] = //icon for dustDensity droplet
+byte powericon[8] = 
 {
-  B11000,
-  B00110,
-  B00011,
-  B01100,
-  B11000,
-  B00110,
-  B00011,
-  B01100,
-};
-
-byte nemoicon[8] = //icon for dustDensity droplet
-{
+  B11111,
+  B11011,
   B10001,
-  B11001,
-  B11101,
+  B11011,
+  B11111,
+  B11000,
+  B11000,
+  B11000,
+} ;
+
+byte nemoicon[8] = 
+{
+  B11011,
+  B11011,
+  B00100,
+  B11111,
+  B10101,
+  B11111,
+  B01010,
+  B11011,
+}
+
+byte watticon[8] = 
+{
+  B00000,
   B10101,
   B10101,
-  B10011,
-  B10011,
-  B10011,
-};
+  B10101,
+  B10101,
+  B11011,
+  B01110,
+  B00000,
+}
+
 
 
 PubSubClient client(wifiClient, server);
@@ -337,6 +336,7 @@ void setup() {
   lcd.createChar(5, pirfill);
   lcd.createChar(6, powericon);
   lcd.createChar(7, nemoicon);
+  lcd.createChar(8, watticon);
 
   lcd.setCursor(0, 1);
   lcd.write(1);
@@ -344,26 +344,37 @@ void setup() {
   lcd.setCursor(0, 2);
   lcd.write(2);
 
-  lcd.setCursor(0, 3);  // dust
-  lcd.write(3);
-
   lcd.setCursor(8, 2);  // power
   lcd.write(6);
 
-  lcd.setCursor(13, 3);
+/*
+  lcd.setCursor(0, 3);  // dust
+  lcd.write(3);
+
+  lcd.setCursor(13, 3); // nemo
   lcd.write(7);
 
+*/
+
+  lcd.setCursor(0, 3);  // nemo
+  lcd.write(7);
+
+  lcd.setCursor(8, 3); // dust
+  lcd.write(7);
+
+//  
+
   lcd.setCursor(6, 1);
-  lcd.print((char)223); //degree sign
+  lcd.print((char)223); 
 
   lcd.setCursor(12, 1);
-  lcd.print((char)223); //degree sign
+  lcd.print((char)223); 
 
   lcd.setCursor(6, 2);
   lcd.print("%");
 
   lcd.setCursor(14, 2);
-  lcd.print("W");
+  lcd.write(8);
 
   H  = -1000 ;
   T1 = -1000 ;
@@ -483,7 +494,7 @@ void displayNemoWeightAvg(int nemoWeight)
   String str_nemoWeight = String(nemoWeight);
   int length_nemoWeight = str_nemoWeight.length();
 
-  lcd.setCursor(15, 3);
+  lcd.setCursor(2, 3);
 
   for ( int i = 0; i < ( 4 - length_nemoWeight ) ; i++ ) {
     lcd.print(" ");
@@ -570,7 +581,7 @@ void displaydustDensity()
   }
 
   for ( int i = 0 ; i < n ; i++) {
-    lcd.setCursor(2 + i, 3);
+    lcd.setCursor(10 + i, 3);
     lcd.write(4);
   }
 
