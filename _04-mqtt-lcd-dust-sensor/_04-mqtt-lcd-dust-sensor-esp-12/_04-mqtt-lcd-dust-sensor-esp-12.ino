@@ -71,7 +71,7 @@ byte termometru[8] = //icon for termometer
   B01110,
   B11111,
   B11111,
-  B01110
+  B01110,
 };
 
 byte picatura[8] = //icon for water droplet
@@ -146,6 +146,7 @@ byte nemoicon[8] =
   B11011,
 };
 
+/*
 byte watticon[8] = 
 {
   B00000,
@@ -157,8 +158,7 @@ byte watticon[8] =
   B01110,
   B00000,
 };
-
-
+*/
 
 PubSubClient client(wifiClient, server);
 
@@ -335,7 +335,9 @@ void setup() {
   lcd.createChar(5, pirfill);
   lcd.createChar(6, powericon);
   lcd.createChar(7, nemoicon);
+  /*
   lcd.createChar(8, watticon);
+  */
 
   lcd.setCursor(0, 1);
   lcd.write(1);
@@ -372,8 +374,10 @@ void setup() {
   lcd.setCursor(6, 2);
   lcd.print("%");
 
+/*
   lcd.setCursor(14, 2);
   lcd.write(8);
+*/
 
   H  = -1000 ;
   T1 = -1000 ;
@@ -570,28 +574,34 @@ void displayTemperature()
 
 void displaydustDensity()
 {
-  /*
-  int n = int(dustDensity / 0.065) ;
+  
+  int n = int(dustDensity / 0.05) ;
 
+  if ( n > 9 ) {
+    n = 9 ;
+  }
+  
   if (DEBUG_PRINT) {
-    Serial.print("===> dustDensity ");
+    Serial.print(" ===> dustDensity ");
     Serial.print(dustDensity);
     Serial.print(" ===>  ");
-    Serial.println(int(dustDensity / 0.065));
+    Serial.println(int(dustDensity / 0.05));
   }
 
-  lcd.setCursor(10, 3);
+
   for ( int i = 0 ; i < n ; i++) {
     lcd.setCursor(10 + i, 3);
+    Serial.print("*");
     lcd.write(4);
   }
 
-  lcd.setCursor(10 + i, 3);
 
   for ( int o = 0 ; o < ( 9 - n) ; o++) {
-    lcd.print(" ");
+    lcd.setCursor(10 + n + o, 3);
+    lcd.print(".");
+    Serial.print("+");
   }
-  */
+  Serial.println("");
 }
 
 void requestSharp()
