@@ -100,14 +100,14 @@ byte dustDensityicon[8] =
 
 byte dustDensityfill[8] = 
 {
-  B00000,
   B11111,
   B11111,
   B11111,
   B11111,
   B11111,
   B11111,
-  B00000,
+  B11111,
+  B11111,
 };
 
 byte pirfill[8] = 
@@ -359,7 +359,7 @@ void setup() {
   lcd.write(7);
 
   lcd.setCursor(8, 3); // dust
-  lcd.write(7);
+  lcd.write(3);
 
 //  
 
@@ -570,13 +570,13 @@ void displayTemperature()
 
 void displaydustDensity()
 {
-  int n = int(dustDensity / 0.05) ;
+  int n = int(dustDensity / 0.065) ;
 
   if (DEBUG_PRINT) {
     Serial.print("===> dustDensity ");
     Serial.print(dustDensity);
     Serial.print(" ===>  ");
-    Serial.println(int(dustDensity / 0.05));
+    Serial.println(int(dustDensity / 0.065));
   }
 
   for ( int i = 0 ; i < n ; i++) {
@@ -584,7 +584,7 @@ void displaydustDensity()
     lcd.write(4);
   }
 
-  for ( int o = 0 ; o < ( 10 - n) ; o++) {
+  for ( int o = 0 ; o < ( 9 - n) ; o++) {
     lcd.print(" ");
   }
 }
