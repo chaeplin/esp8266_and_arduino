@@ -570,6 +570,7 @@ void displayTemperature()
 
 void displaydustDensity()
 {
+  /*
   int n = int(dustDensity / 0.065) ;
 
   if (DEBUG_PRINT) {
@@ -579,14 +580,18 @@ void displaydustDensity()
     Serial.println(int(dustDensity / 0.065));
   }
 
+  lcd.setCursor(10, 3);
   for ( int i = 0 ; i < n ; i++) {
     lcd.setCursor(10 + i, 3);
     lcd.write(4);
   }
 
+  lcd.setCursor(10 + i, 3);
+
   for ( int o = 0 ; o < ( 9 - n) ; o++) {
     lcd.print(" ");
   }
+  */
 }
 
 void requestSharp()
