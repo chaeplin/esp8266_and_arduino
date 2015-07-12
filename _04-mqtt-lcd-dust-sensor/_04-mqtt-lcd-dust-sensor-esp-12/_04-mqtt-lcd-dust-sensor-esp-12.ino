@@ -145,7 +145,7 @@ byte nemoicon[8] =
   B11111,
   B01010,
   B11011,
-}
+};
 
 byte watticon[8] = 
 {
@@ -157,7 +157,7 @@ byte watticon[8] =
   B11011,
   B01110,
   B00000,
-}
+};
 
 
 
