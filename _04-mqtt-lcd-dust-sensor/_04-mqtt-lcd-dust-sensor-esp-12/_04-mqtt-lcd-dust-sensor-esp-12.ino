@@ -110,7 +110,6 @@ byte dustDensityfill[8] =
   B00000,
 };
 
-
 byte pirfill[8] = 
 {
   B00111,
@@ -133,7 +132,7 @@ byte powericon[8] =
   B11000,
   B11000,
   B11000,
-} ;
+};
 
 byte nemoicon[8] = 
 {

@@ -19,7 +19,7 @@ IPAddress server(192, 168, 10, 10);
 // pin : using line tracker
 #define IRPIN 4
 
-#define REPORT_INTERVAL 20000 // in msec
+#define REPORT_INTERVAL 60000 // in msec
 
 
 volatile long startMills ;
