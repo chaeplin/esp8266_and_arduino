@@ -1,19 +1,3 @@
-/*
-//
-A0, A1 --> HX711
-A3, A4 --> I2C to esp8266 4, 5
-
-//
-2 - int 0 - tilt sw * 2- gnd : INPUT_PULLUP
-4 - LED
-
-//
-11 - esp reset : OUT - reset esp8266
-//
-10 - esp 13    : OUT - nemo is on pad
-12 - esp 12    : OUT - vcc if ready
-
- */
 
 #include <avr/interrupt.h>
 #include <avr/sleep.h>
@@ -24,12 +8,9 @@ A3, A4 --> I2C to esp8266 4, 5
 
 // tilt switch
 const int wakeUpPin     = 2;
+const int espResetPin   = 9;
+const int ledPowerPin   = 10;
 
-const int ledPowerPin  = 4;
-
-//
-const int espResetPin       = 11;
-//const int espnemoIsOnPadPin = 10;
 
 volatile int Measured;
 volatile long startMills;
@@ -52,7 +33,7 @@ Vcc vcc(VccCorrection);
 
 // HX711.DOUT  - pin #A1
 // HX711.PD_SCK - pin #A0
-HX711 scale(A1, A0);
+HX711 scale(A0, A1);
 
 Average<float> ave(10);
 
@@ -186,6 +167,7 @@ void loop()
       VccValue = vcc.Read_Volts() * 1000 ;
 
       espReset();
+      scale.power_down();
       IsEspReseted = HIGH;
 
       Attempt = 0;
