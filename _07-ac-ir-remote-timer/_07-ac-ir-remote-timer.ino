@@ -20,7 +20,7 @@ void loop()
 
 void sleep60Minutes()
 {
-  for (int i = 0; i < 450; i++) { 
+  for (int i = 0; i < 400; i++) { 
      LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF); 
   }
 }
@@ -28,7 +28,7 @@ void sleep60Minutes()
 
 void sleep30Minutes()
 {
-  for (int i = 0; i < 225; i++) { 
+  for (int i = 0; i < 200; i++) { 
      LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF); 
   }
 }
