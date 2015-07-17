@@ -58,7 +58,7 @@
 - esp-12
 - CT sensor, line tracker
 - pub power usage
-- 
+
 
 #### __07-ac-ir-remote-time ####
 - pro mini
