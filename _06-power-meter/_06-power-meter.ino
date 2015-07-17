@@ -13,38 +13,40 @@ EnergyMonitor emon1;                   // Create an instance
 
 // mqtt
 char* topic = "esp8266/arduino/s07";
+char* doortopic = "esp8266/arduino/s05" ;
 char* hellotopic = "HELLO";
 IPAddress server(192, 168, 10, 10);
 
 // pin : using line tracker
 #define IRPIN 4
+#define DOORPIN 5
 
 #define REPORT_INTERVAL 60000 // in msec
 
 
 volatile long startMills ;
 volatile long revMills ;
-long oldrevMills ;
 
+long oldrevMills ;
 long sentMills ;
 
-volatile int IRSTATUS = LOW ;
-int OLDIRSTATUS ;
+volatile int irStatus = LOW ;
+
+int oldirStatus ;
 
 float revValue ;
 float oldrevValue ;
 double VIrms ;
 
+// door
+volatile int doorStatus ;
+int olddoorStatus ;
+
 //
 String clientName ;
 String payload ;
+String doorpayload ;
 
-// smoothing
-// https://www.arduino.cc/en/Tutorial/Smoothing
-// Define the number of samples to keep track of.  The higher the number,
-// the more the readings will be smoothed, but the slower the output will
-// respond to the input.  Using a constant rather than a normal variable lets
-// use this value to determine the size of the readings array.
 
 const int numReadings = 10;
 
@@ -128,22 +130,33 @@ void setup() {
   oldrevValue = 0 ;
 
   pinMode(IRPIN, INPUT);
+  pinMode(DOORPIN, INPUT_PULLUP);
+
+  doorStatus = digitalRead(DOORPIN);
+  olddoorStatus = doorStatus;
+
   attachInterrupt(4, IRCHECKING_START, RISING);
+  attachInterrupt(5, DOORCHECKING, CHANGE);
+
 
   emon1.current(A0, 75);  // Current: input pin, calibration.
 
-  OLDIRSTATUS = LOW ;
+  oldirStatus = LOW ;
 
   for (int thisReading = 0; thisReading < numReadings; thisReading++)
     readings[thisReading] = 0 ;
 
 }
 
+void DOORCHECKING() {
+   doorStatus = digitalRead(DOORPIN);
+}
+
 void IRCHECKING_START() {
   detachInterrupt(4);
   attachInterrupt(4, count_powermeter, RISING);
   startMills = millis();
-  OLDIRSTATUS = HIGH ;
+  oldirStatus = HIGH ;
 }
 
 void loop()
@@ -195,14 +208,30 @@ void loop()
     payload += "}";
 
 
-  if (( IRSTATUS != OLDIRSTATUS ) && ( revMills > 600 )) {
+  if ( doorStatus != olddoorStatus ) {
+
+        doorpayload = "{\"DOOR\":";
+
+        if ( doorStatus == 0 ) {
+                doorpayload += "\"CLOSED\"";
+        } 
+        else {
+                doorpayload += "\"OPEN\"";
+        }
+        doorpayload += "}";  
+
+        sendDoormqttMsg(doorpayload);
+        olddoorStatus = doorStatus ;
+  }
+
+
+  if (( irStatus != oldirStatus ) && ( revMills > 600 )) {
     sendmqttMsg(payload);
     sentMills = millis();
-    OLDIRSTATUS = IRSTATUS ;
+    oldirStatus = irStatus ;
     oldrevValue = revValue ;
     oldrevMills = revMills ;
   }
-
 
   if (((millis() - sentMills) > REPORT_INTERVAL ) && ( revMills > 600 )) {
     sendmqttMsg(payload);
@@ -213,6 +242,34 @@ void loop()
     delay(int(float(revMills)/10));
   }else {
     delay(100);
+  }
+}
+
+void sendDoormqttMsg(String doorpayload)
+{
+  if (!client.connected()) {
+    if (client.connect((char*) clientName.c_str())) {
+      Serial.println("Connected to MQTT broker again esp8266/arduino/s07");
+      Serial.print("Topic is: ");
+      Serial.println(doortopic);
+    }
+    else {
+      Serial.println("MQTT connect failed");
+      Serial.println("Will reset and try again...");
+      abort();
+    }
+  }
+
+  if (client.connected()) {
+    Serial.print("Sending payload: ");
+    Serial.println(doorpayload);
+
+   if (client.publish(doortopic, (char*) doorpayload.c_str())) {
+      Serial.println("Publish ok");
+    }
+    else {
+      Serial.println("Publish failed");
+    }
   }
 }
 
@@ -262,7 +319,7 @@ void count_powermeter()
   } else {
     revMills   = (millis() - startMills)  ;
     startMills = millis();
-    IRSTATUS   = !IRSTATUS ;
+    irStatus   = !irStatus ;
   }
 }
 

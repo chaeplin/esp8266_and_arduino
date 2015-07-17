@@ -45,6 +45,9 @@ void callback(const MQTT::Publish& pub) {
 PubSubClient client(wifiClient, server);
 
 long startMills;
+
+int vdd; 
+
 void setup(void)
 {
   startMills = millis();
@@ -52,7 +55,7 @@ void setup(void)
   Serial.begin(38400);
   Serial.println("Dallas Temperature IC Control Library Demo");
 
-
+  vdd = readvdd33();
 //-------------------
 
   Serial.println();
@@ -112,6 +115,7 @@ void setup(void)
     Serial.println("Will reset and try again...");
     abort();
   }
+  
  Serial.println(millis() - startMills);
  //------- 
   
@@ -122,65 +126,15 @@ void setup(void)
   // Start up the library
   sensors.begin();
 
-  // locate devices on the bus
-  Serial.print("Locating devices...");
-  Serial.print("Found ");
-  Serial.print(sensors.getDeviceCount(), DEC);
-  Serial.println(" devices.");
 
-  // report parasite power requirements
-  //Serial.print("Parasite power is: "); 
-  //if (sensors.isParasitePowerMode()) Serial.println("ON");
-  //else Serial.println("OFF");
-
-  // assign address manually.  the addresses below will beed to be changed
-  // to valid device addresses on your bus.  device address can be retrieved
-  // by using either oneWire.search(deviceAddress) or individually via
-  // sensors.getAddress(deviceAddress, index)
-
-  // search for devices on the bus and assign based on an index.  ideally,
-  // you would do this to initially discover addresses on the bus and then 
-  // use those addresses and manually assign them (see above) once you know 
-  // the devices on your bus (and assuming they don't change).
   // 
   // method 1: by index
   if (!sensors.getAddress(insideThermometer, 0)) Serial.println("Unable to find address for Device 0"); 
   if (!sensors.getAddress(outsideThermometer, 1)) Serial.println("Unable to find address for Device 1"); 
 
-  // method 2: search()
-  // search() looks for the next device. Returns 1 if a new address has been
-  // returned. A zero might mean that the bus is shorted, there are no devices, 
-  // or you have already retrieved all of them.  It might be a good idea to 
-  // check the CRC to make sure you didn't get garbage.  The order is 
-  // deterministic. You will always get the same devices in the same order
-  //
-  // Must be called before search()
-  //oneWire.reset_search();
-  // assigns the first address found to insideThermometer
-  //if (!oneWire.search(insideThermometer)) Serial.println("Unable to find address for insideThermometer");
-  // assigns the seconds address found to outsideThermometer
-  //if (!oneWire.search(outsideThermometer)) Serial.println("Unable to find address for outsideThermometer");
-
-  // show the addresses we found on the bus
-  Serial.print("Device 0 Address: ");
-  printAddress(insideThermometer);
-  Serial.println();
-
-  Serial.print("Device 1 Address: ");
-  printAddress(outsideThermometer);
-  Serial.println();
-
-  // set the resolution to 9 bit
   sensors.setResolution(insideThermometer, TEMPERATURE_PRECISION);
   sensors.setResolution(outsideThermometer, TEMPERATURE_PRECISION);
 
-  Serial.print("Device 0 Resolution: ");
-  Serial.print(sensors.getResolution(insideThermometer), DEC); 
-  Serial.println();
-
-  Serial.print("Device 1 Resolution: ");
-  Serial.print(sensors.getResolution(outsideThermometer), DEC); 
-  Serial.println();
   Serial.println(millis() - startMills);
   
 }
@@ -227,7 +181,6 @@ void printData(DeviceAddress deviceAddress)
 void loop(void)
 { 
 
- int vdd = readvdd33();
   // original loop
   
   Serial.println(millis() - startMills);
