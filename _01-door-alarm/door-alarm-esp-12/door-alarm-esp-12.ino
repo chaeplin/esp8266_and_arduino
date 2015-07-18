@@ -13,11 +13,14 @@ rest - mini 9 : external reset
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
 
+/*
 extern "C"{
   #include "user_interface.h"
 }
 
+
 extern "C" uint16_t readvdd33(void);
+*/
 
 #ifdef __IS_MY_HOME
   #include "/usr/local/src/ap_setting.h"
@@ -25,6 +28,7 @@ extern "C" uint16_t readvdd33(void);
   #include "ap_setting.h"
 #endif
 
+ADC_MODE(ADC_VCC);
 
 int msgsentPin = 16 ; // espRfStatePin
 int doorstatusPin = 5 ; // espDoorPin
@@ -102,8 +106,11 @@ void setup()
   Serial.print("doorstatus  : ");
   Serial.println(doorstatus);
 
-  vdd = readvdd33();
+  //vdd = readvdd33();
 
+  vdd = ESP.getVcc() ; 
+
+  
   String payload = "{\"DOOR\":";
 
   if ( doorstatus == 0 ) {

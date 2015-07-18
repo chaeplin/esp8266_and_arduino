@@ -8,13 +8,16 @@
 #endif
 #include <Wire.h>  
 
-
+/*
 extern "C" {
 #include "user_interface.h"
 }
 
 extern "C" uint16_t readvdd33(void);
 
+*/
+
+ADC_MODE(ADC_VCC);
 
 // wifi
 #ifdef __IS_MY_HOME
@@ -86,13 +89,14 @@ void setup()
   Serial.print(" as ");
   Serial.println(clientName);
 
+  // vdd = readvdd33();
+  vdd = ESP.getVcc() ; 
+  
 }
 
 
 void loop() 
 {
-  vdd = readvdd33();
-  delay(200);
   requestHx711();
   delay(200);
 

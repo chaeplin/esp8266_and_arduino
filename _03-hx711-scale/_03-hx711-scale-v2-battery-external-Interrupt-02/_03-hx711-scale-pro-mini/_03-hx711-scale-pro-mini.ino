@@ -57,7 +57,7 @@ void setup() {
   digitalWrite(ledPowerPin, HIGH);
 
   startMills = millis();
-
+  delay(200);
   Serial.println("Initializing scale : start");
 
   scale.set_scale(23040.f);
