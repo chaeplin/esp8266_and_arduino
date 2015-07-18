@@ -3,11 +3,16 @@
 #include <PubSubClient.h>
 #include <ESP8266WiFi.h>
 
+/*
 extern "C" {
 #include "user_interface.h"
 }
 
 extern "C" uint16_t readvdd33(void);
+*/
+
+ADC_MODE(ADC_VCC);
+
 
 #define dsout 5
 
@@ -18,7 +23,7 @@ extern "C" uint16_t readvdd33(void);
 // Setup a oneWire instance to communicate with any OneWire devices (not just Maxim/Dallas temperature ICs)
 OneWire oneWire(ONE_WIRE_BUS);
 
-// Pass our oneWire reference to Dallas Temperature. 
+// Pass our oneWire reference to Dallas Temperature.
 DallasTemperature sensors(&oneWire);
 
 // arrays to hold device addresses
@@ -26,9 +31,9 @@ DeviceAddress insideThermometer, outsideThermometer;
 
 // wifi
 #ifdef __IS_MY_HOME
-  #include "/usr/local/src/ap_setting.h"
+#include "/usr/local/src/ap_setting.h"
 #else
-  #include "ap_setting.h"
+#include "ap_setting.h"
 #endif
 
 char* topic = "esp8266/arduino/s04";
@@ -46,7 +51,7 @@ PubSubClient client(wifiClient, server);
 
 long startMills;
 
-int vdd; 
+int vdd;
 
 void setup(void)
 {
@@ -55,24 +60,24 @@ void setup(void)
   Serial.begin(38400);
   Serial.println("Dallas Temperature IC Control Library Demo");
 
-  vdd = readvdd33();
-//-------------------
+  Serial.println(millis() - startMills);
+  vdd = ESP.getVcc() ;
+  Serial.println(millis() - startMills);
+
+  // vdd = readvdd33();
+  //-------------------
 
   Serial.println();
   Serial.println();
   Serial.print("Connecting to ");
   Serial.println(ssid);
 
- // client.set_callback(callback);
+  // client.set_callback(callback);
 
   WiFi.mode(WIFI_STA);
-
-  #ifdef __IS_MY_HOME
-  WiFi.begin(ssid, password, channel, bssid);
+  
+  WiFi.begin(ssid, password);
   WiFi.config(IPAddress(192, 168, 10, 13), IPAddress(192, 168, 10, 1), IPAddress(255, 255, 255, 0));
-  #else
-  WiFi.begin(ssid, password); 
-  #endif
 
   while (WiFi.status() != WL_CONNECTED) {
     delay(100);
@@ -97,12 +102,12 @@ void setup(void)
   Serial.println(clientName);
 
   delay(200);
-  
+
   if (client.connect((char*) clientName.c_str())) {
     Serial.println("Connected to MQTT broker");
     Serial.print("Topic is: ");
     Serial.println(topic);
-    
+
     if (client.publish(hellotopic, "hello from ESP8266")) {
       Serial.println("Publish ok");
     }
@@ -115,28 +120,28 @@ void setup(void)
     Serial.println("Will reset and try again...");
     abort();
   }
-  
- Serial.println(millis() - startMills);
- //------- 
-  
+
+  Serial.println(millis() - startMills);
+  //-------
+
   pinMode(dsout, OUTPUT);
   digitalWrite(dsout, HIGH);   // turn the LED on (HIGH is the voltage level)
   delay(20);
-    
+
   // Start up the library
   sensors.begin();
 
 
-  // 
+  //
   // method 1: by index
-  if (!sensors.getAddress(insideThermometer, 0)) Serial.println("Unable to find address for Device 0"); 
-  if (!sensors.getAddress(outsideThermometer, 1)) Serial.println("Unable to find address for Device 1"); 
+  if (!sensors.getAddress(insideThermometer, 0)) Serial.println("Unable to find address for Device 0");
+  if (!sensors.getAddress(outsideThermometer, 1)) Serial.println("Unable to find address for Device 1");
 
   sensors.setResolution(insideThermometer, TEMPERATURE_PRECISION);
   sensors.setResolution(outsideThermometer, TEMPERATURE_PRECISION);
 
   Serial.println(millis() - startMills);
-  
+
 }
 
 // function to print a device address
@@ -165,7 +170,7 @@ void printResolution(DeviceAddress deviceAddress)
 {
   Serial.print("Resolution: ");
   Serial.print(sensors.getResolution(deviceAddress));
-  Serial.println();    
+  Serial.println();
 }
 
 // main function to print information about a device
@@ -179,12 +184,12 @@ void printData(DeviceAddress deviceAddress)
 }
 
 void loop(void)
-{ 
+{
 
   // original loop
-  
+
   Serial.println(millis() - startMills);
-  // call sensors.requestTemperatures() to issue a global temperature 
+  // call sensors.requestTemperatures() to issue a global temperature
   // request to all devices on the bus
   Serial.print("Requesting temperatures...");
   sensors.requestTemperatures();
@@ -193,7 +198,7 @@ void loop(void)
   // print the device information
   printData(insideThermometer);
   printData(outsideThermometer);
-  
+
   Serial.println(millis() - startMills);
   float tempCinside  = sensors.getTempC(outsideThermometer);
   float tempCoutside = sensors.getTempC(insideThermometer);
@@ -202,7 +207,7 @@ void loop(void)
     Serial.println("Failed to read from sensor!");
     return;
   }
-  
+
   Serial.println(millis() - startMills);
   String payload = "{\"INSIDE\":";
   payload += tempCinside;
@@ -215,9 +220,9 @@ void loop(void)
   Serial.println(payload);
 
   sendTemperature(payload);
-  
+
   Serial.println(millis() - startMills);
-  Serial.println("Going to sleep"); 
+  Serial.println("Going to sleep");
   delay(250);
   ESP.deepSleep(300000000);
   delay(250);
