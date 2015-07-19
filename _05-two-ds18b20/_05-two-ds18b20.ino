@@ -200,8 +200,6 @@ void loop(void)
   Serial.println("DONE");
   Serial.println(millis() - startMills);
   
-  digitalWrite(dsout, LOW);
-
   // print the device information
   // printData(insideThermometer);
   // printData(outsideThermometer);
@@ -209,6 +207,9 @@ void loop(void)
   Serial.println(millis() - startMills);
   float tempCinside  = sensors.getTempC(outsideThermometer);
   float tempCoutside = sensors.getTempC(insideThermometer);
+  
+  digitalWrite(dsout, LOW);
+
 
   if ( isnan(tempCinside) || isnan(tempCoutside) || isnan(vdd) ) {
     Serial.println("Failed to read from sensor!");
