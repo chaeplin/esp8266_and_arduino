@@ -199,6 +199,9 @@ void loop(void)
   sensors.requestTemperatures();
   Serial.println("DONE");
   Serial.println(millis() - startMills);
+  
+  digitalWrite(dsout, LOW);
+
   // print the device information
   // printData(insideThermometer);
   // printData(outsideThermometer);
