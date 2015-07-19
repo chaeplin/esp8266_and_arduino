@@ -236,12 +236,10 @@ void setup() {
   client.set_callback(callback);
 
   WiFi.mode(WIFI_STA);
-
-#ifdef __IS_MY_HOME
-  WiFi.begin(ssid, password, channel, bssid);
-  WiFi.config(IPAddress(192, 168, 10, 12), IPAddress(192, 168, 10, 1), IPAddress(255, 255, 255, 0));
-#else
   WiFi.begin(ssid, password);
+  
+#ifdef __IS_MY_HOME
+  WiFi.config(IPAddress(192, 168, 10, 12), IPAddress(192, 168, 10, 1), IPAddress(255, 255, 255, 0));
 #endif
 
   while (WiFi.status() != WL_CONNECTED) {
