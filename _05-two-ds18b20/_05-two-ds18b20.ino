@@ -3,30 +3,19 @@
 #include <PubSubClient.h>
 #include <ESP8266WiFi.h>
 
-/*
-extern "C" {
-#include "user_interface.h"
+extern "C"{
+  #include "user_interface.h"
 }
-
-extern "C" uint16_t readvdd33(void);
-*/
 
 ADC_MODE(ADC_VCC);
 
-
 #define dsout 5
 
-// Data wire is plugged into port 2 on the Arduino
 #define ONE_WIRE_BUS 4
 #define TEMPERATURE_PRECISION 12
 
-// Setup a oneWire instance to communicate with any OneWire devices (not just Maxim/Dallas temperature ICs)
 OneWire oneWire(ONE_WIRE_BUS);
-
-// Pass our oneWire reference to Dallas Temperature.
 DallasTemperature sensors(&oneWire);
-
-// arrays to hold device addresses
 DeviceAddress insideThermometer, outsideThermometer;
 
 // wifi
@@ -75,16 +64,26 @@ void setup(void)
   // client.set_callback(callback);
 
   WiFi.mode(WIFI_STA);
-  
   WiFi.begin(ssid, password);
-  #ifdef __IS_MY_HOME
-  WiFi.config(IPAddress(192, 168, 10, 13), IPAddress(192, 168, 10, 1), IPAddress(255, 255, 255, 0));
-  #endif
+  wifi_set_channel(4);
 
+#ifdef __IS_MY_HOME
+  WiFi.config(IPAddress(192, 168, 10, 13), IPAddress(192, 168, 10, 1), IPAddress(255, 255, 255, 0));
+#endif
+
+  int Attempt = 0;
   while (WiFi.status() != WL_CONNECTED) {
     delay(100);
+    Attempt++;
     Serial.print(".");
-  }
+    if (Attempt == 100)
+    {
+      Serial.println();
+      Serial.println("Could not connect to WIFI");
+      goingToSleep();
+    }
+  }  
+
   Serial.println(millis() - startMills);
   Serial.println("");
   Serial.println("WiFi connected");
@@ -98,36 +97,33 @@ void setup(void)
   clientName += "-";
   clientName += String(micros() & 0xff, 16);
 
-  Serial.print("Connecting to ");
-  Serial.print(server);
-  Serial.print(" as ");
-  Serial.println(clientName);
+  delay(100);
 
-  delay(200);
+  /*
+    if (client.connect((char*) clientName.c_str())) {
+      Serial.println("Connected to MQTT broker");
+      Serial.print("Topic is: ");
+      Serial.println(topic);
 
-  if (client.connect((char*) clientName.c_str())) {
-    Serial.println("Connected to MQTT broker");
-    Serial.print("Topic is: ");
-    Serial.println(topic);
-
-    if (client.publish(hellotopic, "hello from ESP8266")) {
-      Serial.println("Publish ok");
+      if (client.publish(hellotopic, "hello from ESP8266")) {
+        Serial.println("Publish ok");
+      }
+      else {
+        Serial.println("Publish failed");
+      }
     }
     else {
-      Serial.println("Publish failed");
+      Serial.println("MQTT connect failed");
+      Serial.println("Will reset and try again...");
+      abort();
     }
-  }
-  else {
-    Serial.println("MQTT connect failed");
-    Serial.println("Will reset and try again...");
-    abort();
-  }
 
-  Serial.println(millis() - startMills);
-  //-------
+    Serial.println(millis() - startMills);
+    //-------
+  */
 
   pinMode(dsout, OUTPUT);
-  digitalWrite(dsout, HIGH);   // turn the LED on (HIGH is the voltage level)
+  digitalWrite(dsout, HIGH);
   delay(20);
 
   // Start up the library
@@ -136,8 +132,14 @@ void setup(void)
 
   //
   // method 1: by index
-  if (!sensors.getAddress(insideThermometer, 0)) Serial.println("Unable to find address for Device 0");
-  if (!sensors.getAddress(outsideThermometer, 1)) Serial.println("Unable to find address for Device 1");
+  if (!sensors.getAddress(insideThermometer, 0)) {
+    Serial.println("Unable to find address for Device 0");
+    goingToSleep();
+  }
+  if (!sensors.getAddress(outsideThermometer, 1)) {
+    Serial.println("Unable to find address for Device 1");
+    goingToSleep();
+  }
 
   sensors.setResolution(insideThermometer, TEMPERATURE_PRECISION);
   sensors.setResolution(outsideThermometer, TEMPERATURE_PRECISION);
@@ -198,8 +200,8 @@ void loop(void)
   Serial.println("DONE");
   Serial.println(millis() - startMills);
   // print the device information
-  printData(insideThermometer);
-  printData(outsideThermometer);
+  // printData(insideThermometer);
+  // printData(outsideThermometer);
 
   Serial.println(millis() - startMills);
   float tempCinside  = sensors.getTempC(outsideThermometer);
@@ -207,7 +209,7 @@ void loop(void)
 
   if ( isnan(tempCinside) || isnan(tempCoutside) || isnan(vdd) ) {
     Serial.println("Failed to read from sensor!");
-    return;
+    goingToSleep();
   }
 
   Serial.println(millis() - startMills);
@@ -224,6 +226,12 @@ void loop(void)
   sendTemperature(payload);
 
   Serial.println(millis() - startMills);
+  goingToSleep();
+}
+
+
+void goingToSleep()
+{
   Serial.println("Going to sleep");
   delay(250);
   ESP.deepSleep(300000000);
@@ -231,8 +239,8 @@ void loop(void)
 }
 
 
-
-void sendTemperature(String payload) {
+void sendTemperature(String payload)
+{
   if (!client.connected()) {
     if (client.connect((char*) clientName.c_str())) {
       Serial.println("Connected to MQTT broker again OUTTEMP");
