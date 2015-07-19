@@ -61,8 +61,6 @@ void setup()
 
 #ifdef __IS_MY_HOME
   WiFi.config(IPAddress(192, 168, 10, 16), IPAddress(192, 168, 10, 1), IPAddress(255, 255, 255, 0));
-#else
-
 #endif
 
   while (WiFi.status() != WL_CONNECTED) {
