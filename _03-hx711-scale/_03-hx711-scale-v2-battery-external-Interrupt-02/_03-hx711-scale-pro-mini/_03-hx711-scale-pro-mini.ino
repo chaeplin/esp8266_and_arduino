@@ -161,7 +161,7 @@ void loop()
       Attempt = 0 ;
     }
 
-    if ( ((ave.maximum() - ave.minimum()) < 100 ) && ( ave.stddev() < 50) && nofchecked > 10 )
+    if ( ((ave.maximum() - ave.minimum()) < 100 ) && ( ave.stddev() < 50) && ( nofchecked > 10 ) && (int(ave.mean()) < 10000) )
     {
       averagetosend = int(ave.mean());
       VccValue = vcc.Read_Volts() * 1000 ;
