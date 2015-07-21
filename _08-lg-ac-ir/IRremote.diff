@@ -1,0 +1,86 @@
+diff -urN /Users/chaeplin/Downloads/IRremote/IRremote.h /Users/chaeplin/Documents/Arduino/libraries/IRremote/IRremote.h
+--- /Users/chaeplin/Downloads/IRremote/IRremote.h	2015-07-08 15:03:58.000000000 +0900
++++ /Users/chaeplin/Documents/Arduino/libraries/IRremote/IRremote.h	2015-07-21 23:26:55.000000000 +0900
+@@ -76,6 +76,9 @@
+ #define DECODE_PRONTO        0 // This function doe not logically make sense
+ #define SEND_PRONTO          1
+ 
++#define DECODE_LGAC          0
++#define SEND_LGAC            1
++
+ //------------------------------------------------------------------------------
+ // When sending a Pronto code we request to send either the "once" code
+ //                                                   or the "repeat" code
+@@ -109,6 +112,7 @@
+ 		WHYNTER,
+ 		AIWA_RC_T501,
+ 		LG,
++		LGAC,
+ 		SANYO,
+ 		MITSUBISHI,
+ 		DISH,
+@@ -324,6 +328,12 @@
+ #		if SEND_Pronto
+ 			void  sendPronto     (char* code,  bool repeat,  bool fallback) ;
+ #		endif
++		//......................................................................			
++#		if SEND_LGAC
++			void  sendLGAC    (unsigned long data,  int nbits) ;
++#		endif
++
++
+ } ;
+ 
+ #endif
+diff -urN /Users/chaeplin/Downloads/IRremote/ir_LGAC.cpp /Users/chaeplin/Documents/Arduino/libraries/IRremote/ir_LGAC.cpp
+--- /Users/chaeplin/Downloads/IRremote/ir_LGAC.cpp	1970-01-01 09:00:00.000000000 +0900
++++ /Users/chaeplin/Documents/Arduino/libraries/IRremote/ir_LGAC.cpp	2015-07-22 00:56:46.000000000 +0900
+@@ -0,0 +1,48 @@
++#include "IRremote.h"
++#include "IRremoteInt.h"
++
++//==============================================================================
++//                               L       GGGG    AAA    CCCC
++//                               L      G       A   A  C
++//                               L      G  GG   AAAAA  C
++//                               L      G   G   A   A  C
++//                               LLLLL   GGG    A   A   CCCC
++//==============================================================================
++
++
++#define LGAC_HDR_MARK 3200
++#define LGAC_HDR_SPACE 10000
++#define LGAC_BIT_MARK 1500
++#define LGAC_ONE_SPACE 500
++#define LGAC_ZERO_SPACE 500
++
++
++#define LGAC_RPT_LENGTH 60000
++
++//+=============================================================================
++#if SEND_LGAC
++void  IRsend::sendLGAC (unsigned long data,  int nbits)
++{
++    // Set IR carrier frequency
++    enableIROut(38);
++
++    // Header
++    mark(LGAC_HDR_MARK);
++    space(LGAC_HDR_SPACE);
++    mark(LGAC_ONE_SPACE);
++
++    // Data
++    for (unsigned long  mask = 1UL << (nbits - 1);  mask;  mask >>= 1) {
++        if (data & mask) {
++            space(LGAC_BIT_MARK);
++            mark(LGAC_ONE_SPACE);
++        } else {
++            space(LGAC_ZERO_SPACE);
++            mark(LGAC_ONE_SPACE);
++        }
++    }
++    space(0);  // Always end with the LED off
++
++    // We will have ended with LED off
++}
++#endif
