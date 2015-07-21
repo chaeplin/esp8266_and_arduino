@@ -14,10 +14,11 @@ void loop()
     togglePower();
     sleep30Minutes();
     togglePower();
-    sleep60Minutes();
+    //sleep60Minutes();
+    sleep30Minutes();
 }
 
-
+// USe 9 sec
 void sleep60Minutes()
 {
   for (int i = 0; i < 400; i++) { 
