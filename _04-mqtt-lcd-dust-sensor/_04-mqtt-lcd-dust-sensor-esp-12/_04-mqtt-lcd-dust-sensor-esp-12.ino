@@ -408,7 +408,9 @@ void loop()
     if (now() != prevDisplay) { //update the display only if time has changed
       prevDisplay = now();
       digitalClockDisplay();
-      requestSharp();
+      if ( ( second() % 5 ) == 0 ) {
+        requestSharp();
+      }
       checkDisplayValue();
     }
   }
