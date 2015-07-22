@@ -4,7 +4,7 @@
 (4) : change air flow, temperature
 (5) : temperature ( 15 + (5) = )
 (6) : air flow
-(7) : crc ( 3 xor 4 xor 5 xor 6 )
+(7) : crc ( 3 + 4 + 5 + 6 ) & B00001111
 
                      (1)  (2)  (3)  (4)  (5)  (6)  (7)
 ! on / 25 / mid		1000 1000 0000 0000 1010 0010 1100  // on
