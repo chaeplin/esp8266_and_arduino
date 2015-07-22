@@ -152,36 +152,6 @@ void setup()
 
   Serial.println("  - - - T E S T - - -   ");
 
-/*
-  ac_activate(25, 0);
-  delay(5000);
-  ac_activate(26, 1);
-  delay(5000);
-  ac_activate(27, 2);
-  delay(5000);
-  ac_activate(28, 3);
-  delay(5000);
-  ac_activate(28, 0);
-  delay(5000);
-  ac_activate(28, 1);
-  delay(5000);
-  ac_activate(28, 2);
-  delay(5000);
-  ac_activate(28, 3);
-
-
-  ac_change_air_swing(0);
-  delay(5000);
-  ac_change_air_swing(1);
-  delay(5000);
-  ac_air_clean(1);
-  delay(5000);
-  ac_air_clean(0);
-  delay(5000);
-  ac_power_down();
-*/
-
-
 }
 
 void loop()
@@ -204,6 +174,7 @@ void loop()
     Serial.print("  b : ");
     Serial.println(b);   
     
+/*
 
     if ( 18 <= a && a <= 30 ) {
       if ( 0 <= b && b <= 3 ) {
@@ -242,6 +213,43 @@ void loop()
           ac_activate(b, AC_FLOW);
       }
     }
+*/
+
+    switch (a) {
+      case 0:
+        ac_power_down();
+        break;
+      case 1:
+        ac_activate(AC_TEMPERATURE, AC_FLOW);
+        break;
+      case 2:
+        if ( b == 0 | b == 1 ) {
+          ac_change_air_swing(b);
+        }      
+        break;
+      case 3:
+        if ( b == 0 | b == 1 ) {
+          ac_air_clean(b);
+        }      
+        break;
+      case 4:
+        if ( 0 <= b && b <= 3  ) {
+          ac_activate(AC_TEMPERATURE, b);
+        }      
+        break;
+      case 5:
+        if (18 <= b && b <= 30  ) {
+          ac_activate(b, AC_FLOW);
+        }      
+        break;
+      default:
+        if ( 18 <= a && a <= 30 ) {
+          if ( 0 <= b && b <= 3 ) {
+            ac_activate(a, b);
+          }
+        }
+    }
+
     o_r = r ;
   }
 }
