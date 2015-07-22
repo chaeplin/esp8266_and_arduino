@@ -138,12 +138,61 @@ void setup()
   ac_activate(28, 0);
   delay(5000);
   ac_activate(28, 4);
+
 }
 
-void loop() {
+void loop() 
+{
   if ( r != o_r) {
-// ~~~
-// 
+
+    // a : mode or temp
+    // 18 ~ 30 : temp
+    // 0 : off 
+    // 1 : on
+    // 2 : air_swing
+    // 3 : air_clean
+    // 4 : air_flow
+    // 5 : temp
+    // 
+    // b : air_flow, temp, swing, clean
+  
+    if ( 18 <= a <= 30 ) {
+      if ( b == 0 | b == 2 | b == 4 | b == 5) {
+        ac_activate(a, b);
+      }
+    }
+
+    if ( a == 0 ) {
+      ac_power_down();
+    }
+
+    if ( a == 1 ) {
+      ac_activate(AC_TEMPERATURE, AC_FLOW);
+    }
+
+    if ( a == 2 ) {
+      if ( b == 0 | b == 1 ) {
+        ac_change_air_swing(b); 
+      }     
+    }
+
+    if ( a == 3 ) {
+      if ( b == 0 | b == 1 ) {
+        ac_air_clean(b);
+    }
+
+    if ( a == 4 ) {
+      if ( b == 0 | b == 2 | b == 4 | b == 5) {
+        ac_activate(AC_TEMPERATURE, b);
+      }
+    }
+
+    if ( a == 5 ) {
+      if ( 18 <= b <= 30 ){
+        ac_activate(b, AC_FLOW);
+      }
+    }
+
     o_r = r ;
   }
 
@@ -152,13 +201,8 @@ void loop() {
 
 void receiveEvent(int howMany)
 {
-
-// a : mode or temp
-// b : temp
-// 
   a = Wire.read();
   b = Wire.read();
-
   r = !r ;
 }
 
