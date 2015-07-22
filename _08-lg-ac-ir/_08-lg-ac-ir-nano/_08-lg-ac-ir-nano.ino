@@ -91,10 +91,12 @@ void ac_activate(int temperature, int air_flow)
   int AC_MSBITS5 = temperature - 15;
   int AC_MSBITS6 ;
 
-  if ( air_flow == 0 ) {
-    AC_MSBITS6 = 0;
-  }
+
+
   if ( AC_TYPE == 0) {
+    if ( air_flow == 0 ) {
+      AC_MSBITS6 = 0;
+    }  
     if ( air_flow == 1 ) {
       AC_MSBITS6 = 4;
     }
@@ -105,6 +107,9 @@ void ac_activate(int temperature, int air_flow)
       AC_MSBITS6 = 12;
     }
   } else {
+    if ( air_flow == 0 ) {
+      AC_MSBITS6 = 0;
+    }  
     if ( air_flow == 1 ) {
       AC_MSBITS6 = 2;
     }
@@ -196,27 +201,27 @@ void loop()
 
     if ( 18 <= a <= 30 ) {
       if ( 0 <= b <= 3 ) {
-        ac_activate(a, b);
+          ac_activate(a, b);
       }
     }
 
     if ( a == 0 ) {
-      ac_power_down();
+          ac_power_down();
     }
 
     if ( a == 1 ) {
-      ac_activate(AC_TEMPERATURE, AC_FLOW);
+          ac_activate(AC_TEMPERATURE, AC_FLOW);
     }
 
     if ( a == 2 ) {
       if ( b == 0 | b == 1 ) {
-        ac_change_air_swing(b);
+          ac_change_air_swing(b);
       }
     }
 
     if ( a == 3 ) {
       if ( b == 0 | b == 1 ) {
-        ac_air_clean(b);
+          ac_air_clean(b);
       }
     }
 
@@ -228,7 +233,7 @@ void loop()
 
     if ( a == 5 ) {
       if ( 18 <= b <= 30 ) {
-        ac_activate(b, AC_FLOW);
+          ac_activate(b, AC_FLOW);
       }
     }
     o_r = r ;
