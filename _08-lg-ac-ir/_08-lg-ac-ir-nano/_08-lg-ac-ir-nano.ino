@@ -8,22 +8,21 @@ const int AC_TYPE  = 0;
 // 1 : WALL
 
 int AC_POWER_ON    = 0;
-// 0 : off 
+// 0 : off
 // 1 : on
 
 int AC_TEMPERATURE = 27;
 // temperature : 18 ~ 30
 
-int AC_FLOW        = 2;
+int AC_FLOW        = 1;
 // 0 : low
-// 2 : mid
-// 4 : high
-// 5 : rotate
+// 1 : mid
+// 2 : high
+// 3 : rotate
 
 int AC_AIR_ACLEAN  = 0;
 // 0 : off
 // 1 : on
-
 
 unsigned long AC_CODE_TO_SEND;
 
@@ -35,19 +34,19 @@ byte a, b;
 void ac_change_air_swing(int air_swing)
 {
   if ( AC_TYPE == 0) {
-      if ( air_swing == 1) {
-           AC_CODE_TO_SEND = B1000100000010011000101101011;
-      } else {
-           AC_CODE_TO_SEND = B1000100000010011000101111100;
-      }
+    if ( air_swing == 1) {
+      AC_CODE_TO_SEND = 0x881316B;
+    } else {
+      AC_CODE_TO_SEND = 0x881317C;
+    }
   } else {
-      if ( air_swing == 1) {
-           AC_CODE_TO_SEND = B1000100000010011000101001001;
-      } else {
-           AC_CODE_TO_SEND = B1000100000010011000101011010;
-      }
+    if ( air_swing == 1) {
+      AC_CODE_TO_SEND = 0x8813149;
+    } else {
+      AC_CODE_TO_SEND = 0x881315A;
+    }
   }
-  
+
   Serial.print("code to send : ");
   Serial.println(AC_CODE_TO_SEND, BIN);
 
@@ -57,7 +56,7 @@ void ac_change_air_swing(int air_swing)
 
 void ac_power_down()
 {
-  AC_CODE_TO_SEND = B1000100011000000000001010001;
+  AC_CODE_TO_SEND = 0x88C0051;
 
   Serial.print("code to send : ");
   Serial.println(AC_CODE_TO_SEND, BIN);
@@ -70,14 +69,14 @@ void ac_power_down()
 void ac_air_clean(int air_clean)
 {
   if ( air_clean == 1) {
-     AC_CODE_TO_SEND = B1000100011000000000000001100;
+    AC_CODE_TO_SEND = 0x88C000C;
   } else {
-    AC_CODE_TO_SEND = B1000100011000000000010000100;
+    AC_CODE_TO_SEND = 0x88C0084;
   }
   Serial.print("code to send : ");
   Serial.println(AC_CODE_TO_SEND, BIN);
 
-  irsend.sendLGAC(AC_CODE_TO_SEND, 28); 
+  irsend.sendLGAC(AC_CODE_TO_SEND, 28);
 
   AC_AIR_ACLEAN = air_clean;
 }
@@ -90,7 +89,34 @@ void ac_activate(int temperature, int air_flow)
   int AC_MSBITS3 = 0;
   int AC_MSBITS4 = 0;
   int AC_MSBITS5 = temperature - 15;
-  int AC_MSBITS6 = air_flow;
+  int AC_MSBITS6 ;
+
+  if ( air_flow == 0 ) {
+    AC_MSBITS6 = 0;
+  }
+  if ( AC_TYPE == 0) {
+    if ( air_flow == 1 ) {
+      AC_MSBITS6 = 4;
+    }
+    if ( air_flow == 2 ) {
+      AC_MSBITS6 = 6;
+    }
+    if ( air_flow == 3 ) {
+      AC_MSBITS6 = 12;
+    }
+  } else {
+    if ( air_flow == 1 ) {
+      AC_MSBITS6 = 2;
+    }
+    if ( air_flow == 2 ) {
+      AC_MSBITS6 = 4;
+    }
+    if ( air_flow == 3 ) {
+      AC_MSBITS6 = 5;
+    }
+
+  }
+
   int AC_MSBITS7 = (AC_MSBITS3 + AC_MSBITS4 + AC_MSBITS5 + AC_MSBITS6) & B00001111;
 
   AC_CODE_TO_SEND =  AC_MSBITS1 << 4 ;
@@ -121,43 +147,55 @@ void setup()
 
   Serial.println("  - - - T E S T - - -   ");
 
-  ac_activate(AC_TEMPERATURE, AC_FLOW);
+/*
+  ac_activate(25, 0);
   delay(5000);
-  ac_activate(25, 2);
-  delay(5000);
-  ac_activate(26, 2);
+  ac_activate(26, 1);
   delay(5000);
   ac_activate(27, 2);
   delay(5000);
-  ac_activate(28, 2);
-  delay(5000);
-  ac_activate(28, 4);
-  delay(5000);
-  ac_activate(28, 5);
+  ac_activate(28, 3);
   delay(5000);
   ac_activate(28, 0);
   delay(5000);
-  ac_activate(28, 4);
+  ac_activate(28, 1);
+  delay(5000);
+  ac_activate(28, 2);
+  delay(5000);
+  ac_activate(28, 3);
+
+
+  ac_change_air_swing(0);
+  delay(5000);
+  ac_change_air_swing(1);
+  delay(5000);
+  ac_air_clean(1);
+  delay(5000);
+  ac_air_clean(0);
+  delay(5000);
+  ac_power_down();
+*/
+
 
 }
 
-void loop() 
+void loop()
 {
   if ( r != o_r) {
 
     // a : mode or temp
     // 18 ~ 30 : temp
-    // 0 : off 
+    // 0 : off
     // 1 : on
     // 2 : air_swing
     // 3 : air_clean
     // 4 : air_flow
     // 5 : temp
-    // 
+    //
     // b : air_flow, temp, swing, clean
-  
+
     if ( 18 <= a <= 30 ) {
-      if ( b == 0 | b == 2 | b == 4 | b == 5) {
+      if ( 0 <= b <= 3 ) {
         ac_activate(a, b);
       }
     }
@@ -172,31 +210,33 @@ void loop()
 
     if ( a == 2 ) {
       if ( b == 0 | b == 1 ) {
-        ac_change_air_swing(b); 
-      }     
+        ac_change_air_swing(b);
+      }
     }
 
     if ( a == 3 ) {
       if ( b == 0 | b == 1 ) {
         ac_air_clean(b);
-    }
-
-    if ( a == 4 ) {
-      if ( b == 0 | b == 2 | b == 4 | b == 5) {
-        ac_activate(AC_TEMPERATURE, b);
       }
-    }
 
-    if ( a == 5 ) {
-      if ( 18 <= b <= 30 ){
-        ac_activate(b, AC_FLOW);
+      if ( a == 4 ) {
+        if ( 0 <= b <= 3 ) {
+          ac_activate(AC_TEMPERATURE, b);
+        }
       }
-    }
 
+      if ( a == 5 ) {
+        if ( 18 <= b <= 30 ) {
+          ac_activate(b, AC_FLOW);
+        }
+      }
+
+
+    }
     o_r = r ;
   }
-
 }
+
 
 
 void receiveEvent(int howMany)
