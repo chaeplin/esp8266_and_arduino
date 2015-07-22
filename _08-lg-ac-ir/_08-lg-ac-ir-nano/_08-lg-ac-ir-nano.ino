@@ -218,20 +218,18 @@ void loop()
       if ( b == 0 | b == 1 ) {
         ac_air_clean(b);
       }
+    }
 
-      if ( a == 4 ) {
-        if ( 0 <= b <= 3 ) {
+    if ( a == 4 ) {
+      if ( 0 <= b <= 3 ) {
           ac_activate(AC_TEMPERATURE, b);
-        }
       }
+    }
 
-      if ( a == 5 ) {
-        if ( 18 <= b <= 30 ) {
-          ac_activate(b, AC_FLOW);
-        }
+    if ( a == 5 ) {
+      if ( 18 <= b <= 30 ) {
+        ac_activate(b, AC_FLOW);
       }
-
-
     }
     o_r = r ;
   }
