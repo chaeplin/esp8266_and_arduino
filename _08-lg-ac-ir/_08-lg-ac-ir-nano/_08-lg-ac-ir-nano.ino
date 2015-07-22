@@ -199,8 +199,14 @@ void loop()
     //
     // b : air_flow, temp, swing, clean
 
-    if ( 18 <= a <= 30 ) {
-      if ( 0 <= b <= 3 ) {
+    Serial.print("a : ");
+    Serial.print(a);
+    Serial.print("  b : ");
+    Serial.println(b);   
+    
+
+    if ( 18 <= a && a <= 30 ) {
+      if ( 0 <= b && b <= 3 ) {
           ac_activate(a, b);
       }
     }
@@ -226,13 +232,13 @@ void loop()
     }
 
     if ( a == 4 ) {
-      if ( 0 <= b <= 3 ) {
+      if ( 0 <= b && b <= 3  ) {
           ac_activate(AC_TEMPERATURE, b);
       }
     }
 
     if ( a == 5 ) {
-      if ( 18 <= b <= 30 ) {
+      if (18 <= b && b <= 30  ) {
           ac_activate(b, AC_FLOW);
       }
     }
