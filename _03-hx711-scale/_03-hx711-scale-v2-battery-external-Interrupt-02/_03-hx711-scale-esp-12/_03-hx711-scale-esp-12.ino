@@ -137,7 +137,7 @@ void requestHx711()
   Serial.println(y);
 
 
-  if ( x >= 10000 ) {
+  if ( x >= 10000 | x == 0 ) {
     Serial.println("scale is sleeping");
     return;
   } else {
