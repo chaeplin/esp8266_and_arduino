@@ -20,8 +20,8 @@ int AC_FLOW        = 1;
 // 2 : high
 // 3 : rotate
 
-const int AC_FLOW_TOWER[4] = {0, 4, 6, 12}
-const int AC_FLOW_WALL[4]  = {0, 2, 4, 5}
+const int AC_FLOW_TOWER[4] = {0, 4, 6, 12};
+const int AC_FLOW_WALL[4]  = {0, 2, 4, 5};
 
 
 int AC_AIR_ACLEAN  = 0;
@@ -98,7 +98,7 @@ void ac_activate(int temperature, int air_flow)
   if ( AC_TYPE == 0) { 
     AC_MSBITS6 = AC_FLOW_TOWER[air_flow];
   } else {
-    AC_MSBITS6 = AC_FLOW_WALL[air_flow]
+    AC_MSBITS6 = AC_FLOW_WALL[air_flow];
   }
 
 /*
