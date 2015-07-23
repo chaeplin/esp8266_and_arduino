@@ -3,8 +3,6 @@
 
 IRsend irsend;
 
-// IR 
-// D3 is out
 const int AC_TYPE  = 0;
 // 0 : TOWER
 // 1 : WALL
@@ -21,6 +19,10 @@ int AC_FLOW        = 1;
 // 1 : mid
 // 2 : high
 // 3 : rotate
+
+const int AC_FLOW_TOWER[4] = {0, 4, 6, 12};
+const int AC_FLOW_WALL[4]  = {0, 2, 4, 5};
+
 
 int AC_AIR_ACLEAN  = 0;
 // 0 : off
@@ -111,9 +113,14 @@ void ac_activate(int temperature, int air_flow)
   int AC_MSBITS4 = 0;
   int AC_MSBITS5 = temperature - 15;
   int AC_MSBITS6 ;
+  
+  if ( AC_TYPE == 0) { 
+    AC_MSBITS6 = AC_FLOW_TOWER[air_flow];
+  } else {
+    AC_MSBITS6 = AC_FLOW_WALL[air_flow];
+  }
 
-
-
+/*
   if ( AC_TYPE == 0) {
     if ( air_flow == 0 ) {
       AC_MSBITS6 = 0;
@@ -142,6 +149,7 @@ void ac_activate(int temperature, int air_flow)
     }
 
   }
+*/
 
   int AC_MSBITS7 = (AC_MSBITS3 + AC_MSBITS4 + AC_MSBITS5 + AC_MSBITS6) & B00001111;
 
@@ -246,8 +254,6 @@ void loop()
 
 }
 
-// function that executes whenever data is requested by master
-// this function is registered as an event, see setup()
 void requestEvent()
 { 
   byte myArray[2];
