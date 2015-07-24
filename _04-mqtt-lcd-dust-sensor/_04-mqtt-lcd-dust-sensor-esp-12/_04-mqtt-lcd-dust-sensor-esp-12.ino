@@ -195,6 +195,7 @@ void parseMqttMsg(String payload, String receivedtopic) {
   // esp8266/arduino/s04 : OUTSIDE
   // esp8266/arduino/s06 : Scale
   // esp8266/arduino/s02  : T, H
+  // esp8266/arduino/aircon : ________
 
   if ( receivedtopic == "esp8266/arduino/s02" ) {
     H   = root["Humidity"];
@@ -633,6 +634,13 @@ void requestSharp()
 
 }
 
+void sendI2cMsg(byte a, byte b) 
+{
+  Wire.beginTransmission(2);
+  Wire.write(a);
+  Wire.write(b);
+  Wire.endTransmission();
+}
 
 void senddustDensity()
 {
