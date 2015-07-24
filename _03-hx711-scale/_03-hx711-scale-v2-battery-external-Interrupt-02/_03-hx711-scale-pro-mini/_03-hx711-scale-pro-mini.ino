@@ -8,6 +8,7 @@
 
 // tilt switch
 const int wakeUpPin     = 2;
+const int wakeUpPin2    = 3;
 const int espResetPin   = 9;
 const int ledPowerPin   = 10;
 
@@ -47,6 +48,7 @@ void setup() {
   Wire.onReceive(receiveEvent);
 
   pinMode(wakeUpPin, INPUT_PULLUP);
+  pinMode(wakeUpPin2, INPUT_PULLUP);
 
   pinMode(ledPowerPin, OUTPUT);
   //pinMode(espnemoIsOnPadPin, OUTPUT);
@@ -67,6 +69,7 @@ void setup() {
   Serial.println("Initializing scale : done");
 
   attachInterrupt(0, WakeUp, CHANGE);
+  attachInterrupt(1, WakeUp, CHANGE);
 
   sleepNow();
 
@@ -86,11 +89,13 @@ void sleepNow()
   set_sleep_mode(SLEEP_MODE_PWR_DOWN);
   sleep_enable();
   attachInterrupt(0, WakeUp, CHANGE);
+  attachInterrupt(1, WakeUp, CHANGE);
 
   sleep_mode();
 
   sleep_disable();
   detachInterrupt(0);
+  detachInterrupt(1);
 
   Serial.println("Wake up at sleepNow");
   Serial.println(millis() - startMills);
@@ -98,7 +103,7 @@ void sleepNow()
   MeasuredIsSent = LOW;
   mqttMsgSent = LOW;
   IsEspReseted = LOW;
-  
+
   Attempt = 0;
   nofchecked = 0;
   ave.push(0);
@@ -150,11 +155,11 @@ void loop()
     Serial.print(" ==> no ==> ");
     Serial.print(nofchecked);
     Serial.print(" ==> avg ==> ");
-    Serial.print(ave.mean());  
+    Serial.print(ave.mean());
     Serial.print(" ==> max - min ==> ");
-    Serial.print( ave.maximum() - ave.minimum() );  
+    Serial.print( ave.maximum() - ave.minimum() );
     Serial.print(" ==> stddev ==> ");
-    Serial.println(ave.stddev());            
+    Serial.println(ave.stddev());
 
     if ( Measured > 500 ) {
       ave.push(Measured);
@@ -199,8 +204,8 @@ void loop()
 
   }
 
-  
-  if (  IsEspReseted == HIGH )  
+
+  if (  IsEspReseted == HIGH )
   {
     Attempt++;
     if ( Attempt == 20 )
@@ -251,9 +256,9 @@ void requestEvent()
   myArray[3] = int(VccValue) & 0xFF;
 
   Wire.write(myArray, 4);
-  
+
   MeasuredIsSent = HIGH;
-  
+
 }
 
 void receiveEvent(int howMany)
