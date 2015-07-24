@@ -189,7 +189,7 @@ void loop()
       Attempt++;
     }
 
-    if ( Attempt == 20 ) {
+    if ( Attempt > 20 | nofchecked > 40 ) {
       Serial.println("======> Measurement has problem");
       sleepNow();
     }
