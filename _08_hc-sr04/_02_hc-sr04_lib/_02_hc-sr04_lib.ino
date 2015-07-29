@@ -37,8 +37,10 @@ void setup() {
   digitalWrite(8, HIGH); // VCC +5V mode  
   digitalWrite(11, LOW);  // GND mode  
 
-  pinMode(2, OUTPUT); // GND for IR
+  pinMode(12, OUTPUT); // GND for IR
   digitalWrite(2, LOW);
+
+  
   
 }
 
@@ -68,11 +70,11 @@ long check_distance() {
   int distanceright = ultraright.Ranging(CM);
   delay(50);
 
-  if ( distanceleft >= distanceright ) {
-     return distanceright;
-  } else {
+  //if ( distanceleft >= distanceright ) {
+  //   return distanceright;
+  //} else {
      return distanceleft ;
-  }  
+  //}  
 }
 
 void loop() {
@@ -87,19 +89,26 @@ void loop() {
   Serial.print(" ave.stddev : ");
   Serial.println(int(ave.stddev()));
 
-  if ( ( ave.stddev() < 10) && ( int(ave.mean()) <= 60 )  && ( power_status == 1) ) {
+
+  if ( ( ave.stddev() < 50) && ( int(ave.mean()) <= 100 )  && ( power_status == 1) ) {
     Serial.println("to blank ch");
-    tv_input_to_blank();
+    //tv_input_to_blank();
     delay(50);
     power_status = 0;
   }
 
-  if ( ( ave.stddev() < 10) && ( int(ave.mean()) > 100 )  && ( power_status == 0) ) {
+  if ( ( ave.stddev() < 50) && ( int(ave.mean()) > 110 )  && ( power_status == 0) ) {
     Serial.println("to cur ch");
-    tv_input_to_cur();
+    //tv_input_to_cur();
     delay(50);
     power_status = 1;
   }
 
-  delay(500); 
+  if ( power_status == 0 ) {
+    digitalWrite(12, HIGH);
+  } else {
+    digitalWrite(12, LOW);
+  }
+  
+  delay(1000); 
 }

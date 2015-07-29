@@ -3,8 +3,8 @@
 #include <PubSubClient.h>
 #include <ESP8266WiFi.h>
 
-extern "C"{
-  #include "user_interface.h"
+extern "C" {
+#include "user_interface.h"
 }
 
 ADC_MODE(ADC_VCC);
@@ -65,7 +65,7 @@ void setup(void)
 
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
-  wifi_set_channel(4);
+  //wifi_set_channel(4);
 
 #ifdef __IS_MY_HOME
   WiFi.config(IPAddress(192, 168, 10, 13), IPAddress(192, 168, 10, 1), IPAddress(255, 255, 255, 0));
@@ -82,7 +82,7 @@ void setup(void)
       Serial.println("Could not connect to WIFI");
       goingToSleep();
     }
-  }  
+  }
 
   Serial.println(millis() - startMills);
   Serial.println("");
@@ -136,14 +136,16 @@ void setup(void)
     Serial.println("Unable to find address for Device 0");
     goingToSleep();
   }
+  /*
   if (!sensors.getAddress(outsideThermometer, 1)) {
     Serial.println("Unable to find address for Device 1");
     goingToSleep();
   }
-
+  */
   sensors.setResolution(insideThermometer, TEMPERATURE_PRECISION);
+  /*
   sensors.setResolution(outsideThermometer, TEMPERATURE_PRECISION);
-
+  */
   Serial.println(millis() - startMills);
 
 }
@@ -199,15 +201,18 @@ void loop(void)
   sensors.requestTemperatures();
   Serial.println("DONE");
   Serial.println(millis() - startMills);
-  
+
   // print the device information
   // printData(insideThermometer);
   // printData(outsideThermometer);
 
   Serial.println(millis() - startMills);
+  /*
   float tempCinside  = sensors.getTempC(outsideThermometer);
+  */
   float tempCoutside = sensors.getTempC(insideThermometer);
-  
+  float tempCinside  = tempCoutside;
+
   digitalWrite(dsout, LOW);
 
 
