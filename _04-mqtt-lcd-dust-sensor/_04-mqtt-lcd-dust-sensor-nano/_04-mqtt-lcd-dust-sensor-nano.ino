@@ -77,6 +77,8 @@ int o_r = LOW;
 byte a, b;
 
 // IR
+volatile int sleepmode = LOW ;
+int o_sleepmode = LOW ;
 
 // ------------------------------------------
 
@@ -166,16 +168,20 @@ void ac_air_clean(int air_clean)
 }
 
 // IR
-long dumpInfo (decode_results *results)
+void dumpInfo (decode_results *results)
 {
    // Check if the buffer overflowed
   if (results->overflow) {
     Serial.println("IR code too long. Edit IRremoteInt.h and increase RAWLEN");
-    return 0;
+    return;
   }
   
   if ( results->bits > 0 && results->bits == 32 ) {
-    return results->value;;
+    if ( results->value == "FF02FD" ) {
+       sleepmode = HIGH;
+    } else if ( results->value == "FF9867" ) {
+       sleepmode = LOW;
+    }
   }
 }
 
@@ -203,9 +209,10 @@ void setup()
 
 void loop()
 {
+
   decode_results results;
   
-  if ( (millis() - startMills) > 1000 ) {
+  if ((millis() - startMills) > 1000 ) {
 
     digitalWrite(ledPower, LOW); // power on the LED
     delayMicroseconds(samplingTime);
@@ -221,7 +228,7 @@ void loop()
   }
 
   if (irrecv.decode(&results)) {
-    Serial.println(dumpInfo(&results), HEX);
+    dumpInfo(&results);
     delay(50);
     irrecv.resume(); // Continue receiving
   }
@@ -234,90 +241,6 @@ void loop()
     delay(5000);
   */
 
-  if ( r != o_r) {
-
-    /*
-    # a : mode or temp    b : air_flow, temp, swing, clean
-    # 18 ~ 30 : temp      0 ~ 3 : flow // on
-    # 0 : off             0
-    # 1 : on              0
-    # 2 : air_swing       0 or 1
-    # 3 : air_clean       0 or 1
-    # 4 : air_flow        0 ~ 3 : flow
-    # 5 : temp            18 ~ 30
-    # + : temp + 1
-    # - : temp - 1
-    # m : change cooling to air clean, air clean to cooling
-    */
-    Serial.print("a : ");
-    Serial.print(a);
-    Serial.print("  b : ");
-    Serial.println(b);
-
-    switch (a) {
-      case 0: // off
-        ac_power_down();
-        break;
-      case 1: // on
-        ac_activate(AC_TEMPERATURE, AC_FLOW);
-        break;
-      case 2:
-        if ( b == 0 | b == 1 ) {
-          ac_change_air_swing(b);
-        }
-        break;
-      case 3: // 1  : clean on, power on
-        if ( b == 0 | b == 1 ) {
-          ac_air_clean(b);
-        }
-        break;
-      case 4:
-        if ( 0 <= b && b <= 3  ) {
-          ac_activate(AC_TEMPERATURE, b);
-        }
-        break;
-      case 5:
-        if (18 <= b && b <= 30  ) {
-          ac_activate(b, AC_FLOW);
-        }
-        break;
-      case '+':
-        if ( 18 <= AC_TEMPERATURE && AC_TEMPERATURE <= 29 ) {
-          ac_activate((AC_TEMPERATURE + 1), AC_FLOW);
-        }
-        break;
-      case '-':
-        if ( 19 <= AC_TEMPERATURE && AC_TEMPERATURE <= 30 ) {
-          ac_activate((AC_TEMPERATURE - 1), AC_FLOW);
-        }
-        break;
-      case 'm':
-        /*
-          if ac is on,  1) turn off, 2) turn on ac_air_clean(1)
-          if ac is off, 1) turn on,  2) turn off ac_air_clean(0)
-        */
-        if ( AC_POWER_ON == 1 ) {
-          ac_power_down();
-          delay(100);
-          ac_air_clean(1);
-        } else {
-          if ( AC_AIR_ACLEAN == 1) {
-            ac_air_clean(0);
-            delay(100);
-          }
-          ac_activate(AC_TEMPERATURE, AC_FLOW);
-        }
-        break;
-      default:
-        if ( 18 <= a && a <= 30 ) {
-          if ( 0 <= b && b <= 3 ) {
-            ac_activate(a, b);
-          }
-        }
-    }
-
-    o_r = r ;
-  }
 
   
 }
@@ -325,10 +248,27 @@ void loop()
 void requestEvent()
 {
   byte myArray[2];
-  myArray[0] = (voMeasured >> 8 ) & 0xFF;
-  myArray[1] = voMeasured & 0xFF;
+  int sleepmodetosent ;
 
-  Wire.write(myArray, 2);
+  if ( sleepmode == o_sleepmode ) {
+    myArray[0] = (voMeasured >> 8 ) & 0xFF;
+    myArray[1] = voMeasured & 0xFF;
+
+    Wire.write(myArray, 2);
+
+  } else {
+    if ( sleepmode == HIGH ) {
+      sleepmodetosent = 33333 ;
+    } else {
+      sleepmodetosent = 22222 ;
+    }
+    myArray[0] = (sleepmodetosent >> 8 ) & 0xFF;
+    myArray[1] = sleepmodetosent & 0xFF;
+
+    Wire.write(myArray, 2);
+
+    o_sleepmode = sleepmode;
+  }
 }
 
 void receiveEvent(int howMany)

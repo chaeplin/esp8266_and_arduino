@@ -49,6 +49,10 @@ volatile float OT ;
 volatile float PW ;
 volatile int NW ;
 volatile int PIR  ;
+
+volatile int sleepmode = LOW ;
+int o_sleepmode = LOW ;
+
 float dustDensity ;
 
 float OLD_H  ;
@@ -62,7 +66,7 @@ float OLD_dustDensity ;
 
 int OLD_x ;
 
-byte termometru[8] = //icon for termometer
+byte termometru[8] = 
 {
   B00100,
   B01010,
@@ -74,7 +78,7 @@ byte termometru[8] = //icon for termometer
   B01110,
 };
 
-byte picatura[8] = //icon for water droplet
+byte picatura[8] = 
 {
   B00100,
   B00100,
@@ -146,19 +150,6 @@ byte nemoicon[8] =
   B11011,
 };
 
-/*
-byte watticon[8] = 
-{
-  B00000,
-  B10101,
-  B10101,
-  B10101,
-  B10101,
-  B11011,
-  B01110,
-  B00000,
-};
-*/
 
 PubSubClient client(wifiClient, server);
 
@@ -421,6 +412,12 @@ void loop()
 }
 
 void checkDisplayValue() {
+  if ( sleepmode != o_sleepmode ) 
+  {
+    displaysleepmode(sleepmode);
+    o_sleepmode = sleepmode;
+  }
+
   if (( PW != OLD_PW ) && ( 0 <= PW < 10000 ))
   {
     displaypowerAvg(PW);
@@ -476,6 +473,22 @@ void checkDisplayValue() {
     Serial.print(PW);
     Serial.print(" ===> ");
     Serial.println(NW);
+  }
+
+}
+
+void displaysleepmode(int sleepmode)
+{
+  if ( sleepmode == HIGH ) {
+    lcd.setCursor(16, 2);
+    lcd.write(3);
+    lcd.setCursor(17, 2);
+    lcd.write(3);
+  } else {
+    lcd.setCursor(16, 2);
+    lcd.print(" ");
+    lcd.setCursor(17, 2);
+    lcd.print(" ");    
   }
 
 }
@@ -623,15 +636,24 @@ void requestSharp()
     Serial.println(x);
   }
 
-  if (( 1 < x < 1024 ) && ( x != OLD_x )) {
+  if ( x == 33333 ) {
+    sleepmode = HIGH;
+  }
+
+  if ( x == 22222 ) {
+    sleepmode = LOW;
+  }
+
+
+  if (( 1 < x ) && ( x < 1024 ) && ( x != OLD_x )) 
+  {
     float calcVoltage = x * (5.0 / 1024.0);
-    if ( (0.17 * calcVoltage - 0.1) > 0 ) {
+    if ( (0.17 * calcVoltage - 0.1) > 0 ) 
+    {
       dustDensity = 0.17 * calcVoltage - 0.1;
       OLD_x = x ;
     }
-    // //    0 ~ 0.5
   }
-
 }
 
 void sendI2cMsg(byte a, byte b) 
@@ -647,7 +669,8 @@ void senddustDensity()
   payload = " {\"dustDensity\":";
   payload += dustDensity;
   payload += "}";
-  if ( dustDensity < 0.6 ) {
+  if ( dustDensity < 0.6 ) 
+  {
     sendmqttMsg(payload);
   }
 }
@@ -655,7 +678,8 @@ void senddustDensity()
 void sendmqttMsg(String payload)
 {
   if (!client.connected()) {
-    if (client.connect((char*) clientName.c_str())) {
+    if (client.connect((char*) clientName.c_str())) 
+    {
       Serial.println("Connected to MQTT broker again esp8266/arduino/s03");
       Serial.print("Topic is: ");
       Serial.println(topic);
@@ -668,13 +692,15 @@ void sendmqttMsg(String payload)
   }
 
   if (client.connected()) {
-    if (DEBUG_PRINT) {
+    if (DEBUG_PRINT) 
+    {
       Serial.print("Sending payload: ");
       Serial.println(payload);
     }
 
     if (client.publish(topic, (char*) payload.c_str())) {
-      if (DEBUG_PRINT) {
+      if (DEBUG_PRINT) 
+      {
         Serial.println("Publish ok");
       }
     }
@@ -688,10 +714,12 @@ void sendmqttMsg(String payload)
 String macToStr(const uint8_t* mac)
 {
   String result;
-  for (int i = 0; i < 6; ++i) {
+  for (int i = 0; i < 6; ++i)
+  {
     result += String(mac[i], 16);
-    if (i < 5)
+    if (i < 5) {
       result += ':';
+    }
   }
   return result;
 }
@@ -713,8 +741,9 @@ void digitalClockDisplay()
 
 void printDigitsnocolon(int digits)
 {
-  if (digits < 10)
+  if (digits < 10) {
     lcd.print('0');
+  }
   lcd.print(digits);
 }
 
@@ -723,8 +752,9 @@ void printDigits(int digits)
 {
   // utility for digital clock display: prints preceding colon and leading 0
   lcd.print(":");
-  if (digits < 10)
+  if (digits < 10) {
     lcd.print('0');
+  }
   lcd.print(digits);
 }
 
