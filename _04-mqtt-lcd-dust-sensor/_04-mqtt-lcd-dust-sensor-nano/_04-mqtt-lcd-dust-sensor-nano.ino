@@ -7,24 +7,30 @@ IRsend irsend;
  Standalone Sketch to use with a Arduino UNO and a
  Sharp Optical Dust Sensor GP2Y1010AU0F
 */
-  
-// ------------------------------------------  
+
+// ------------------------------------------
 int measurePin = A6; //Connect dust sensor to Arduino A6 pin
 int ledPower = 2;   //Connect 3 led driver pins of dust sensor to Arduino D2
 
+int IR_receive_recv_PIN = 6;
+int IR_receive_GND_PIN  = 7;
+int IR_receive_VCC_PIN  = 8;
+
+
 // A6  : DUST IN
 // D2  : DUST OUT
-// 
+//
 // D3  : IR OUT
-// 
+//
 // D6  : IR IN
 // D7  : OUT GND
 // D8  : OUT VCC
-// 
+//
 // D12 : OUT GND
+
+IRrecv irrecv(IR_receive_recv_PIN); // Receive on pin 6
+
 // ------------------------------------------
-
-
 int samplingTime = 280;
 int deltaTime = 40;
 int sleepTime = 9680;
@@ -32,6 +38,9 @@ int sleepTime = 9680;
 int voMeasured = 0;
 float calcVoltage = 0;
 float dustDensity = 0;
+
+// -----------------------------------------
+long startMills;
 
 // ------------------------------------------
 // IR
@@ -157,12 +166,35 @@ void ac_air_clean(int air_clean)
 }
 
 // IR
+long dumpInfo (decode_results *results)
+{
+   // Check if the buffer overflowed
+  if (results->overflow) {
+    Serial.println("IR code too long. Edit IRremoteInt.h and increase RAWLEN");
+    return 0;
+  }
+  
+  if ( results->bits > 0 && results->bits == 32 ) {
+    return results->value;;
+  }
+}
+
+
 
 void setup()
 {
   Serial.begin(38400);
+  startMills = millis();
   Serial.println("Starting dust Sensor");
-  pinMode(ledPower,OUTPUT);
+  pinMode(ledPower, OUTPUT);
+
+  pinMode(IR_receive_VCC_PIN, OUTPUT);
+  pinMode(IR_receive_GND_PIN, OUTPUT);
+  digitalWrite(IR_receive_VCC_PIN, HIGH);
+  digitalWrite(IR_receive_GND_PIN, LOW);
+
+  irrecv.enableIRIn(); // Start the receiver
+
   Wire.begin(2);                // join i2c bus with address #2
   Wire.onRequest(requestEvent); // register event
   Wire.onReceive(receiveEvent);
@@ -171,23 +203,37 @@ void setup()
 
 void loop()
 {
-  digitalWrite(ledPower, LOW); // power on the LED
-  delayMicroseconds(samplingTime);
+  decode_results results;
   
-  voMeasured = analogRead(measurePin); // read the dust value
-  
-  delayMicroseconds(deltaTime);
-  digitalWrite(ledPower, HIGH); // turn the LED off
-  delayMicroseconds(sleepTime);
+  if ( (millis() - startMills) > 1000 ) {
 
-// ------------------------------------------
-/* test
-  ac_activate(25, 1);
-  delay(5000);
-  ac_activate(27, 0);
-  delay(5000);
-*/
+    digitalWrite(ledPower, LOW); // power on the LED
+    delayMicroseconds(samplingTime);
+
+    voMeasured = analogRead(measurePin); // read the dust value
+
+    delayMicroseconds(deltaTime);
+    digitalWrite(ledPower, HIGH); // turn the LED off
+    delayMicroseconds(sleepTime);
+
+    startMills = millis();
+
+  }
+
+  if (irrecv.decode(&results)) {
+    Serial.println(dumpInfo(&results), HEX);
+    delay(50);
+    irrecv.resume(); // Continue receiving
+  }
   
+  // ------------------------------------------
+  /* test
+    ac_activate(25, 1);
+    delay(5000);
+    ac_activate(27, 0);
+    delay(5000);
+  */
+
   if ( r != o_r) {
 
     /*
@@ -273,12 +319,11 @@ void loop()
     o_r = r ;
   }
 
-  delay(100);
-
+  
 }
 
 void requestEvent()
-{ 
+{
   byte myArray[2];
   myArray[0] = (voMeasured >> 8 ) & 0xFF;
   myArray[1] = voMeasured & 0xFF;
