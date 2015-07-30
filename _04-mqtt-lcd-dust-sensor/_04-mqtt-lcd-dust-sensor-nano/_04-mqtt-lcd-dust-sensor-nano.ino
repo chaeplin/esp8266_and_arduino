@@ -41,7 +41,7 @@ float dustDensity = 0;
 
 // -----------------------------------------
 long startMills;
-
+long ac_startMills;
 // ------------------------------------------
 // IR
 const int AC_TYPE  = 0;
@@ -167,6 +167,20 @@ void ac_air_clean(int air_clean)
   AC_AIR_ACLEAN = air_clean;
 }
 
+void ac_sleepmomde_change() {
+  if ( AC_POWER_ON == 0 ) {
+    ac_air_clean(0);
+    delay(100);
+    ac_activate(28, 0);
+    delay(100);
+  } else {
+    ac_power_down();
+    delay(100);
+    ac_air_clean(1);
+    delay(100);
+  }
+}
+
 // IR
 void dumpInfo (decode_results *results)
 {
@@ -178,6 +192,7 @@ void dumpInfo (decode_results *results)
   
   if ( results->bits > 0 && results->bits == 32 ) {
     if ( results->value == 0xFF02FD ) {
+       ac_sleepmomde_change();
        sleepmode = HIGH;
     } else if ( results->value == 0xFF9867 ) {
        sleepmode = LOW;
@@ -190,7 +205,10 @@ void dumpInfo (decode_results *results)
 void setup()
 {
   Serial.begin(38400);
+
   startMills = millis();
+  ac_startMills = 0;
+
   Serial.println("Starting dust Sensor");
   pinMode(ledPower, OUTPUT);
 
@@ -224,7 +242,6 @@ void loop()
     delayMicroseconds(sleepTime);
 
     startMills = millis();
-
   }
 
   if (irrecv.decode(&results)) {
@@ -241,8 +258,10 @@ void loop()
     delay(5000);
   */
 
-
-  
+  if ((sleepmode == HIGH) && ( ac_startMills >= 1800000 )) {
+     ac_sleepmomde_change;
+     ac_startMills = millis();
+  }
 }
 
 void requestEvent()
