@@ -177,9 +177,9 @@ void dumpInfo (decode_results *results)
   }
   
   if ( results->bits > 0 && results->bits == 32 ) {
-    if ( results->value == "FF02FD" ) {
+    if ( results->value == 0xFF02FD ) {
        sleepmode = HIGH;
-    } else if ( results->value == "FF9867" ) {
+    } else if ( results->value == 0xFF9867 ) {
        sleepmode = LOW;
     }
   }
