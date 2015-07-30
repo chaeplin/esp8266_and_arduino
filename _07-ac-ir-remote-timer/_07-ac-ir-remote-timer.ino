@@ -4,18 +4,23 @@
 int powerPin = 2;
 
 void setup() {
-  
+  delay(500);
   pinMode(powerPin, OUTPUT);
-  digitalWrite(powerPin, LOW);    
+  digitalWrite(powerPin, LOW);
+  delay(500);
 }
 
 void loop()
 {
+    delay(500);
     togglePower();
+    delay(500);
     sleep30Minutes();
+    delay(500);
     togglePower();
-    //sleep60Minutes();
+    delay(500);
     sleep30Minutes();
+    delay(500);
 }
 
 // USe 9 sec
@@ -35,6 +40,7 @@ void sleep30Minutes()
 }
 
 void togglePower() {
+  delay(100);              
   digitalWrite(powerPin, HIGH);  
   delay(100);              
   digitalWrite(powerPin, LOW);    
