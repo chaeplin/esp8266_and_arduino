@@ -3,6 +3,38 @@
 
 IRsend irsend;
 
+/*
+ Standalone Sketch to use with a Arduino UNO and a
+ Sharp Optical Dust Sensor GP2Y1010AU0F
+*/
+  
+// ------------------------------------------  
+int measurePin = A6; //Connect dust sensor to Arduino A6 pin
+int ledPower = 2;   //Connect 3 led driver pins of dust sensor to Arduino D2
+
+// A6  : DUST IN
+// D2  : DUST OUT
+// 
+// D3  : IR OUT
+// 
+// D6  : IR IN
+// D7  : OUT GND
+// D8  : OUT VCC
+// 
+// D12 : OUT GND
+// ------------------------------------------
+
+
+int samplingTime = 280;
+int deltaTime = 40;
+int sleepTime = 9680;
+
+int voMeasured = 0;
+float calcVoltage = 0;
+float dustDensity = 0;
+
+// ------------------------------------------
+// IR
 const int AC_TYPE  = 0;
 // 0 : TOWER
 // 1 : WALL
@@ -24,6 +56,7 @@ int AC_FLOW        = 1;
 // 2 : high
 // 3 : rotate
 
+// IR
 const int AC_FLOW_TOWER[4] = {0, 4, 6, 12};
 const int AC_FLOW_WALL[4]  = {0, 2, 4, 5};
 
@@ -36,24 +69,9 @@ byte a, b;
 
 // IR
 
-/*
- Standalone Sketch to use with a Arduino UNO and a
- Sharp Optical Dust Sensor GP2Y1010AU0F
-*/
-  
-int measurePin = A6; //Connect dust sensor to Arduino A0 pin
-int ledPower = 2;   //Connect 3 led driver pins of dust sensor to Arduino D2
-  
-int samplingTime = 280;
-int deltaTime = 40;
-int sleepTime = 9680;
-
-int voMeasured = 0;
-float calcVoltage = 0;
-float dustDensity = 0;
+// ------------------------------------------
 
 // IR
-
 void ac_send_code(unsigned long code)
 {
   Serial.print("code to send : ");
@@ -162,6 +180,14 @@ void loop()
   digitalWrite(ledPower, HIGH); // turn the LED off
   delayMicroseconds(sleepTime);
 
+// ------------------------------------------
+/* test
+  ac_activate(25, 1);
+  delay(5000);
+  ac_activate(27, 0);
+  delay(5000);
+*/
+  
   if ( r != o_r) {
 
     /*
@@ -246,7 +272,9 @@ void loop()
 
     o_r = r ;
   }
+
   delay(100);
+
 }
 
 void requestEvent()
