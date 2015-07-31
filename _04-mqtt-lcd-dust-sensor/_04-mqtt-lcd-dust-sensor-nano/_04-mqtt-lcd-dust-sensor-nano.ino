@@ -103,8 +103,8 @@ void ac_send_code(unsigned long code)
 
   irsend.sendLGAC(code, 28);
   delay(20);
-  Serial.println("sent");
-}
+  irrecv.enableIRIn(); // Start the receiver
+ }
 
 void ac_activate(int temperature, int air_flow)
 {
@@ -188,8 +188,6 @@ void ac_sleepmomde_change() {
     ac_power_down();
     Serial.println("CHANGE AC MODE : OFF");
   }
-  irrecv.enableIRIn(); // Start the receiver
-  
 }
 
 // IR
@@ -198,22 +196,54 @@ void dumpInfo(decode_results *results)
   Serial.println("IR code received");
 
   if ( results->bits > 0 && results->bits == 32 ) {
-    if ( results->value == 0x77E1203C ) {
-      ac_startMills = millis() + 1799900;
-      Serial.println("IR MODE : ON");
-      sleepmode = HIGH;
-    }
+    switch (results->value) {
+      // sleep mode start / stop
+      case 0x77E1203C:
+        ac_startMills = millis() + 1799900;
+        Serial.println("IR : Sleep Mode Change");
+        sleepmode = !sleepmode;
+        break;
 
-    if ( results->value == 0x77E1403C ) {
-      Serial.println("IR MODE : OFF");
-      sleepmode = LOW;
+      // ac power down
+      case 0x77E1403C:
+        Serial.println("IR : AC Power Down");
+        ac_power_down();
+        break;
+
+      // temp up
+      case 0x77E1D03C:
+        if ( AC_TEMPERATURE < 30 ) {
+          ac_activate((AC_TEMPERATURE + 1), AC_FLOW);
+        }
+        break;
+
+      // temp down
+      case 0x77E1B03C:
+        if ( AC_TEMPERATURE > 18 ) {
+          ac_activate((AC_TEMPERATURE - 1), AC_FLOW);
+        }
+        break;
+
+      // flow up
+      case 0x77E1E03C:
+        if ( AC_FLOW < 3) {
+          ac_activate(AC_TEMPERATURE, (AC_FLOW + 1);
+        }
+        break;
+
+      // flow down
+      case 0x77E1103C:
+        if ( AC_FLOW > 0) {
+          ac_activate(AC_TEMPERATURE, (AC_FLOW - 1);
+        }      
+        break;
+
     }
   }
+
   delay(50);
   irrecv.resume(); // Continue receiving
 }
-
-
 
 void setup()
 {
@@ -275,24 +305,23 @@ void loop()
 void requestEvent()
 {
   byte myArray[2];
-  int sleepmodetosent ;
+  int sleepmodetosend ;
 
   if ( sleepmode == o_sleepmode ) {
     myArray[0] = (voMeasured >> 8 ) & 0xFF;
     myArray[1] = voMeasured & 0xFF;
 
     Wire.write(myArray, 2);
-
   }
 
   if ( sleepmode != o_sleepmode )  {
     if ( sleepmode == HIGH ) {
-      sleepmodetosent = 33333 ;
+      sleepmodetosend = 33333 ;
     } else {
-      sleepmodetosent = 22222 ;
+      sleepmodetosend = 22222 ;
     }
-    myArray[0] = (sleepmodetosent >> 8 ) & 0xFF;
-    myArray[1] = sleepmodetosent & 0xFF;
+    myArray[0] = (sleepmodetosend >> 8 ) & 0xFF;
+    myArray[1] = sleepmodetosend & 0xFF;
 
     Wire.write(myArray, 2);
 
