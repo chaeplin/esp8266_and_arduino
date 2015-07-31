@@ -74,11 +74,10 @@ volatile int AC_FLOW        = 0;
 // 0 : low
 // 1 : mid
 // 2 : high
-// 3 : rotate
 
 // IR
-const int AC_FLOW_TOWER[4] = {0, 4, 6, 12};
-const int AC_FLOW_WALL[4]  = {0, 2, 4, 5};
+const int AC_FLOW_TOWER[4] = {0, 4, 6};
+const int AC_FLOW_WALL[4]  = {0, 2, 4};
 
 unsigned long AC_CODE_TO_SEND;
 
@@ -238,7 +237,7 @@ void dumpInfo(decode_results *results)
       // flow up
       case 0x77E1E03C:
         Serial.println("IR -----> flow up");
-        if ( AC_FLOW < 3) {
+        if ( AC_FLOW < 2) {
           ac_activate(AC_TEMPERATURE, (AC_FLOW + 1));
         }
         delay(50);
