@@ -1,48 +1,62 @@
-#include <LowPower.h>
-// https://github.com/rocketscream/Low-Power
+#include <avr/interrupt.h>
+#include <avr/sleep.h>
+#include <IRremote.h>
 
-int powerPin = 2;
+const int wakeUpPin = 2;
+IRsend irsend;
+
+volatile int s = LOW;
+int o_s = LOW;
+int swstatus;
+
 
 void setup() {
-  delay(500);
-  pinMode(powerPin, OUTPUT);
-  digitalWrite(powerPin, LOW);
-  delay(500);
+  Serial.begin(38400);
+  pinMode(wakeUpPin, INPUT_PULLUP);
+  attachInterrupt(0, WakeUp, CHANGE);
+  delay(250);
+  sleepNow();
+}
+
+void sleepNow()
+{
+  Serial.println("Going sleep");
+  delay(100);
+  set_sleep_mode(SLEEP_MODE_PWR_DOWN);
+  sleep_enable();
+  attachInterrupt(0, WakeUp, CHANGE);
+  
+  sleep_mode();   
+  sleep_disable();
+  Serial.println("Wake up at sleepNow"); 
+}
+
+void WakeUp()
+{
+  Serial.print("======> Wake up :  ");
+  s= !s;
+}
+
+void send_ir(){
+  if ( swstatus == LOW ) {
+    Serial.println("======> mode on ");
+    irsend.sendNEC(0xFF02FD, 32); 
+    delay(10);
+  } else {
+    Serial.println("======> mode off ");
+    irsend.sendNEC(0xFF9867, 32);
+    delay(10);
+  }
 }
 
 void loop()
 {
-    delay(500);
-    togglePower();
-    delay(500);
-    sleep30Minutes();
-    delay(500);
-    togglePower();
-    delay(500);
-    sleep30Minutes();
-    delay(500);
-}
-
-// USe 9 sec
-void sleep60Minutes()
-{
-  for (int i = 0; i < 400; i++) { 
-     LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF); 
+  if ( s != o_s ) {
+    swstatus = digitalRead(wakeUpPin);
+    Serial.println(swstatus);
+    send_ir();
+    o_s = s;
   }
+  sleepNow();
 }
 
-
-void sleep30Minutes()
-{
-  for (int i = 0; i < 200; i++) { 
-     LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF); 
-  }
-}
-
-void togglePower() {
-  delay(100);              
-  digitalWrite(powerPin, HIGH);  
-  delay(100);              
-  digitalWrite(powerPin, LOW);    
-  delay(100);              
-}

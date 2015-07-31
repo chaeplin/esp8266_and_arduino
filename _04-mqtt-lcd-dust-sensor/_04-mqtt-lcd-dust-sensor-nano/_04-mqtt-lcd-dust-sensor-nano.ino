@@ -1,8 +1,6 @@
 #include <IRremote.h>
 #include <Wire.h>
 
-IRsend irsend;
-
 /*
  Standalone Sketch to use with a Arduino UNO and a
  Sharp Optical Dust Sensor GP2Y1010AU0F
@@ -14,7 +12,8 @@ int ledPower = 2;   //Connect 3 led driver pins of dust sensor to Arduino D2
 
 int IR_receive_recv_PIN = 6;
 int IR_receive_GND_PIN  = 7;
-int IR_receive_VCC_PIN  = 8;
+
+int IR_send_GND_PIN  = 12;
 
 
 // A6  : DUST IN
@@ -24,10 +23,10 @@ int IR_receive_VCC_PIN  = 8;
 //
 // D6  : IR IN
 // D7  : OUT GND
-// D8  : OUT VCC
 //
 // D12 : OUT GND
 
+IRsend irsend;
 IRrecv irrecv(IR_receive_recv_PIN); // Receive on pin 6
 
 // ------------------------------------------
@@ -41,7 +40,7 @@ float dustDensity = 0;
 
 // -----------------------------------------
 long startMills;
-long ac_startMills;
+volatile long ac_startMills;
 // ------------------------------------------
 // IR
 const int AC_TYPE  = 0;
@@ -78,7 +77,7 @@ byte a, b;
 
 // IR
 volatile int sleepmode = LOW ;
-int o_sleepmode = LOW ;
+volatile int o_sleepmode = LOW ;
 
 // ------------------------------------------
 
@@ -91,6 +90,8 @@ void ac_send_code(unsigned long code)
   Serial.println(code, HEX);
 
   irsend.sendLGAC(code, 28);
+  delay(20);
+  Serial.println("sent");
 }
 
 void ac_activate(int temperature, int air_flow)
@@ -169,35 +170,43 @@ void ac_air_clean(int air_clean)
 
 void ac_sleepmomde_change() {
   if ( AC_POWER_ON == 0 ) {
-    ac_air_clean(0);
-    delay(100);
-    ac_activate(28, 0);
-    delay(100);
+  //  ac_air_clean(0);
+  //  delay(200);
+    ac_activate(27, 0);
+  //  delay(200);
+    Serial.println("CHANGE AC MODE : ON");
   } else {
     ac_power_down();
-    delay(100);
-    ac_air_clean(1);
-    delay(100);
+  //  delay(200);
+  //  ac_air_clean(1);
+  //  delay(200);
+  //  ac_air_clean(1);
+  //  delay(200);
+    Serial.println("CHANGE AC MODE : OFF");
   }
+  irrecv.enableIRIn(); // Start the receiver
+  
 }
 
 // IR
-void dumpInfo (decode_results *results)
+void dumpInfo(decode_results *results)
 {
-   // Check if the buffer overflowed
-  if (results->overflow) {
-    Serial.println("IR code too long. Edit IRremoteInt.h and increase RAWLEN");
-    return;
-  }
-  
+  Serial.println("IR code received");
+
   if ( results->bits > 0 && results->bits == 32 ) {
     if ( results->value == 0xFF02FD ) {
-       ac_sleepmomde_change();
-       sleepmode = HIGH;
-    } else if ( results->value == 0xFF9867 ) {
-       sleepmode = LOW;
+      ac_startMills = millis() + 1799900;
+      Serial.println("IR MODE : ON");
+      sleepmode = HIGH;
+    }
+
+    if ( results->value == 0xFF9867 ) {
+      Serial.println("IR MODE : OFF");
+      sleepmode = LOW;
     }
   }
+  delay(50);
+  irrecv.resume(); // Continue receiving
 }
 
 
@@ -212,10 +221,11 @@ void setup()
   Serial.println("Starting dust Sensor");
   pinMode(ledPower, OUTPUT);
 
-  pinMode(IR_receive_VCC_PIN, OUTPUT);
   pinMode(IR_receive_GND_PIN, OUTPUT);
-  digitalWrite(IR_receive_VCC_PIN, HIGH);
+  pinMode(IR_send_GND_PIN, OUTPUT);
+
   digitalWrite(IR_receive_GND_PIN, LOW);
+  digitalWrite(IR_send_GND_PIN, LOW);
 
   irrecv.enableIRIn(); // Start the receiver
 
@@ -229,8 +239,12 @@ void loop()
 {
 
   decode_results results;
-  
-  if ((millis() - startMills) > 1000 ) {
+
+  if (irrecv.decode(&results)) {
+    dumpInfo(&results);    
+  }
+
+  if ((millis() - startMills) > 3000 ) {
 
     digitalWrite(ledPower, LOW); // power on the LED
     delayMicroseconds(samplingTime);
@@ -242,26 +256,16 @@ void loop()
     delayMicroseconds(sleepTime);
 
     startMills = millis();
+
+    //Serial.println(voMeasured);
   }
 
-  if (irrecv.decode(&results)) {
-    dumpInfo(&results);
-    delay(50);
-    irrecv.resume(); // Continue receiving
+  if ((sleepmode == HIGH) && ( ( millis() - ac_startMills) >= 1800000 )) {
+    ac_sleepmomde_change();
+    ac_startMills = millis();
   }
-  
-  // ------------------------------------------
-  /* test
-    ac_activate(25, 1);
-    delay(5000);
-    ac_activate(27, 0);
-    delay(5000);
-  */
 
-  if ((sleepmode == HIGH) && ( ac_startMills >= 1800000 )) {
-     ac_sleepmomde_change;
-     ac_startMills = millis();
-  }
+  delay(10);
 }
 
 void requestEvent()
@@ -275,7 +279,9 @@ void requestEvent()
 
     Wire.write(myArray, 2);
 
-  } else {
+  }
+
+  if ( sleepmode != o_sleepmode )  {
     if ( sleepmode == HIGH ) {
       sleepmodetosent = 33333 ;
     } else {
