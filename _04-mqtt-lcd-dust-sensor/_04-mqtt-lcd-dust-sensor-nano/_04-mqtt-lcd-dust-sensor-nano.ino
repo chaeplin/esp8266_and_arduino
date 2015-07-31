@@ -26,6 +26,18 @@ int IR_send_GND_PIN  = 12;
 //
 // D12 : OUT GND
 
+/* apple remote
+
+menu  : 77E1403C
+up    : 77E1D03C
+down  : 77E1B03C
+forward : 77E1E03C
+reverse : 77E1103C
+play  : 77E1203C
+
+
+*/
+
 IRsend irsend;
 IRrecv irrecv(IR_receive_recv_PIN); // Receive on pin 6
 
@@ -58,7 +70,7 @@ int AC_AIR_ACLEAN  = 0;
 int AC_TEMPERATURE = 27;
 // temperature : 18 ~ 30
 
-int AC_FLOW        = 1;
+int AC_FLOW        = 0;
 // 0 : low
 // 1 : mid
 // 2 : high
@@ -170,18 +182,10 @@ void ac_air_clean(int air_clean)
 
 void ac_sleepmomde_change() {
   if ( AC_POWER_ON == 0 ) {
-  //  ac_air_clean(0);
-  //  delay(200);
-    ac_activate(27, 0);
-  //  delay(200);
+    ac_activate(AC_TEMPERATURE, AC_FLOW);
     Serial.println("CHANGE AC MODE : ON");
   } else {
     ac_power_down();
-  //  delay(200);
-  //  ac_air_clean(1);
-  //  delay(200);
-  //  ac_air_clean(1);
-  //  delay(200);
     Serial.println("CHANGE AC MODE : OFF");
   }
   irrecv.enableIRIn(); // Start the receiver
@@ -194,13 +198,13 @@ void dumpInfo(decode_results *results)
   Serial.println("IR code received");
 
   if ( results->bits > 0 && results->bits == 32 ) {
-    if ( results->value == 0xFF02FD ) {
+    if ( results->value == 0x77E1203C ) {
       ac_startMills = millis() + 1799900;
       Serial.println("IR MODE : ON");
       sleepmode = HIGH;
     }
 
-    if ( results->value == 0xFF9867 ) {
+    if ( results->value == 0x77E1403C ) {
       Serial.println("IR MODE : OFF");
       sleepmode = LOW;
     }
