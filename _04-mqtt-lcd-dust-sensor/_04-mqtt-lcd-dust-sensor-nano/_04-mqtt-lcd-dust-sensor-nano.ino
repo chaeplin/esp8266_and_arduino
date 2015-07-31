@@ -38,8 +38,8 @@ play  : 77E1203C
 
 */
 
-IRsend irsend;
 IRrecv irrecv(IR_receive_recv_PIN); // Receive on pin 6
+IRsend irsend;
 
 // ------------------------------------------
 int samplingTime = 280;
@@ -59,7 +59,7 @@ const int AC_TYPE  = 0;
 // 0 : TOWER
 // 1 : WALL
 
-int AC_POWER_ON    = 0;
+volatile int AC_POWER_ON    = 0;
 // 0 : off
 // 1 : on
 
@@ -67,10 +67,10 @@ int AC_AIR_ACLEAN  = 0;
 // 0 : off
 // 1 : on --> power on
 
-int AC_TEMPERATURE = 27;
+volatile int AC_TEMPERATURE = 27;
 // temperature : 18 ~ 30
 
-int AC_FLOW        = 0;
+volatile int AC_FLOW        = 0;
 // 0 : low
 // 1 : mid
 // 2 : high
@@ -89,7 +89,7 @@ byte a, b;
 
 // IR
 volatile int sleepmode = LOW ;
-volatile int o_sleepmode = LOW ;
+volatile int o_sleepmode = HIGH ;
 
 // ------------------------------------------
 
@@ -97,14 +97,16 @@ volatile int o_sleepmode = LOW ;
 void ac_send_code(unsigned long code)
 {
   Serial.print("code to send : ");
-  Serial.print(code, BIN);
-  Serial.print(" : ");
+  //  Serial.print(code, BIN);
+  //  Serial.print(" : ");
   Serial.println(code, HEX);
 
+  delay(100);
   irsend.sendLGAC(code, 28);
-  delay(20);
+  
+  delay(100);
   irrecv.enableIRIn(); // Start the receiver
- }
+}
 
 void ac_activate(int temperature, int air_flow)
 {
@@ -188,59 +190,71 @@ void ac_sleepmomde_change() {
     ac_power_down();
     Serial.println("CHANGE AC MODE : OFF");
   }
+  irrecv.enableIRIn(); // Start the receiver
 }
 
 // IR
 void dumpInfo(decode_results *results)
 {
-  Serial.println("IR code received");
+  //Serial.println("======> IR code received");
 
   if ( results->bits > 0 && results->bits == 32 ) {
     switch (results->value) {
       // sleep mode start / stop
       case 0x77E1203C:
         ac_startMills = millis() + 1799900;
-        Serial.println("IR : Sleep Mode Change");
+        Serial.print("IR -----> Sleep Mode Change ----->  ");
+        Serial.println(!sleepmode);
         sleepmode = !sleepmode;
+        delay(50);
         break;
 
       // ac power down
       case 0x77E1403C:
-        Serial.println("IR : AC Power Down");
+        Serial.println("IR -----> AC Power Down");
         ac_power_down();
+        sleepmode = LOW;
+        delay(50);
         break;
 
       // temp up
       case 0x77E1D03C:
+        Serial.println("IR -----> temp up");
         if ( AC_TEMPERATURE < 30 ) {
           ac_activate((AC_TEMPERATURE + 1), AC_FLOW);
         }
+        delay(50);
         break;
 
       // temp down
       case 0x77E1B03C:
+        Serial.println("IR -----> temp down");
         if ( AC_TEMPERATURE > 18 ) {
           ac_activate((AC_TEMPERATURE - 1), AC_FLOW);
         }
+        delay(50);
         break;
 
       // flow up
       case 0x77E1E03C:
+        Serial.println("IR -----> flow up");
         if ( AC_FLOW < 3) {
-          ac_activate(AC_TEMPERATURE, (AC_FLOW + 1);
+          ac_activate(AC_TEMPERATURE, (AC_FLOW + 1));
         }
+        delay(50);
         break;
 
       // flow down
       case 0x77E1103C:
+        Serial.println("IR -----> flow down");
         if ( AC_FLOW > 0) {
-          ac_activate(AC_TEMPERATURE, (AC_FLOW - 1);
-        }      
+          ac_activate(AC_TEMPERATURE, (AC_FLOW - 1));
+        }
+        delay(50);
         break;
 
     }
   }
-
   delay(50);
   irrecv.resume(); // Continue receiving
 }
@@ -275,7 +289,7 @@ void loop()
   decode_results results;
 
   if (irrecv.decode(&results)) {
-    dumpInfo(&results);    
+    dumpInfo(&results);
   }
 
   if ((millis() - startMills) > 3000 ) {
