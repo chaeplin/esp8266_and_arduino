@@ -3,30 +3,31 @@
 * 002 : o_tempCinside is not a moving point
 */
 
-#include <Wire.h>
-#include <OneWire.h>
-#include <DallasTemperature.h>
-#include <LiquidCrystal_I2C.h>
-#include <IRremote.h>
-
 // eeprom
 #include <avr/eeprom.h>
 #define eeprom_read_to(dst_p, eeprom_field, dst_size) eeprom_read_block(dst_p, (void *)offsetof(__eeprom_data, eeprom_field), MIN(dst_size, sizeof((__eeprom_data*)0)->eeprom_field))
 #define eeprom_read(dst, eeprom_field) eeprom_read_to(&dst, eeprom_field, sizeof(dst))
 #define eeprom_write_from(src_p, eeprom_field, src_size) eeprom_write_block(src_p, (void *)offsetof(__eeprom_data, eeprom_field), MIN(src_size, sizeof((__eeprom_data*)0)->eeprom_field))
 #define eeprom_write(src, eeprom_field) { typeof(src) x = src; eeprom_write_from(&x, eeprom_field, sizeof(x)); }
-#define MIN(x,y) (x > y ? y : x)
+#define MIN(x,y) ( x > y ? y : x )
+
+#include <Wire.h>
+#include <OneWire.h>
+#include <DallasTemperature.h>
+#include <LiquidCrystal_I2C.h>
+#include <IRremote.h>
 
 // Change this any time the EEPROM content changes
-const long magic_number = 0x0326;
+const long magic_number = 0x326;
+
 
 struct __eeprom_data {
   long magic;
-  boolean pwrSrc;     // True : connected to TV, False : usb powered
-  boolean wrkMode;    // True : thermostat + TV, False : thermostat
-  boolean startMode;  // if wrkMode == True, True : run TV on/off or channel change, False : do nothing indicating a sign on the lcd
-  boolean beepMode;   // True : beep on
-  boolean offMode;    // True : TV on/off, False : channel change
+  int pwrSrc;     // True : connected to TV, False : usb powered
+  int wrkMode;    // True : thermostat + TV, False : thermostat
+  int startMode;  // if wrkMode == True, True : run TV on/off or channel change, False : do nothing indicating a sign on the lcd
+  int beepMode;   // True : beep on
+  int offMode;    // True : TV on/off, False : channel change
   int channelGap;     // 1 ~ 5
   int tvOnTime;       // 30 ~ 90
   int tvOffTime;      // 5 ~ 20
@@ -74,23 +75,23 @@ long tempMills;
 long o_tempMills;
 
 // temp
-boolean o_tempminpassed = 0;
+int o_tempminpassed = 0;
 
 // sw status
-boolean setUpStatus;
-boolean wrkModeStatus;
-boolean tvPowerStatus = 0;
-boolean timerStatus   = 0;
+int setUpStatus;
+int wrkModeStatus;
+int tvPowerStatus = 0;
+int timerStatus   = 0;
 
 int r   = LOW;
 int o_r = LOW;
 
 // eeprom status
-boolean o_pwrSrc;
-boolean o_wrkMode;
-boolean o_startMode;
-boolean o_beepMode;
-boolean o_offMode;
+int o_pwrSrc;
+int o_wrkMode;
+int o_startMode;
+int o_beepMode;
+int o_offMode;
 int o_channelGap;
 int o_tvOnTime;
 int o_tvOffTime;
@@ -130,7 +131,7 @@ byte beepicon[8] =
   B10101,
   B10101,
   B10001,
-  B00000,
+  B11111,
 };
 
 byte timericon[8] =
@@ -145,7 +146,7 @@ byte timericon[8] =
   B01110,
 };
 
-byte powericon[8] = 
+byte powericon[8] =
 {
   B11111,
   B11011,
@@ -166,7 +167,7 @@ void setup()
   Serial.begin (38400);
   Serial.println();
   Serial.println("TV controller Starting");
-  delay(20);
+  delay(200);
 
   // Timer start
   startMills = millis();
@@ -182,8 +183,8 @@ void setup()
   irrecv.enableIRIn();
 
   // pin mode
-  pinMode(SETUP_IN_PIN, INPUT_PULLUP);
-  pinMode(WRK_MODE_IN_PIN, INPUT_PULLUP);
+  pinMode(SETUP_IN_PIN, INPUT);
+  pinMode(WRK_MODE_IN_PIN, INPUT);
   /*
   pinMode(DN_IN_PIN, INPUT_PULLUP);
   pinMode(UP_IN_PIN, INPUT_PULLUP);
@@ -193,20 +194,15 @@ void setup()
   // buzzer
   pinMode(BZ_OU_PIN, OUTPUT);
   digitalWrite(BZ_OU_PIN, HIGH);
+  digitalWrite(SETUP_IN_PIN, HIGH);
+  digitalWrite(WRK_MODE_IN_PIN, HIGH);
 
-  // read pin status
-  setUpStatus   = digitalRead(SETUP_IN_PIN);
-  wrkModeStatus = digitalRead(WRK_MODE_IN_PIN);
-
-  // initialize eeprom
-  long magic;
-  eeprom_read(magic, magic);
-  if ((magic != magic_number) || ( setUpStatus == 0 )) {
-    run_initialise_setup();
-    resetFunc();
-  }
-
+  delay(200);
+  
   // eeprom read
+  long o_magic;
+
+  eeprom_read(o_magic, magic);
   eeprom_read(o_pwrSrc, pwrSrc);
   eeprom_read(o_wrkMode, wrkMode);
   eeprom_read(o_startMode, startMode);
@@ -215,6 +211,42 @@ void setup()
   eeprom_read(o_channelGap, channelGap);
   eeprom_read(o_tvOnTime, tvOnTime);
   eeprom_read(o_tvOffTime, tvOffTime);
+
+  // read pin status
+  setUpStatus   = digitalRead(SETUP_IN_PIN);
+  wrkModeStatus = digitalRead(WRK_MODE_IN_PIN);
+
+  Serial.println(setUpStatus);
+  Serial.println(wrkModeStatus);
+  Serial.println(magic_number, HEX);
+  Serial.println(o_magic, HEX);
+
+  /*
+  lcd.setCursor(0, 0);
+  lcd.print(magic_number);
+
+  lcd.setCursor(0, 1);
+  lcd.print(o_magic);
+
+  lcd.setCursor(8, 0);
+  lcd.print(setUpStatus);
+
+  lcd.setCursor(8, 1);
+  lcd.print(wrkModeStatus);
+
+  delay(5000);
+  */
+
+  if (o_magic != magic_number ) {
+    run_initialise_setup();
+    resetFunc();
+  }
+
+  if ( setUpStatus == 0 ) {
+    run_initialise_setup();
+    resetFunc();
+  }
+
 
   if ( wrkModeStatus == 0 ) {
     o_wrkMode = wrkModeStatus;
@@ -246,16 +278,16 @@ void setup()
   lcd.createChar(4, timericon);
   lcd.createChar(5, powericon);
 
-  if ( o_wrkMode == True && o_startMode == True )
+  if ( o_wrkMode == 1 && o_startMode == 1 ) {
     lcd.setCursor(0, 1);
     lcd.write(2);
-    
-    if ( o_beepMode == True) {
-      lcd.setCursor(1, 1);
+
+    if ( o_beepMode == 1 ) {
+      lcd.setCursor(2, 1);
       lcd.write(3);
     }
 
-    lcd.setCursor(2, 1);
+    lcd.setCursor(4, 1);
     lcd.write(4);
   }
 
@@ -271,6 +303,7 @@ void loop()
 
   if (irrecv.decode(&results)) {
     changemodebyir(&results);
+    irrecv.enableIRIn();
   }
 
   if ( (millis() - tempMills) >= 2000 ) {
@@ -278,7 +311,7 @@ void loop()
     displayTemperature();
     tempMills = millis();
 
-    if ( (millis() - o_tempMills) >= 60000 ) {
+    if ( (millis() - o_tempMills) >= 600000 ) {
       Serial.println("o_tempCinside called");
       o_tempCinside = c_tempCinside;
       c_tempCinside = tempCinside;
@@ -290,6 +323,8 @@ void loop()
 
   if ( r != o_r ) {
     changelcdicon();
+    o_r = r;
+    alarm_set();
   }
 
   /*
@@ -323,43 +358,45 @@ void loop()
 void changelcdicon()
 {
 
-  if ( o_wrkMode == True && o_startMode == True ){
+  if ( o_wrkMode == 1 && o_startMode == 1 ) {
     lcd.setCursor(0, 1);
     lcd.write(2);
-    
-    if ( o_beepMode == True) {
-      lcd.setCursor(1, 1);
+
+    if ( o_beepMode == 1 ) {
+      lcd.setCursor(2, 1);
       lcd.write(3);
     }
 
-    if ( timerStatus == True) {
-      lcd.setCursor(2, 1);
+    if ( timerStatus == 0 ) {
+      lcd.setCursor(4, 1);
       lcd.write(4);
+    } else {
+      lcd.setCursor(4, 1);
+      lcd.print(" ");
     }
   } else {
     lcd.setCursor(0, 1);
-    lcd.print("    ");
+    lcd.print("     ");
   }
 
-  if ( tvPowerStatus == True) {
-      lcd.setCursor(3, 1);
-      lcd.write(4);    
+  if ( tvPowerStatus == 1 ) {
+    lcd.setCursor(6, 1);
+    lcd.write(5);
   } else {
-    lcd.setCursor(3, 1);
-    lcd.print(" ");    
+    lcd.setCursor(6, 1);
+    lcd.print(" ");
   }
-
+  irrecv.enableIRIn();
 }
 
 void changemodebyir (decode_results *results)
 {
-  //Serial.println("======> IR code received");
-
+ 
   if ( results->bits > 0 && results->bits == 32 ) {
     switch (results->value) {
       case 0xFF02FD: // remote on
         o_wrkMode = ! o_wrkMode;
-        o_startMode = True;
+        o_startMode = 1;
         r = !r;
         break;
       case 0xFF9867: // remote off
@@ -372,11 +409,7 @@ void changemodebyir (decode_results *results)
         break;
     }
   }
-  delay(50);
-  irrecv.resume(); // Continue receiving  
 }
-
-
 
 void displayTemperaturedigit(float Temperature)
 {
@@ -437,9 +470,10 @@ void alarm_set()
   digitalWrite(BZ_OU_PIN, LOW);
   delay(50);
   digitalWrite(BZ_OU_PIN, HIGH);
+  irrecv.enableIRIn();
 }
 
-boolean initialise_boolean_select()
+int initialise_boolean_select()
 {
   decode_results results;
   irrecv.resume();
@@ -458,7 +492,7 @@ boolean initialise_boolean_select()
   }
 }
 
-boolean initialise_number_select(int minno, int maxno, int curno, int chstep)
+int initialise_number_select(int minno, int maxno, int curno, int chstep)
 {
 
   lcd.setCursor(13, 1);
@@ -523,7 +557,7 @@ void run_initialise_setup() {
   lcd.setCursor(0, 1);
   lcd.print("OFF: from other");
 
-  boolean pwrSrc = initialise_boolean_select();
+  int pwrSrc = initialise_boolean_select();
   alarm_set();
 
   lcd.clear();
@@ -544,7 +578,7 @@ void run_initialise_setup() {
   lcd.setCursor(0, 1);
   lcd.print("OFF: thermo");
 
-  boolean wrkMode = initialise_boolean_select();
+  int wrkMode = initialise_boolean_select();
   alarm_set();
 
   lcd.clear();
@@ -565,7 +599,7 @@ void run_initialise_setup() {
   lcd.setCursor(0, 1);
   lcd.print("OFF: do nothing");
 
-  boolean startMode = initialise_boolean_select();
+  int startMode = initialise_boolean_select();
   alarm_set();
 
   lcd.clear();
@@ -586,7 +620,7 @@ void run_initialise_setup() {
   lcd.setCursor(0, 1);
   lcd.print("OFF: beep off");
 
-  boolean beepMode = initialise_boolean_select();
+  int beepMode = initialise_boolean_select();
   alarm_set();
 
   lcd.clear();
@@ -607,7 +641,7 @@ void run_initialise_setup() {
   lcd.setCursor(0, 1);
   lcd.print("OFF: IN change");
 
-  boolean offMode = initialise_boolean_select();
+  int offMode = initialise_boolean_select();
   alarm_set();
 
   lcd.clear();
@@ -620,7 +654,7 @@ void run_initialise_setup() {
 
   irrecv.resume();
   while (irrecv.decode(&results) != 1 ) { }
-  alarm_set();  
+  alarm_set();
 
   lcd.clear();
   lcd.setCursor(0, 0);
@@ -641,7 +675,7 @@ void run_initialise_setup() {
 
   irrecv.resume();
   while (irrecv.decode(&results) != 1 ) { }
-  alarm_set(); 
+  alarm_set();
 
   lcd.clear();
   lcd.setCursor(0, 0);
@@ -662,7 +696,7 @@ void run_initialise_setup() {
 
   irrecv.resume();
   while (irrecv.decode(&results) != 1 ) { }
-  alarm_set();  
+  alarm_set();
 
   lcd.clear();
   lcd.setCursor(0, 0);
@@ -674,7 +708,7 @@ void run_initialise_setup() {
   alarm_set();
 
   //
-  boolean initialise_eeprom_done =  initialise_eeprom(pwrSrc, wrkMode, startMode, beepMode, offMode, channelGap, tvOnTime, tvOffTime) ;
+  int initialise_eeprom_done =  initialise_eeprom(pwrSrc, wrkMode, startMode, beepMode, offMode, channelGap, tvOnTime, tvOffTime) ;
 
   while (initialise_eeprom_done != 1 ) { }
 
@@ -706,7 +740,7 @@ void run_initialise_setup() {
 }
 
 
-boolean initialise_eeprom(boolean i_pwrSrc, boolean i_wrkMode, boolean i_startMode, boolean i_beepMode, boolean i_offMode, int i_channelGap, int i_tvOnTime, int i_tvOffTime)
+int initialise_eeprom(int i_pwrSrc, int i_wrkMode, int i_startMode, int i_beepMode, int i_offMode, int i_channelGap, int i_tvOnTime, int i_tvOffTime)
 {
   eeprom_write(i_pwrSrc, pwrSrc);
   eeprom_write(i_wrkMode, wrkMode);
