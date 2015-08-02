@@ -41,7 +41,7 @@ int PIR_IN_PIN   = 2;
 int BZ_OU_PIN    = 9;
 
 // LCD
-LiquidCrystal_I2C lcd(0x27, 20, 4);
+LiquidCrystal_I2C lcd(0x27, 16, 2);
 
 // IR
 #define maxLen 800
@@ -232,9 +232,9 @@ void run_initialise_setup() {
 
   lcd.clear();
   lcd.setCursor(0, 0);
-  lcd.print('setup :');
+  lcd.print("setup :");
   lcd.setCursor(0, 1);
-  lcd.print('press any button');
+  lcd.print("press any button");
 
   while(irrecv.decode(&results) != 1 ) { } 
 
