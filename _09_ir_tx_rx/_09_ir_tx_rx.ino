@@ -45,7 +45,6 @@ LiquidCrystal_I2C lcd(0x27, 16, 2);
 
 // IR
 #define maxLen 800
-
 volatile  unsigned int irBuffer[maxLen]; //stores timings - volatile because changed by ISR
 volatile unsigned int x = 0; //Pointer thru irBuffer - volatile because changed by ISR
 
@@ -226,20 +225,48 @@ void initialise_eeprom()
   */
 }
 
+
+boolean initialise_pwr_src_select()
+{
+  irrecv.resume();
+  while(irrecv.decode(&results) != 1 ) { } 
+
+  switch (results.value) {
+    case 0xFF02FD:
+        return True;
+        break;
+    case 0xFF9867:
+        return False;
+        break;
+    default:
+        initialise_pwr_src_select();
+        break;
+  }
+}
+
 void run_initialise_setup() {
 
   decode_results results;
 
   lcd.clear();
   lcd.setCursor(0, 0);
-  lcd.print("setup :");
+  lcd.print("Setup :");
   lcd.setCursor(0, 1);
-  lcd.print("press any button");
+  lcd.print("Press any button");
 
+  irrecv.resume();
   while(irrecv.decode(&results) != 1 ) { } 
 
+  lcd.clear();
   lcd.setCursor(0, 0);
-  lcd.print('s');
+  lcd.print('Select pwr src :');
+  lcd.setCursor(0, 1);
+  lcd.print("ON: TV OFF: USB"); 
+
+  boolean pwrSrc = initialise_pwr_src_select();
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print(pwrSrc);
 
 
 /*
