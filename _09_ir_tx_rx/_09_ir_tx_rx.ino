@@ -1,19 +1,3 @@
-/*
-A4, A5 - I2C
-
-A2 - SETUP / IN
-A0 - ENTER / IN
-D12 - DOWN / IN
-D11 - UP / IN
-D10 - IR / IN
-D9 - BUZZER /OUT
-D4 - TEMP(DS18B20) /IN
-D3 - IR / OUT
-D2 - PIR /IN
-*/
-
-
-
 
 #include <Wire.h>
 #include <OneWire.h>
@@ -21,18 +5,39 @@ D2 - PIR /IN
 #include <LiquidCrystal_I2C.h>
 #include <IRremote.h>
 
+// eeprom
+#include <avr/eeprom.h>
+#define eeprom_read_to(dst_p, eeprom_field, dst_size) eeprom_read_block(dst_p, (void *)offsetof(__eeprom_data, eeprom_field), MIN(dst_size, sizeof((__eeprom_data*)0)->eeprom_field))
+#define eeprom_read(dst, eeprom_field) eeprom_read_to(&dst, eeprom_field, sizeof(dst))
+#define eeprom_write_from(src_p, eeprom_field, src_size) eeprom_write_block(src_p, (void *)offsetof(__eeprom_data, eeprom_field), MIN(src_size, sizeof((__eeprom_data*)0)->eeprom_field))
+#define eeprom_write(src, eeprom_field) { typeof(src) x = src; eeprom_write_from(&x, eeprom_field, sizeof(x)); }
+
+// Change this any time the EEPROM content changes
+const long magic_number = 0x0326;
+ 
+struct __eeprom_data {
+  long magic;
+  boolean pwrSrc;     // True : connected to TV, False : usb powered
+  boolean wrkMode;    // True : thermostat + TV, False : thermostat
+  boolean startMode;  // if wrkMode == True, True : run TV on/off or channel change, False : do nothing indicating a sign on the lcd
+  boolean beepMode;   // True : beep on
+  boolean offMode;    // True : TV on/off, False : channel change
+  int channelGap;     // 1 ~ 5
+  int tvOnTime;       // 30 ~ 120
+  int tvOffTime;      // 5 ~ 20
+};
+
 //
 int SETUP_IN_PIN = A2;
-//int ENTER_IN_PIN = A0;
-int ENTER_IN_PIN = 13;
+int WRK_MODE_IN_PIN = A0;
+/*
 int UP_IN_PIN    = 12;
 int DN_IN_PIN    = 11;
+*/
 
-//
 int IR_IN_PIN    = 10;
 int PIR_IN_PIN   = 2;
-
-int BZ_OU_PIN    =  9;
+int BZ_OU_PIN    = 9;
 
 // LCD
 LiquidCrystal_I2C lcd(0x27, 20, 4);
@@ -54,10 +59,13 @@ DallasTemperature sensors(&oneWire);
 DeviceAddress insideThermometer;
 
 //
-float tempCinside ;
+float tempCinside;
 long startMills;
-long tv_startMills;
+long tv_off_Mills;
+int setUpStatus;
+int wrkModeStatus;
 
+// lcd
 byte termometru[8] =
 {
   B00100,
@@ -73,36 +81,48 @@ byte termometru[8] =
 void setup()
 {
 
-  // lcd
-  lcd.init();
-  lcd.backlight();
-  lcd.clear();
-  lcd.createChar(1, termometru);
-  lcd.setCursor(0, 0);
-  lcd.write(1);
-  // lcd
-
+  // start serial
   Serial.begin (38400);
   Serial.println("TV controller Starting");
   delay(20);
 
-  irrecv.enableIRIn(); // Start the receiver
-
+  // Timer start
   startMills = millis();
 
-  // pin mode
+  // lcd
+  lcd.init();
+  lcd.backlight();
+  lcd.clear();
 
+  // ir
+  irrecv.enableIRIn();
+
+  // pin mode
   pinMode(SETUP_IN_PIN, INPUT_PULLUP);
-  pinMode(ENTER_IN_PIN, INPUT_PULLUP);
+  pinMode(WRK_MODE_IN_PIN, INPUT_PULLUP);
+  /*
   pinMode(DN_IN_PIN, INPUT_PULLUP);
   pinMode(UP_IN_PIN, INPUT_PULLUP);
+  */
   pinMode(PIR_IN_PIN, INPUT_PULLUP);
 
+  // buzzer
   pinMode(BZ_OU_PIN, OUTPUT);
   digitalWrite(BZ_OU_PIN, HIGH);
 
+  // read pin status
+  setUpStatus   = digitalRead(SETUP_IN_PIN);
+  wrkModeStatus = digitalRead(WRK_MODE_IN_PIN);
 
-  // temp
+  // initialize eeprom  
+  long magic;
+  eeprom_read(magic, magic);
+  if ((magic != magic_number) || ( setUpStatus == 0 ) {
+     run_initialise_setup();
+  }
+
+
+  // temp sensor
   sensors.begin();
   if (!sensors.getAddress(insideThermometer, 0)) Serial.println("Unable to find address for Device 0");
   sensors.setResolution(insideThermometer, TEMPERATURE_PRECISION);
@@ -113,36 +133,47 @@ void setup()
     Serial.println("Failed to read from sensor!");
     return;
   }
-  // temp
 
+  // lcd
+  lcd.createChar(1, termometru);
+  lcd.setCursor(0, 0);
+  lcd.write(1);
+  
 }
 
 
 void loop()
 {
+
+
+
   /*
    *
     pinMode(SETUP_IN_PIN, INPUT_PULLUP);
-    pinMode(ENTER_IN_PIN, INPUT_PULLUP);
+    pinMode(WRK_MODE_IN_PIN, INPUT_PULLUP);
     pinMode(DN_IN_PIN, INPUT_PULLUP);
     pinMode(UP_IN_PIN, INPUT_PULLUP);
     pinMode(PIR_IN_PIN, INPUT_PULLUP);
    *
    */
   /*
-    int x = digitalRead(ENTER_IN_PIN);
+    int x = digitalRead(WRK_MODE_IN_PIN);
     Serial.println(x);
     //getdalastemp();
     //Serial.println(tempCinside);
     delay(1000);
   */
 
+/*
   decode_results results;
 
   if (irrecv.decode(&results)) {
     dumpInfo(&results);
 
   }
+*/
+
+
 
 }
 
@@ -185,3 +216,58 @@ void alarm_set()
 }
 
 
+void initialise_eeprom() 
+{
+  /*
+  eeprom_write(0, first);
+  eeprom_write(0, second);
+  eeprom_write(magic_number, magic);
+  */
+}
+
+void run_initialise_setup() {
+
+  decode_results results;
+
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print('setup :');
+  lcd.setCursor(0, 1);
+  lcd.print('press any button');
+
+  while(irrecv.decode(&results) != 1 ) { } 
+
+  lcd.setCursor(0, 0);
+  lcd.print('s');
+
+
+/*
+  lcd.setCursor(0, 0);
+
+  if ((magic != magic_number) || ( setUpStatus == 0 ) {
+
+ 
+  lcd.print('0');
+
+  boolean pwrSrc;     // True : connected to TV, False : usb powered
+  boolean wrkMode;    // True : thermostat + TV, False : thermostat
+  boolean startMode;  // if wrkMode == True, True : run TV on/off or channel change,
+                      // False : do nothing indicating a sign on the lcd
+  boolean beepMode;   // True : beep on
+  boolean offMode;    // True : TV on/off, False : channel change
+  int channelGap;     // 1 ~ 5
+  int tvOnTime;       // 30 ~ 120
+  int tvOffTime;      // 5 ~ 20
+
+
+  decode_results results;
+
+  if (irrecv.decode(&results)) {
+    dumpInfo(&results);
+
+  }
+
+ */
+  // initialise_eeprom(); 
+
+}
