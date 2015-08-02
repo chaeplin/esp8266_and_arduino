@@ -226,7 +226,7 @@ void initialise_eeprom()
 }
 
 
-boolean initialise_pwr_src_select()
+boolean initialise_boolean_select()
 {
   decode_results results;
   irrecv.resume();
@@ -240,10 +240,37 @@ boolean initialise_pwr_src_select()
         return 0;
         break;
     default:
-        initialise_pwr_src_select();
+        initialise_boolean_select();
         break;
   }
 }
+
+boolean initialise_number_select(int minno, int maxno, int curno)
+{
+  decode_results results;
+  irrecv.resume();
+  while(irrecv.decode(&results) != 1 ) { } 
+
+  switch (results.value) {
+    case 0xFF02FD:
+        if ( curno = maxno ) {
+             curno = minno
+        } else {
+             curno = curno + 1 ;
+        }
+        lcd.setCursor(13, 1);
+        lcd.print(curno);
+        initialise_number_select(minno, maxno, curno);
+        break;
+    case 0xFF9867:
+        return curno;
+        break;
+    default:
+        initialise_number_select(minno, maxno, curno);
+        break;
+  }
+}
+
 
 void run_initialise_setup() {
 
@@ -260,18 +287,110 @@ void run_initialise_setup() {
 
   lcd.clear();
   lcd.setCursor(0, 0);
-  lcd.print("Select pwr src");
+  lcd.print("Select");
   lcd.setCursor(0, 1);
-  lcd.print("ON: TV OFF: USB"); 
+  lcd.print("power source");
 
-  boolean pwrSrc = initialise_pwr_src_select();
+  irrecv.resume();
+  while(irrecv.decode(&results) != 1 ) { } 
 
   lcd.clear();
   lcd.setCursor(0, 0);
-  lcd.print("Select wrk mode");
+  lcd.print("ON: from TV");
   lcd.setCursor(0, 1);
-  lcd.print("ON: TV + thermostat,  OFF: thermostat");
-  lcd.autoscroll();
+  lcd.print("OFF: from other");  
+
+  boolean pwrSrc = initialise_boolean_select();
+
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Select");
+  lcd.setCursor(0, 1);  
+  lcd.print("working mode");
+
+  irrecv.resume();
+  while(irrecv.decode(&results) != 1 ) { } 
+
+  lcd.clear(); 
+  lcd.setCursor(0, 0);
+  lcd.print("ON: TV + thermo");
+  lcd.setCursor(0, 1);
+  lcd.print("OFF: thermo");  
+
+  boolean wrkMode = initialise_boolean_select();
+
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Select");
+  lcd.setCursor(0, 1);  
+  lcd.print("start mode");
+
+  irrecv.resume();
+  while(irrecv.decode(&results) != 1 ) { } 
+
+  lcd.clear(); 
+  lcd.setCursor(0, 0);
+  lcd.print("ON: Auto start");
+  lcd.setCursor(0, 1);
+  lcd.print("OFF: do nothing");  
+
+  boolean startMode = initialise_boolean_select(); 
+
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Select");
+  lcd.setCursor(0, 1);  
+  lcd.print("beep mode");
+
+  irrecv.resume();
+  while(irrecv.decode(&results) != 1 ) { } 
+
+  lcd.clear(); 
+  lcd.setCursor(0, 0);
+  lcd.print("ON: beep on");
+  lcd.setCursor(0, 1);
+  lcd.print("OFF: beep off");  
+
+  boolean beepMode = initialise_boolean_select();
+
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Select");
+  lcd.setCursor(0, 1);  
+  lcd.print("TV off mode");
+
+  irrecv.resume();
+  while(irrecv.decode(&results) != 1 ) { } 
+
+  lcd.clear(); 
+  lcd.setCursor(0, 0);
+  lcd.print("ON: TV on/off");
+  lcd.setCursor(0, 1);
+  lcd.print("OFF: IN change");  
+
+  boolean offMode = initialise_boolean_select();  
+
+
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Select");
+  lcd.setCursor(0, 1);  
+  lcd.print("channel gap");
+
+  irrecv.resume();
+  while(irrecv.decode(&results) != 1 ) { } 
+
+  lcd.clear(); 
+  lcd.setCursor(0, 0);
+  lcd.print("ON: change no");
+  lcd.setCursor(0, 1);
+  lcd.print("OFF: done");  
+
+  int channelGap = initialise_number_select(1, 5, 1);  
+
+  lcd.clear(); 
+  lcd.setCursor(0, 0);
+  lcd.print("channelGap");  
 
 
 /*
