@@ -345,6 +345,14 @@ void loop()
     turn_onoff_tv(0);
   }
 
+  if ( (timerOnOff == 0) && ( o_pirOnOff != 1) ) {
+    displaytimeleft((millis() - tv_off_Mills) / (60 * 1000 ));
+  }
+
+  if ( (timerOnOff == 1) && ( o_pirOnOff != 1) ) {
+    displaytimeleft((millis() - tv_on_Mills) / (60 * 1000 ));
+  }
+
   if (t != o_t) {
     tv_off_Mills = millis();
     o_t = t;
@@ -378,22 +386,50 @@ void loop()
   }
 }
 
+void displaytimeleft(float a) {
+  String str_a = String(int(a));
+  int length_a = str_a.length();
+
+  lcd.setCursor(10, 1);
+  for ( int i = 0; i < ( 3 - length_a ) ; i++ ) {
+    lcd.print(" ");
+  }
+  lcd.print(str_a);
+}
+
 void turn_onoff_tv(int a)
 {
   if ( o_wrkMode == 1 && o_startMode == 1 ) {
-    if ( a == 1 && tvPowerStatus == 1) {
-      irSendTv(0);
-      tv_on_Mills = millis();
-      timerOnOff = 1;
-      r = !r;
+    if ( o_pwrSrc == 0 ) {
+        if ( a == 1 && tvPowerStatus == 1) {
+          irSendTv(0);
+          tv_on_Mills = millis();
+          timerOnOff = 1;
+          r = !r;
+        }
+
+        if ( a == 0 && tvPowerStatus == 0) {
+          irSendTv(1);
+          tv_off_Mills = millis();
+          timerOnOff = 0;
+          r = !r;
+        }
+    } else {
+        if ( a == 1 ) {
+          irSendTv(0);
+          tv_on_Mills = millis();
+          timerOnOff = 1;
+          r = !r;
+        }
+
+        if ( a == 0 ) {
+          irSendTv(1);
+          tv_off_Mills = millis();
+          timerOnOff = 0;
+          r = !r;
+        }      
     }
 
-    if ( a == 0 && tvPowerStatus == 0) {
-      irSendTv(1);
-      tv_off_Mills = millis();
-      timerOnOff = 0;
-      r = !r;
-    }
   }
 }
 
