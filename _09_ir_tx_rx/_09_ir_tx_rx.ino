@@ -326,6 +326,12 @@ void loop()
     displayTemperature();
     tempMills = millis();
 
+    if (timerOnOff == 0) {
+      displaytimeleft(o_tvOnTime - ((millis() - tv_off_Mills) / 1000 / 60) );
+    } else {
+      displaytimeleft(o_tvOffTime - ((millis() - tv_on_Mills) / 1000 / 60) );
+    }
+    
     if ( (millis() - o_tempMills) >= 600000 ) {
       Serial.println("o_tempCinside called");
       o_tempCinside = c_tempCinside;
@@ -343,14 +349,6 @@ void loop()
   if ((millis() - tv_on_Mills) >= ( o_tvOffTime * 60 * 1000 ) && (timerOnOff == 1) && ( o_pirOnOff != 1)) {
     Serial.println("Timer on called");
     turn_onoff_tv(0);
-  }
-
-  if ( (timerOnOff == 0) && ( o_pirOnOff != 1) ) {
-    displaytimeleft((millis() - tv_off_Mills) / (60 * 1000 ));
-  }
-
-  if ( (timerOnOff == 1) && ( o_pirOnOff != 1) ) {
-    displaytimeleft((millis() - tv_on_Mills) / (60 * 1000 ));
   }
 
   if (t != o_t) {
@@ -384,6 +382,7 @@ void loop()
       delay(100);
     }
   }
+  delay(100);
 }
 
 void displaytimeleft(float a) {
