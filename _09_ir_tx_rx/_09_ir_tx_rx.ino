@@ -341,12 +341,12 @@ void loop()
     }
   }
 
-  if ((millis() - tv_off_Mills) >= ( o_tvOnTime * 60 * 1000 ) && (timerOnOff == 0) && ( o_pirOnOff != 1) ) {
+  if (((millis() - tv_off_Mills) >= ( o_tvOnTime * 60 * 1000 )) && (timerOnOff == 0) && ( o_pirOnOff != 1) ) {
     Serial.println("Timer off called");
     turn_onoff_tv(1);
   }
 
-  if ((millis() - tv_on_Mills) >= ( o_tvOffTime * 60 * 1000 ) && (timerOnOff == 1) && ( o_pirOnOff != 1)) {
+  if (((millis() - tv_on_Mills) >= ( o_tvOffTime * 60 * 1000 )) && (timerOnOff == 1) && ( o_pirOnOff != 1)) {
     Serial.println("Timer on called");
     turn_onoff_tv(0);
   }
@@ -402,6 +402,7 @@ void turn_onoff_tv(int a)
     if ( o_pwrSrc == 0 ) {
         if ( a == 1 && tvPowerStatus == 1) {
           irSendTv(0);
+          tv_off_Mills = millis();
           tv_on_Mills = millis();
           timerOnOff = 1;
           r = !r;
@@ -410,12 +411,14 @@ void turn_onoff_tv(int a)
         if ( a == 0 && tvPowerStatus == 0) {
           irSendTv(1);
           tv_off_Mills = millis();
+          tv_on_Mills = millis();
           timerOnOff = 0;
           r = !r;
         }
     } else {
         if ( a == 1 ) {
           irSendTv(0);
+          tv_off_Mills = millis();
           tv_on_Mills = millis();
           timerOnOff = 1;
           r = !r;
@@ -424,6 +427,7 @@ void turn_onoff_tv(int a)
         if ( a == 0 ) {
           irSendTv(1);
           tv_off_Mills = millis();
+          tv_on_Mills = millis();
           timerOnOff = 0;
           r = !r;
         }      
