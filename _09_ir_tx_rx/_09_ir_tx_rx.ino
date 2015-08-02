@@ -245,28 +245,32 @@ boolean initialise_boolean_select()
   }
 }
 
-boolean initialise_number_select(int minno, int maxno, int curno)
+boolean initialise_number_select(int minno, int maxno, int curno, int chstep)
 {
+
+  lcd.setCursor(13, 1);
+  lcd.print(curno);
+        
   decode_results results;
   irrecv.resume();
   while(irrecv.decode(&results) != 1 ) { } 
 
   switch (results.value) {
     case 0xFF02FD:
-        if ( curno = maxno ) {
-             curno = minno
+        if ( curno == maxno ) {
+             curno = minno;
         } else {
-             curno = curno + 1 ;
+             curno = curno + chstep ;
         }
         lcd.setCursor(13, 1);
         lcd.print(curno);
-        initialise_number_select(minno, maxno, curno);
+        initialise_number_select(minno, maxno, curno, chstep);
         break;
     case 0xFF9867:
         return curno;
         break;
     default:
-        initialise_number_select(minno, maxno, curno);
+        initialise_number_select(minno, maxno, curno, chstep);
         break;
   }
 }
@@ -296,7 +300,7 @@ void run_initialise_setup() {
 
   lcd.clear();
   lcd.setCursor(0, 0);
-  lcd.print("ON: from TV");
+  lcd.print("ON : from TV");
   lcd.setCursor(0, 1);
   lcd.print("OFF: from other");  
 
@@ -313,7 +317,7 @@ void run_initialise_setup() {
 
   lcd.clear(); 
   lcd.setCursor(0, 0);
-  lcd.print("ON: TV + thermo");
+  lcd.print("ON : TV + thermo");
   lcd.setCursor(0, 1);
   lcd.print("OFF: thermo");  
 
@@ -330,7 +334,7 @@ void run_initialise_setup() {
 
   lcd.clear(); 
   lcd.setCursor(0, 0);
-  lcd.print("ON: Auto start");
+  lcd.print("ON : Auto start");
   lcd.setCursor(0, 1);
   lcd.print("OFF: do nothing");  
 
@@ -347,7 +351,7 @@ void run_initialise_setup() {
 
   lcd.clear(); 
   lcd.setCursor(0, 0);
-  lcd.print("ON: beep on");
+  lcd.print("ON : beep on");
   lcd.setCursor(0, 1);
   lcd.print("OFF: beep off");  
 
@@ -364,7 +368,7 @@ void run_initialise_setup() {
 
   lcd.clear(); 
   lcd.setCursor(0, 0);
-  lcd.print("ON: TV on/off");
+  lcd.print("ON : TV on/off");
   lcd.setCursor(0, 1);
   lcd.print("OFF: IN change");  
 
@@ -382,15 +386,15 @@ void run_initialise_setup() {
 
   lcd.clear(); 
   lcd.setCursor(0, 0);
-  lcd.print("ON: change no");
+  lcd.print("ON : change no");
   lcd.setCursor(0, 1);
   lcd.print("OFF: done");  
 
-  int channelGap = initialise_number_select(1, 5, 1);  
+  int channelGap = initialise_number_select(1, 5, 1, 1);  
 
   lcd.clear(); 
   lcd.setCursor(0, 0);
-  lcd.print("channelGap");  
+  lcd.print(channelGap);  
 
 
 /*
