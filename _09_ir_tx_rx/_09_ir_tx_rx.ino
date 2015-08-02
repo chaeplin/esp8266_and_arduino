@@ -251,7 +251,7 @@ void run_initialise_setup() {
 
   lcd.clear();
   lcd.setCursor(0, 0);
-  lcd.print("Setup :");
+  lcd.print("Setup");
   lcd.setCursor(0, 1);
   lcd.print("Press any button");
 
@@ -260,14 +260,18 @@ void run_initialise_setup() {
 
   lcd.clear();
   lcd.setCursor(0, 0);
-  lcd.print("Select pwr src :");
+  lcd.print("Select pwr src");
   lcd.setCursor(0, 1);
   lcd.print("ON: TV OFF: USB"); 
 
   boolean pwrSrc = initialise_pwr_src_select();
+
   lcd.clear();
   lcd.setCursor(0, 0);
-  lcd.print(pwrSrc);
+  lcd.print("Select wrk mode");
+  lcd.setCursor(0, 1);
+  lcd.print("ON: TV + thermostat,  OFF: thermostat");
+  lcd.autoscroll();
 
 
 /*
