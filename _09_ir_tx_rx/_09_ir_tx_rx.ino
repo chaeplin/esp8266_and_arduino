@@ -253,7 +253,7 @@ void displayTemperature()
   if ( o_tempminpassed == 0 ) {
     return;
   } else {
-    float tempdiff = o_tempCinside - tempCinside;
+    float tempdiff = tempCinside - o_tempCinside;
 
     lcd.setCursor(8, 0);
     if ( tempdiff >= 0 ) {
