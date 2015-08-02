@@ -11,6 +11,7 @@
 #define eeprom_read(dst, eeprom_field) eeprom_read_to(&dst, eeprom_field, sizeof(dst))
 #define eeprom_write_from(src_p, eeprom_field, src_size) eeprom_write_block(src_p, (void *)offsetof(__eeprom_data, eeprom_field), MIN(src_size, sizeof((__eeprom_data*)0)->eeprom_field))
 #define eeprom_write(src, eeprom_field) { typeof(src) x = src; eeprom_write_from(&x, eeprom_field, sizeof(x)); }
+#define MIN(x,y) (x > y ? y : x)
 
 // Change this any time the EEPROM content changes
 const long magic_number = 0x0326;
@@ -117,7 +118,7 @@ void setup()
   // initialize eeprom  
   long magic;
   eeprom_read(magic, magic);
-  if ((magic != magic_number) || ( setUpStatus == 0 ) {
+  if ((magic != magic_number) || ( setUpStatus == 0 )) {
      run_initialise_setup();
   }
 
