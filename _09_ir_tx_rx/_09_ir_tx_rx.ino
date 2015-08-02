@@ -215,17 +215,6 @@ void alarm_set()
   digitalWrite(BZ_OU_PIN, HIGH);
 }
 
-
-void initialise_eeprom() 
-{
-  /*
-  eeprom_write(0, first);
-  eeprom_write(0, second);
-  eeprom_write(magic_number, magic);
-  */
-}
-
-
 boolean initialise_boolean_select()
 {
   decode_results results;
@@ -282,9 +271,9 @@ void run_initialise_setup() {
 
   lcd.clear();
   lcd.setCursor(0, 0);
-  lcd.print("Setup");
-  lcd.setCursor(0, 1);
   lcd.print("Press any button");
+  lcd.setCursor(0, 1);
+  lcd.print("to start setup");
 
   irrecv.resume();
   while(irrecv.decode(&results) != 1 ) { } 
@@ -374,7 +363,6 @@ void run_initialise_setup() {
 
   boolean offMode = initialise_boolean_select();  
 
-
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("Select");
@@ -392,38 +380,84 @@ void run_initialise_setup() {
 
   int channelGap = initialise_number_select(1, 5, 1, 1);  
 
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Select timer");
+  lcd.setCursor(0, 1);  
+  lcd.print("for TV auto off");
+
+  irrecv.resume();
+  while(irrecv.decode(&results) != 1 ) { } 
+
   lcd.clear(); 
   lcd.setCursor(0, 0);
-  lcd.print(channelGap);  
+  lcd.print("ON : change no");
+  lcd.setCursor(0, 1);
+  lcd.print("OFF: done");  
 
+  int tvOnTime = initialise_number_select(30, 120, 50, 5);  
 
-/*
+  lcd.clear();
   lcd.setCursor(0, 0);
+  lcd.print("Select timer");
+  lcd.setCursor(0, 1);  
+  lcd.print("for TV auto on");
 
-  if ((magic != magic_number) || ( setUpStatus == 0 ) {
+  irrecv.resume();
+  while(irrecv.decode(&results) != 1 ) { } 
 
- 
-  lcd.print('0');
+  lcd.clear(); 
+  lcd.setCursor(0, 0);
+  lcd.print("ON : change no");
+  lcd.setCursor(0, 1);
+  lcd.print("OFF: done");  
 
-  boolean pwrSrc;     // True : connected to TV, False : usb powered
-  boolean wrkMode;    // True : thermostat + TV, False : thermostat
-  boolean startMode;  // if wrkMode == True, True : run TV on/off or channel change,
-                      // False : do nothing indicating a sign on the lcd
-  boolean beepMode;   // True : beep on
-  boolean offMode;    // True : TV on/off, False : channel change
-  int channelGap;     // 1 ~ 5
-  int tvOnTime;       // 30 ~ 120
-  int tvOffTime;      // 5 ~ 20
+  int tvOffTime = initialise_number_select(5, 20, 10, 5);  
 
+  //
+  boolean initialise_eeprom_done =  initialise_eeprom(pwrSrc, wrkMode, startMode, beepMode, offMode, channelGap, tvOnTime, tvOffTime) 
 
-  decode_results results;
+  while(initialise_eeprom_done != 1 ) { } 
 
-  if (irrecv.decode(&results)) {
-    dumpInfo(&results);
-
+  lcd.clear(); 
+  lcd.setCursor(0, 0);
+  lcd.print("Setup is done");
+  lcd.setCursor(0, 1);
+  if ( setUpStatus == 0 ) {
+      lcd.print("change setup sw");
   }
 
- */
-  // initialise_eeprom(); 
+  irrecv.resume();
+  while(irrecv.decode(&results) != 1 ) { } 
+
+  lcd.clear(); 
+  lcd.setCursor(0, 0);
+  lcd.print("Press any button");
+  lcd.setCursor(0, 1);
+  lcd.print("to reset");
+
+  irrecv.resume();
+  while(irrecv.decode(&results) != 1 ) { }       
+
+  resetFunc(); 
 
 }
+
+
+boolean initialise_eeprom(boolean i_pwrSrc, boolean i_wrkMode, boolean i_startMode, boolean i_beepMode, boolean i_offMode, int i_channelGap, int i_tvOnTime, int i_tvOffTime) 
+{
+  eeprom_write(i_pwrSrc, pwrSrc);
+  eeprom_write(i_wrkMode, wrkMode);
+  eeprom_write(i_startMode, startMode);
+  eeprom_write(i_beepMode, beepMode);
+  eeprom_write(i_offMode, offMode);
+  eeprom_write(i_channelGap, channelGap);
+  eeprom_write(i_tvOnTime, tvOnTime);
+  eeprom_write(i_tvOffTime, tvOffTime);
+  eeprom_write(magic_number, magic);
+
+  return 1;
+}
+
+void(* resetFunc) (void) = 0; //declare reset function @ address 0
+
