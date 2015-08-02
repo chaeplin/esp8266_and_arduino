@@ -18,7 +18,7 @@
 
 // Change this any time the EEPROM content changes
 const long magic_number = 0x0326;
- 
+
 struct __eeprom_data {
   long magic;
   boolean pwrSrc;     // True : connected to TV, False : usb powered
@@ -72,19 +72,22 @@ long tv_off_Mills;
 long tempMills;
 long o_tempMills;
 
+// temp
+boolean o_tempminpassed = 0;
+
 // sw status
 int setUpStatus;
 int wrkModeStatus;
 
 // eeprom status
-boolean o_pwrSrc;  
-boolean o_wrkMode; 
-boolean o_startMode; 
-boolean o_beepMode; 
-boolean o_offMode; 
-int o_channelGap; 
-int o_tvOnTime; 
-int o_tvOffTime; 
+boolean o_pwrSrc;
+boolean o_wrkMode;
+boolean o_startMode;
+boolean o_beepMode;
+boolean o_offMode;
+int o_channelGap;
+int o_tvOnTime;
+int o_tvOffTime;
 
 // lcd
 byte termometru[8] =
@@ -106,6 +109,7 @@ void setup()
 
   // start serial
   Serial.begin (38400);
+  Serial.println();
   Serial.println("TV controller Starting");
   delay(20);
 
@@ -139,23 +143,23 @@ void setup()
   setUpStatus   = digitalRead(SETUP_IN_PIN);
   wrkModeStatus = digitalRead(WRK_MODE_IN_PIN);
 
-  // initialize eeprom  
+  // initialize eeprom
   long magic;
   eeprom_read(magic, magic);
   if ((magic != magic_number) || ( setUpStatus == 0 )) {
-     run_initialise_setup();
-     resetFunc();
+    run_initialise_setup();
+    resetFunc();
   }
 
   // eeprom read
-  eeprom_read(o_pwrSrc, pwrSrc);  
-  eeprom_read(o_wrkMode, wrkMode); 
-  eeprom_read(o_startMode, startMode); 
-  eeprom_read(o_beepMode, beepMode); 
-  eeprom_read(o_offMode, offMode); 
-  eeprom_read(o_channelGap, channelGap); 
-  eeprom_read(o_tvOnTime, tvOnTime); 
-  eeprom_read(o_tvOffTime, tvOffTime); 
+  eeprom_read(o_pwrSrc, pwrSrc);
+  eeprom_read(o_wrkMode, wrkMode);
+  eeprom_read(o_startMode, startMode);
+  eeprom_read(o_beepMode, beepMode);
+  eeprom_read(o_offMode, offMode);
+  eeprom_read(o_channelGap, channelGap);
+  eeprom_read(o_tvOnTime, tvOnTime);
+  eeprom_read(o_tvOffTime, tvOffTime);
 
   // temp sensor
   sensors.begin();
@@ -176,7 +180,7 @@ void setup()
   lcd.write(1);
 
   lcd.setCursor(6, 0);
-  lcd.print((char)223);   
+  lcd.print((char)223);
 
 }
 
@@ -184,17 +188,21 @@ void setup()
 void loop()
 {
 
-  if ( millis() - tempMills >= 5000 ) {
-     getdalastemp();
-     displayTemperature();
-     tempMills = millis();
-  }
-
-  if ( millis() - o_tempMills >= 1800000 ) {
+  if ( (millis() - tempMills) >= 2000 ) {
+    getdalastemp();
+    displayTemperature();
+    tempMills = millis();
+    
+    if ( (millis() - o_tempMills) >= 60000 ) {
+      Serial.println("o_tempCinside called");
       o_tempCinside = c_tempCinside;
       c_tempCinside = tempCinside;
+      o_tempminpassed = 1;
       o_tempMills = millis();
+    }
+    
   }
+
 
   /*
    *
@@ -213,14 +221,14 @@ void loop()
     delay(1000);
   */
 
-/*
-  decode_results results;
+  /*
+    decode_results results;
 
-  if (irrecv.decode(&results)) {
-    dumpInfo(&results);
+    if (irrecv.decode(&results)) {
+      dumpInfo(&results);
 
-  }
-*/
+    }
+  */
 
 }
 
@@ -242,13 +250,15 @@ void displayTemperature()
   lcd.setCursor(1, 0);
   displayTemperaturedigit(tempCinside);
 
-  if ( !isnan(o_tempCinside) ) {
-     float tempdiff = o_tempCinside - tempCinside;
+  if ( o_tempminpassed == 0 ) {
+    return;
+  } else {
+    float tempdiff = o_tempCinside - tempCinside;
 
     lcd.setCursor(8, 0);
-    if ( tempdiff > 0 ) {
+    if ( tempdiff >= 0 ) {
       lcd.print("+");
-    } else if ( tempdiff < 0 ) {
+    } else {
       lcd.print("-");
     }
 
@@ -259,7 +269,7 @@ void displayTemperature()
     lcd.print(abs(tempdiff), 1);
     if ( length_tempdiff == 1) {
       lcd.print(" ");
-    }     
+    }
 
   }
 
@@ -316,18 +326,18 @@ boolean initialise_boolean_select()
 {
   decode_results results;
   irrecv.resume();
-  while(irrecv.decode(&results) != 1 ) { } 
+  while (irrecv.decode(&results) != 1 ) { }
 
   switch (results.value) {
     case 0xFF02FD:
-        return 1;
-        break;
+      return 1;
+      break;
     case 0xFF9867:
-        return 0;
-        break;
+      return 0;
+      break;
     default:
-        initialise_boolean_select();
-        break;
+      initialise_boolean_select();
+      break;
   }
 }
 
@@ -336,28 +346,28 @@ boolean initialise_number_select(int minno, int maxno, int curno, int chstep)
 
   lcd.setCursor(13, 1);
   lcd.print(curno);
-        
+
   decode_results results;
   irrecv.resume();
-  while(irrecv.decode(&results) != 1 ) { } 
+  while (irrecv.decode(&results) != 1 ) { }
 
   switch (results.value) {
     case 0xFF02FD:
-        if ( curno >= maxno ) {
-             curno = minno;
-        } else {
-             curno = curno + chstep ;
-        }
-        lcd.setCursor(13, 1);
-        lcd.print(curno);
-        initialise_number_select(minno, maxno, curno, chstep);
-        break;
+      if ( curno >= maxno ) {
+        curno = minno;
+      } else {
+        curno = curno + chstep ;
+      }
+      lcd.setCursor(13, 1);
+      lcd.print(curno);
+      initialise_number_select(minno, maxno, curno, chstep);
+      break;
     case 0xFF9867:
-        return curno;
-        break;
+      return curno;
+      break;
     default:
-        initialise_number_select(minno, maxno, curno, chstep);
-        break;
+      initialise_number_select(minno, maxno, curno, chstep);
+      break;
   }
 }
 
@@ -374,7 +384,7 @@ void run_initialise_setup() {
   lcd.print("*");
 
   irrecv.resume();
-  while(irrecv.decode(&results) != 1 ) { } 
+  while (irrecv.decode(&results) != 1 ) { }
 
   lcd.clear();
   lcd.setCursor(0, 0);
@@ -382,183 +392,183 @@ void run_initialise_setup() {
   lcd.setCursor(0, 1);
   lcd.print("power source");
   lcd.setCursor(15, 1);
-  lcd.print("*");  
+  lcd.print("*");
 
   irrecv.resume();
-  while(irrecv.decode(&results) != 1 ) { } 
+  while (irrecv.decode(&results) != 1 ) { }
 
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("ON : from TV");
   lcd.setCursor(0, 1);
-  lcd.print("OFF: from other");    
+  lcd.print("OFF: from other");
 
   boolean pwrSrc = initialise_boolean_select();
 
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("Select");
-  lcd.setCursor(0, 1);  
+  lcd.setCursor(0, 1);
   lcd.print("working mode");
   lcd.setCursor(15, 1);
-  lcd.print("*");  
+  lcd.print("*");
 
   irrecv.resume();
-  while(irrecv.decode(&results) != 1 ) { } 
+  while (irrecv.decode(&results) != 1 ) { }
 
-  lcd.clear(); 
+  lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("ON : TV + thermo");
   lcd.setCursor(0, 1);
-  lcd.print("OFF: thermo");  
+  lcd.print("OFF: thermo");
 
   boolean wrkMode = initialise_boolean_select();
 
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("Select");
-  lcd.setCursor(0, 1);  
+  lcd.setCursor(0, 1);
   lcd.print("start mode");
   lcd.setCursor(15, 1);
-  lcd.print("*");  
+  lcd.print("*");
 
   irrecv.resume();
-  while(irrecv.decode(&results) != 1 ) { } 
+  while (irrecv.decode(&results) != 1 ) { }
 
-  lcd.clear(); 
+  lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("ON : Auto start");
   lcd.setCursor(0, 1);
-  lcd.print("OFF: do nothing");  
+  lcd.print("OFF: do nothing");
 
-  boolean startMode = initialise_boolean_select(); 
+  boolean startMode = initialise_boolean_select();
 
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("Select");
-  lcd.setCursor(0, 1);  
+  lcd.setCursor(0, 1);
   lcd.print("beep mode");
-   lcd.setCursor(15, 1);
-  lcd.print("*"); 
+  lcd.setCursor(15, 1);
+  lcd.print("*");
 
   irrecv.resume();
-  while(irrecv.decode(&results) != 1 ) { } 
+  while (irrecv.decode(&results) != 1 ) { }
 
-  lcd.clear(); 
+  lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("ON : beep on");
   lcd.setCursor(0, 1);
-  lcd.print("OFF: beep off");  
+  lcd.print("OFF: beep off");
 
   boolean beepMode = initialise_boolean_select();
 
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("Select");
-  lcd.setCursor(0, 1);  
+  lcd.setCursor(0, 1);
   lcd.print("TV off mode");
   lcd.setCursor(15, 1);
   lcd.print("*");
-  
-  irrecv.resume();
-  while(irrecv.decode(&results) != 1 ) { } 
 
-  lcd.clear(); 
+  irrecv.resume();
+  while (irrecv.decode(&results) != 1 ) { }
+
+  lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("ON : TV on/off");
   lcd.setCursor(0, 1);
-  lcd.print("OFF: IN change");  
+  lcd.print("OFF: IN change");
 
-  boolean offMode = initialise_boolean_select();  
+  boolean offMode = initialise_boolean_select();
 
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("Select");
-  lcd.setCursor(0, 1);  
+  lcd.setCursor(0, 1);
   lcd.print("channel gap");
   lcd.setCursor(15, 1);
   lcd.print("*");
-  
-  irrecv.resume();
-  while(irrecv.decode(&results) != 1 ) { } 
 
-  lcd.clear(); 
+  irrecv.resume();
+  while (irrecv.decode(&results) != 1 ) { }
+
+  lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("ON : change no");
   lcd.setCursor(0, 1);
-  lcd.print("OFF: done");  
+  lcd.print("OFF: done");
 
-  int channelGap = initialise_number_select(1, 5, 1, 1);  
+  int channelGap = initialise_number_select(1, 5, 1, 1);
 
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("Select timer");
-  lcd.setCursor(0, 1);  
+  lcd.setCursor(0, 1);
   lcd.print("for TV auto off");
-   lcd.setCursor(15, 1);
-  lcd.print("*"); 
+  lcd.setCursor(15, 1);
+  lcd.print("*");
 
   irrecv.resume();
-  while(irrecv.decode(&results) != 1 ) { } 
+  while (irrecv.decode(&results) != 1 ) { }
 
-  lcd.clear(); 
+  lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("ON : change no");
   lcd.setCursor(0, 1);
-  lcd.print("OFF: done");  
+  lcd.print("OFF: done");
 
-  int tvOnTime = initialise_number_select(30, 90, 50, 5);  
+  int tvOnTime = initialise_number_select(30, 90, 50, 5);
 
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("Select timer");
-  lcd.setCursor(0, 1);  
+  lcd.setCursor(0, 1);
   lcd.print("for TV auto on");
-   lcd.setCursor(15, 1);
-  lcd.print("*"); 
+  lcd.setCursor(15, 1);
+  lcd.print("*");
 
   irrecv.resume();
-  while(irrecv.decode(&results) != 1 ) { } 
+  while (irrecv.decode(&results) != 1 ) { }
 
-  lcd.clear(); 
+  lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("ON : change no");
   lcd.setCursor(0, 1);
-  lcd.print("OFF: done");  
+  lcd.print("OFF: done");
 
-  int tvOffTime = initialise_number_select(5, 20, 10, 5);  
+  int tvOffTime = initialise_number_select(5, 20, 10, 5);
 
   //
   boolean initialise_eeprom_done =  initialise_eeprom(pwrSrc, wrkMode, startMode, beepMode, offMode, channelGap, tvOnTime, tvOffTime) ;
 
-  while(initialise_eeprom_done != 1 ) { } 
+  while (initialise_eeprom_done != 1 ) { }
 
-  lcd.clear(); 
+  lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("Setup is done");
   lcd.setCursor(0, 1);
   if ( setUpStatus == 0 ) {
-      lcd.print("change setup sw");
+    lcd.print("change setup sw");
   }
   lcd.setCursor(15, 1);
   lcd.print("*");
 
   irrecv.resume();
-  while(irrecv.decode(&results) != 1 ) { } 
+  while (irrecv.decode(&results) != 1 ) { }
 
-  lcd.clear(); 
+  lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("Press any button");
   lcd.setCursor(0, 1);
   lcd.print("to reset");
 
   irrecv.resume();
-  while(irrecv.decode(&results) != 1 ) { } 
+  while (irrecv.decode(&results) != 1 ) { }
 
 }
 
 
-boolean initialise_eeprom(boolean i_pwrSrc, boolean i_wrkMode, boolean i_startMode, boolean i_beepMode, boolean i_offMode, int i_channelGap, int i_tvOnTime, int i_tvOffTime) 
+boolean initialise_eeprom(boolean i_pwrSrc, boolean i_wrkMode, boolean i_startMode, boolean i_beepMode, boolean i_offMode, int i_channelGap, int i_tvOnTime, int i_tvOffTime)
 {
   eeprom_write(i_pwrSrc, pwrSrc);
   eeprom_write(i_wrkMode, wrkMode);
@@ -573,6 +583,6 @@ boolean initialise_eeprom(boolean i_pwrSrc, boolean i_wrkMode, boolean i_startMo
   return 1;
 }
 
-/* 
+/*
 *
 */
