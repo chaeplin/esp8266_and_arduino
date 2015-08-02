@@ -189,7 +189,7 @@ void ac_sleepmomde_change() {
     ac_power_down();
     Serial.println("CHANGE AC MODE : OFF");
   }
-  irrecv.enableIRIn(); // Start the receiver
+  //irrecv.enableIRIn(); // Start the receiver
 }
 
 // IR
