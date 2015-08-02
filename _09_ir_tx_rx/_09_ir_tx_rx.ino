@@ -228,15 +228,16 @@ void initialise_eeprom()
 
 boolean initialise_pwr_src_select()
 {
+  decode_results results;
   irrecv.resume();
   while(irrecv.decode(&results) != 1 ) { } 
 
   switch (results.value) {
     case 0xFF02FD:
-        return True;
+        return 1;
         break;
     case 0xFF9867:
-        return False;
+        return 0;
         break;
     default:
         initialise_pwr_src_select();
@@ -259,7 +260,7 @@ void run_initialise_setup() {
 
   lcd.clear();
   lcd.setCursor(0, 0);
-  lcd.print('Select pwr src :');
+  lcd.print("Select pwr src :");
   lcd.setCursor(0, 1);
   lcd.print("ON: TV OFF: USB"); 
 
