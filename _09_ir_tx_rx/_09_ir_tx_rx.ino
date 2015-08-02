@@ -192,7 +192,7 @@ void loop()
     getdalastemp();
     displayTemperature();
     tempMills = millis();
-    
+
     if ( (millis() - o_tempMills) >= 60000 ) {
       Serial.println("o_tempCinside called");
       o_tempCinside = c_tempCinside;
@@ -200,7 +200,7 @@ void loop()
       o_tempminpassed = 1;
       o_tempMills = millis();
     }
-    
+
   }
 
 
