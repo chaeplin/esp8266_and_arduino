@@ -1,6 +1,6 @@
 /* bugs
-* 001 : initialise_number_select cause reset when called minno ~ maxno loop moret han 3 times
-* 002 : o_tempCinside is not a moving point
+*  001 : initialise_number_select cause reset when called minno ~ maxno loop moret han 3 times
+*  002 : o_tempCinside is not a moving point
 */
 
 // eeprom
@@ -23,14 +23,14 @@ const long magic_number = 0x326;
 
 struct __eeprom_data {
   long magic;
-  int pwrSrc;     // True : connected to TV, False : usb powered
-  int wrkMode;    // True : thermostat + TV, False : thermostat
-  int startMode;  // if wrkMode == True, True : run TV on/off or channel change, False : do nothing indicating a sign on the lcd
-  int beepMode;   // True : beep on
-  int offMode;    // True : TV on/off, False : channel change
-  int channelGap;     // 1 ~ 5
-  int tvOnTime;       // 30 ~ 90
-  int tvOffTime;      // 5 ~ 20
+  int pwrSrc;     // 1 : connected to TV, 0 : usb powered
+  int wrkMode;    // 1 : thermostat + TV, 0 : thermostat
+  int startMode;  // if wrkMode == 1, 1 : run TV on/off or channel change, 0 : do nothing indicating a sign on the lcd
+  int beepMode;   // 1 : beep on
+  int offMode;    // 1 : TV on/off, 0 : input change
+  int channelGap; // 1 ~ 5
+  int tvOnTime;   // 30 ~ 90
+  int tvOffTime;  // 5 ~ 20
 };
 
 //
@@ -71,8 +71,10 @@ float c_tempCinside;
 // timer
 long startMills;
 long tv_off_Mills;
+long tv_on_Mills;
 long tempMills;
 long o_tempMills;
+long pir_Mills;
 
 // temp
 int o_tempminpassed = 0;
@@ -82,9 +84,15 @@ int setUpStatus;
 int wrkModeStatus;
 int tvPowerStatus = 0;
 int timerStatus   = 0;
+int timerOnOff    = 0;
+
+int pirOnOff      = 0;
+int o_pirOnOff    = 0;
 
 int r   = LOW;
 int o_r = LOW;
+int t   = LOW;
+int o_t = LOW;
 
 // eeprom status
 int o_pwrSrc;
@@ -95,6 +103,13 @@ int o_offMode;
 int o_channelGap;
 int o_tvOnTime;
 int o_tvOffTime;
+
+// tv
+unsigned long tv_input = 0x20DFD02F;
+unsigned long tv_right = 0x20DF609F;
+unsigned long tv_left  = 0x20DFE01F;
+unsigned long tv_enter = 0x20DF22DD;
+unsigned long tv_onoff = 0x20DF10EF;
 
 // lcd
 byte termometru[8] =
@@ -108,7 +123,6 @@ byte termometru[8] =
   B11111,
   B01110,
 };
-
 
 byte tvicon[8] =
 {
@@ -162,7 +176,6 @@ void(* resetFunc) (void) = 0; //declare reset function @ address 0
 
 void setup()
 {
-
   // start serial
   Serial.begin (38400);
   Serial.println();
@@ -173,6 +186,8 @@ void setup()
   startMills = millis();
   tempMills = millis();
   o_tempMills = millis();
+  tv_off_Mills = millis();
+  tv_on_Mills = millis();
 
   // lcd
   lcd.init();
@@ -247,10 +262,14 @@ void setup()
     resetFunc();
   }
 
-
   if ( wrkModeStatus == 0 ) {
     o_wrkMode = wrkModeStatus;
   }
+
+  if ( o_pwrSrc == 1) {
+    o_offMode = 0;
+  }
+
 
   // temp sensor
   sensors.begin();
@@ -291,12 +310,18 @@ void setup()
     lcd.write(4);
   }
 
+  attachInterrupt(0, PIRCHECKING, RISING);
 }
 
+void PIRCHECKING()
+{
+  detachInterrupt(0);
+  pirOnOff = 1 ;
+  pir_Mills = millis();
+}
 
 void loop()
 {
-
   // receiving ir and change status
   // remote on / off, tv remote on / off
   decode_results results;
@@ -306,7 +331,7 @@ void loop()
     irrecv.enableIRIn();
   }
 
-  if ( (millis() - tempMills) >= 2000 ) {
+  if ((millis() - tempMills) >= 2000 ) {
     getdalastemp();
     displayTemperature();
     tempMills = millis();
@@ -318,42 +343,90 @@ void loop()
       o_tempminpassed = 1;
       o_tempMills = millis();
     }
-
   }
 
-  if ( r != o_r ) {
+  if ((millis() - tv_off_Mills) >= ( o_tvOnTime * 60 * 1000 ) && timerOnOff == 0) {
+    turn_onoff_tv(1);
+  }
+
+  if ((millis() - tv_on_Mills) >= ( o_tvOffTime * 60 * 1000 ) && timerOnOff == 1) {
+    turn_onoff_tv(0);
+  }
+
+  if (t != o_t) {
+    tv_off_Mills = millis();
+    o_t = t;
+  }
+
+  if (r != o_r) {
     changelcdicon();
-    o_r = r;
     alarm_set();
+    o_r = r;
   }
 
-  /*
-   *
-    pinMode(SETUP_IN_PIN, INPUT_PULLUP);
-    pinMode(WRK_MODE_IN_PIN, INPUT_PULLUP);
-    pinMode(DN_IN_PIN, INPUT_PULLUP);
-    pinMode(UP_IN_PIN, INPUT_PULLUP);
-    pinMode(PIR_IN_PIN, INPUT_PULLUP);
-   *
-   */
-  /*
-    int x = digitalRead(WRK_MODE_IN_PIN);
-    Serial.println(x);
-    //getdalastemp();
-    //Serial.println(tempCinside);
-    delay(1000);
-  */
+  if ( pirOnOff == 1 && o_pirOnOff == 0 ) {
+      turn_onoff_tv(1);
+      o_pirOnOff    = 1;
+  }
 
-  /*
-    decode_results results;
+  if ( o_pirOnOff == 1 &&  pir_Mills > 30000 ) {
+      turn_onoff_tv(0);
+      o_pirOnOff    = 0;
+      pirOnOff      = 0;
+      attachInterrupt(0, PIRCHECKING, RISING);
 
-    if (irrecv.decode(&results)) {
-      dumpInfo(&results);
-
-    }
-  */
-
+  }
 }
+
+void turn_onoff_tv(int a)
+{
+  if ( o_wrkMode == 1 && o_startMode == 1 ) {
+     if ( a == 1 && tvPowerStatus == 1) {
+         irSendTv(0);
+         tvPowerStatus = 0;
+         tv_on_Mills = millis();
+         timerOnOff = 1;
+         r = !r;      
+     }
+
+     if ( a == 0 && tvPowerStatus == 0) {
+         irSendTv(1);
+         tvPowerStatus = 1;
+         tv_off_Mills = millis();
+         timerOnOff = 0;
+         r = !r;      
+     }
+  }
+}
+
+void irSendTv(int a)
+{
+  if ( o_offMode == 1 ) {
+    irsend.sendNEC(tv_onoff, 32);
+    delay(300);
+    irrecv.enableIRIn();
+  } else {
+    if ( a == 1) {
+        irsend.sendNEC(tv_input, 32);
+        delay(3000);
+        for ( int i = 0 ; i < o_channelGap ; i++ ) {
+          irsend.sendNEC(tv_left, 32);
+          delay(300);
+        }
+        irsend.sendNEC(tv_enter, 32);
+    } else {
+        irsend.sendNEC(tv_input, 32);
+        delay(3000);
+        for ( int i = 0 ; i < o_channelGap ; i++ ) {
+          irsend.sendNEC(tv_right, 32);
+          delay(300);
+        }
+        irsend.sendNEC(tv_enter, 32);      
+    }
+    irrecv.enableIRIn();
+  }
+}
+
 
 void changelcdicon()
 {
@@ -374,6 +447,7 @@ void changelcdicon()
       lcd.setCursor(4, 1);
       lcd.print(" ");
     }
+
   } else {
     lcd.setCursor(0, 1);
     lcd.print("     ");
@@ -391,7 +465,6 @@ void changelcdicon()
 
 void changemodebyir (decode_results *results)
 {
- 
   if ( results->bits > 0 && results->bits == 32 ) {
     switch (results->value) {
       case 0xFF02FD: // remote on
@@ -402,6 +475,7 @@ void changemodebyir (decode_results *results)
       case 0xFF9867: // remote off
         timerStatus = ! timerStatus;
         r = !r;
+        t = !t;
         break;
       case 0x20DF10EF: // tv remore on/off
         tvPowerStatus = ! tvPowerStatus ;
@@ -419,6 +493,7 @@ void displayTemperaturedigit(float Temperature)
   for ( int i = 0; i < ( 3 - length_Temperature ) ; i++ ) {
     lcd.print(" ");
   }
+
   lcd.print(Temperature, 1);
 }
 
@@ -754,6 +829,7 @@ int initialise_eeprom(int i_pwrSrc, int i_wrkMode, int i_startMode, int i_beepMo
 
   alarm_set();
   alarm_set();
+
   return 1;
 }
 
