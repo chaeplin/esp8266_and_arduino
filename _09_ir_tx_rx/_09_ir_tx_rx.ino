@@ -86,7 +86,7 @@ int tvPowerStatus = 0;
 int timerStatus   = 0;
 int timerOnOff    = 0;
 
-int pirOnOff      = 0;
+volatile int pirOnOff      = 0;
 int o_pirOnOff    = 0;
 
 int r   = LOW;
@@ -172,6 +172,18 @@ byte powericon[8] =
   B11000,
 };
 
+byte piricon[8] =
+{
+  B11111,
+  B11111,
+  B11111,
+  B11111,
+  B11111,
+  B11111,
+  B11111,
+  B11111,
+};
+
 void(* resetFunc) (void) = 0; //declare reset function @ address 0
 
 void setup()
@@ -180,7 +192,7 @@ void setup()
   Serial.begin (38400);
   Serial.println();
   Serial.println("TV controller Starting");
-  delay(200);
+  delay(20);
 
   // Timer start
   startMills = millis();
@@ -204,7 +216,7 @@ void setup()
   pinMode(DN_IN_PIN, INPUT_PULLUP);
   pinMode(UP_IN_PIN, INPUT_PULLUP);
   */
-  pinMode(PIR_IN_PIN, INPUT_PULLUP);
+  pinMode(PIR_IN_PIN, INPUT);
 
   // buzzer
   pinMode(BZ_OU_PIN, OUTPUT);
@@ -213,7 +225,7 @@ void setup()
   digitalWrite(WRK_MODE_IN_PIN, HIGH);
 
   delay(200);
-  
+
   // eeprom read
   long o_magic;
 
@@ -230,27 +242,6 @@ void setup()
   // read pin status
   setUpStatus   = digitalRead(SETUP_IN_PIN);
   wrkModeStatus = digitalRead(WRK_MODE_IN_PIN);
-
-  Serial.println(setUpStatus);
-  Serial.println(wrkModeStatus);
-  Serial.println(magic_number, HEX);
-  Serial.println(o_magic, HEX);
-
-  /*
-  lcd.setCursor(0, 0);
-  lcd.print(magic_number);
-
-  lcd.setCursor(0, 1);
-  lcd.print(o_magic);
-
-  lcd.setCursor(8, 0);
-  lcd.print(setUpStatus);
-
-  lcd.setCursor(8, 1);
-  lcd.print(wrkModeStatus);
-
-  delay(5000);
-  */
 
   if (o_magic != magic_number ) {
     run_initialise_setup();
@@ -296,6 +287,7 @@ void setup()
   lcd.createChar(3, beepicon);
   lcd.createChar(4, timericon);
   lcd.createChar(5, powericon);
+  lcd.createChar(6, piricon);
 
   if ( o_wrkMode == 1 && o_startMode == 1 ) {
     lcd.setCursor(0, 1);
@@ -310,14 +302,12 @@ void setup()
     lcd.write(4);
   }
 
-  attachInterrupt(0, PIRCHECKING, RISING);
+  attachInterrupt(0, PIRCHECKING, CHANGE);
 }
 
 void PIRCHECKING()
 {
-  detachInterrupt(0);
-  pirOnOff = 1 ;
-  pir_Mills = millis();
+  pirOnOff = digitalRead(PIR_IN_PIN);
 }
 
 void loop()
@@ -345,11 +335,13 @@ void loop()
     }
   }
 
-  if ((millis() - tv_off_Mills) >= ( o_tvOnTime * 60 * 1000 ) && timerOnOff == 0) {
+  if ((millis() - tv_off_Mills) >= ( o_tvOnTime * 60 * 1000 ) && (timerOnOff == 0) && ( o_pirOnOff != 1) ) {
+    Serial.println("Timer off called");
     turn_onoff_tv(1);
   }
 
-  if ((millis() - tv_on_Mills) >= ( o_tvOffTime * 60 * 1000 ) && timerOnOff == 1) {
+  if ((millis() - tv_on_Mills) >= ( o_tvOffTime * 60 * 1000 ) && (timerOnOff == 1) && ( o_pirOnOff != 1)) {
+    Serial.println("Timer on called");
     turn_onoff_tv(0);
   }
 
@@ -364,64 +356,73 @@ void loop()
     o_r = r;
   }
 
-  if ( pirOnOff == 1 && o_pirOnOff == 0 ) {
+
+  if ( pirOnOff != o_pirOnOff ) {
+    if (pirOnOff == 1) {
+      Serial.println("PIR rising called");
+      o_pirOnOff = pirOnOff;
+      lcd.setCursor(15, 0);
+      lcd.write(6);
       turn_onoff_tv(1);
-      o_pirOnOff    = 1;
-  }
-
-  if ( o_pirOnOff == 1 &&  pir_Mills > 30000 ) {
-      turn_onoff_tv(0);
-      o_pirOnOff    = 0;
-      pirOnOff      = 0;
-      attachInterrupt(0, PIRCHECKING, RISING);
-
+      delay(100);
+    } else {
+      Serial.println("PIR timer called");
+      o_pirOnOff = pirOnOff;
+      lcd.setCursor(15, 0);
+      lcd.print(" ");
+      if ( timerOnOff == 1) {
+        turn_onoff_tv(0);
+      }
+      delay(100);
+    }
   }
 }
 
 void turn_onoff_tv(int a)
 {
   if ( o_wrkMode == 1 && o_startMode == 1 ) {
-     if ( a == 1 && tvPowerStatus == 1) {
-         irSendTv(0);
-         tvPowerStatus = 0;
-         tv_on_Mills = millis();
-         timerOnOff = 1;
-         r = !r;      
-     }
+    if ( a == 1 && tvPowerStatus == 1) {
+      irSendTv(0);
+      tv_on_Mills = millis();
+      timerOnOff = 1;
+      r = !r;
+    }
 
-     if ( a == 0 && tvPowerStatus == 0) {
-         irSendTv(1);
-         tvPowerStatus = 1;
-         tv_off_Mills = millis();
-         timerOnOff = 0;
-         r = !r;      
-     }
+    if ( a == 0 && tvPowerStatus == 0) {
+      irSendTv(1);
+      tv_off_Mills = millis();
+      timerOnOff = 0;
+      r = !r;
+    }
   }
 }
 
 void irSendTv(int a)
 {
   if ( o_offMode == 1 ) {
+    Serial.println("IRSend on/off called");
     irsend.sendNEC(tv_onoff, 32);
+    tvPowerStatus = !tvPowerStatus ;
     delay(300);
     irrecv.enableIRIn();
   } else {
+    Serial.println("IRSend CH change called");
     if ( a == 1) {
-        irsend.sendNEC(tv_input, 32);
-        delay(3000);
-        for ( int i = 0 ; i < o_channelGap ; i++ ) {
-          irsend.sendNEC(tv_left, 32);
-          delay(300);
-        }
-        irsend.sendNEC(tv_enter, 32);
+      irsend.sendNEC(tv_input, 32);
+      delay(3000);
+      for ( int i = 0 ; i < o_channelGap ; i++ ) {
+        irsend.sendNEC(tv_left, 32);
+        delay(300);
+      }
+      irsend.sendNEC(tv_enter, 32);
     } else {
-        irsend.sendNEC(tv_input, 32);
-        delay(3000);
-        for ( int i = 0 ; i < o_channelGap ; i++ ) {
-          irsend.sendNEC(tv_right, 32);
-          delay(300);
-        }
-        irsend.sendNEC(tv_enter, 32);      
+      irsend.sendNEC(tv_input, 32);
+      delay(3000);
+      for ( int i = 0 ; i < o_channelGap ; i++ ) {
+        irsend.sendNEC(tv_right, 32);
+        delay(300);
+      }
+      irsend.sendNEC(tv_enter, 32);
     }
     irrecv.enableIRIn();
   }
@@ -540,11 +541,11 @@ void getdalastemp()
 
 void alarm_set()
 {
-  Serial.println("===> alarm_set");
-
-  digitalWrite(BZ_OU_PIN, LOW);
-  delay(50);
-  digitalWrite(BZ_OU_PIN, HIGH);
+  if ( o_beepMode == 1) {
+    digitalWrite(BZ_OU_PIN, LOW);
+    delay(50);
+    digitalWrite(BZ_OU_PIN, HIGH);
+  }
   irrecv.enableIRIn();
 }
 
