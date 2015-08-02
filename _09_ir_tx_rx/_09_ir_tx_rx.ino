@@ -1,3 +1,6 @@
+/* bugs
+* 001 : initialise_number_select cause reset when called minno ~ maxno loop moret han 3 times
+*/
 
 #include <Wire.h>
 #include <OneWire.h>
@@ -58,12 +61,30 @@ OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature sensors(&oneWire);
 DeviceAddress insideThermometer;
 
-//
+// Temperature
 float tempCinside;
+float o_tempCinside;
+float c_tempCinside;
+
+// timer
 long startMills;
 long tv_off_Mills;
+long tempMills;
+long o_tempMills;
+
+// sw status
 int setUpStatus;
 int wrkModeStatus;
+
+// eeprom status
+boolean o_pwrSrc;  
+boolean o_wrkMode; 
+boolean o_startMode; 
+boolean o_beepMode; 
+boolean o_offMode; 
+int o_channelGap; 
+int o_tvOnTime; 
+int o_tvOffTime; 
 
 // lcd
 byte termometru[8] =
@@ -90,6 +111,8 @@ void setup()
 
   // Timer start
   startMills = millis();
+  tempMills = millis();
+  o_tempMills = millis();
 
   // lcd
   lcd.init();
@@ -121,15 +144,26 @@ void setup()
   eeprom_read(magic, magic);
   if ((magic != magic_number) || ( setUpStatus == 0 )) {
      run_initialise_setup();
+     resetFunc();
   }
 
+  // eeprom read
+  eeprom_read(o_pwrSrc, pwrSrc);  
+  eeprom_read(o_wrkMode, wrkMode); 
+  eeprom_read(o_startMode, startMode); 
+  eeprom_read(o_beepMode, beepMode); 
+  eeprom_read(o_offMode, offMode); 
+  eeprom_read(o_channelGap, channelGap); 
+  eeprom_read(o_tvOnTime, tvOnTime); 
+  eeprom_read(o_tvOffTime, tvOffTime); 
 
   // temp sensor
   sensors.begin();
   if (!sensors.getAddress(insideThermometer, 0)) Serial.println("Unable to find address for Device 0");
   sensors.setResolution(insideThermometer, TEMPERATURE_PRECISION);
   sensors.requestTemperatures();
-  tempCinside  = sensors.getTempC(insideThermometer);
+  tempCinside   = sensors.getTempC(insideThermometer);
+  c_tempCinside = tempCinside;
 
   if ( isnan(tempCinside) ) {
     Serial.println("Failed to read from sensor!");
@@ -140,14 +174,27 @@ void setup()
   lcd.createChar(1, termometru);
   lcd.setCursor(0, 0);
   lcd.write(1);
-  
+
+  lcd.setCursor(6, 0);
+  lcd.print((char)223);   
+
 }
 
 
 void loop()
 {
 
+  if ( millis() - tempMills >= 5000 ) {
+     getdalastemp();
+     displayTemperature();
+     tempMills = millis();
+  }
 
+  if ( millis() - o_tempMills >= 1800000 ) {
+      o_tempCinside = c_tempCinside;
+      c_tempCinside = tempCinside;
+      o_tempMills = millis();
+  }
 
   /*
    *
@@ -175,9 +222,57 @@ void loop()
   }
 */
 
+}
+
+
+void displayTemperaturedigit(float Temperature)
+{
+  String str_Temperature = String(int(Temperature)) ;
+  int length_Temperature = str_Temperature.length();
+
+  for ( int i = 0; i < ( 3 - length_Temperature ) ; i++ ) {
+    lcd.print(" ");
+  }
+  lcd.print(Temperature, 1);
+}
+
+
+void displayTemperature()
+{
+  lcd.setCursor(1, 0);
+  displayTemperaturedigit(tempCinside);
+
+  if ( !isnan(o_tempCinside) ) {
+     float tempdiff = o_tempCinside - tempCinside;
+
+    lcd.setCursor(8, 0);
+    if ( tempdiff > 0 ) {
+      lcd.print("+");
+    } else if ( tempdiff < 0 ) {
+      lcd.print("-");
+    }
+
+    String str_tempdiff = String(int abs(tempdiff));
+    int length_tempdiff = str_tempdiff.length();
+
+    lcd.setCursor(9, 0);
+    lcd.print(abs(tempdiff), 1);
+    if ( length_tempdiff == 1) {
+      lcd.print(" ");
+    }     
+
+  }
 
 
 }
+
+
+
+
+
+
+
+
 
 void  dumpInfo (decode_results *results)
 {
@@ -458,9 +553,7 @@ void run_initialise_setup() {
   lcd.print("to reset");
 
   irrecv.resume();
-  while(irrecv.decode(&results) != 1 ) { }       
-
-  resetFunc(); 
+  while(irrecv.decode(&results) != 1 ) { } 
 
 }
 
@@ -480,5 +573,6 @@ boolean initialise_eeprom(boolean i_pwrSrc, boolean i_wrkMode, boolean i_startMo
   return 1;
 }
 
-
-
+/* 
+*
+*/
