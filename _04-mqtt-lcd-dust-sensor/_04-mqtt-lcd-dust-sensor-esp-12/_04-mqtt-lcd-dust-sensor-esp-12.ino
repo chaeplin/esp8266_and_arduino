@@ -1,10 +1,3 @@
-#include <PubSubClient.h>
-#include <ESP8266WiFi.h>
-#include <LiquidCrystal_I2C.h>
-#include <ArduinoJson.h>
-#include <WiFiUdp.h>
-#include <Time.h>
-
 #if defined(ESP8266)
 #include <pgmspace.h>
 #else
@@ -12,6 +5,14 @@
 #endif
 #include <Wire.h>
 #include <RtcDS3231.h>
+
+#include <PubSubClient.h>
+#include <ESP8266WiFi.h>
+#include <LiquidCrystal_I2C.h>
+#include <ArduinoJson.h>
+#include <WiFiUdp.h>
+#include <Time.h>
+
 
 RtcDS3231 Rtc;
 
@@ -66,7 +67,7 @@ float OLD_dustDensity ;
 
 int OLD_x ;
 
-byte termometru[8] = 
+byte termometru[8] =
 {
   B00100,
   B01010,
@@ -78,7 +79,7 @@ byte termometru[8] =
   B01110,
 };
 
-byte picatura[8] = 
+byte picatura[8] =
 {
   B00100,
   B00100,
@@ -90,7 +91,7 @@ byte picatura[8] =
   B01110,
 };
 
-byte dustDensityicon[8] = 
+byte dustDensityicon[8] =
 {
   B11111,
   B11111,
@@ -102,7 +103,7 @@ byte dustDensityicon[8] =
   B11111,
 };
 
-byte dustDensityfill[8] = 
+byte dustDensityfill[8] =
 {
   B11111,
   B11111,
@@ -114,7 +115,7 @@ byte dustDensityfill[8] =
   B11111,
 };
 
-byte pirfill[8] = 
+byte pirfill[8] =
 {
   B00111,
   B00111,
@@ -126,7 +127,7 @@ byte pirfill[8] =
   B00111,
 };
 
-byte powericon[8] = 
+byte powericon[8] =
 {
   B11111,
   B11011,
@@ -138,7 +139,7 @@ byte powericon[8] =
   B11000,
 };
 
-byte nemoicon[8] = 
+byte nemoicon[8] =
 {
   B11011,
   B11011,
@@ -162,6 +163,7 @@ void callback(const MQTT::Publish& pub) {
 
   String receivedtopic = pub.topic();
   parseMqttMsg(pub.payload_string(), receivedtopic);
+
 }
 
 void parseMqttMsg(String payload, String receivedtopic) {
@@ -225,11 +227,9 @@ void setup() {
   Serial.print("Connecting to ");
   Serial.println(ssid);
 
-  client.set_callback(callback);
-
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
-  
+
 #ifdef __IS_MY_HOME
   WiFi.config(IPAddress(192, 168, 10, 12), IPAddress(192, 168, 10, 1), IPAddress(255, 255, 255, 0));
 #endif
@@ -279,6 +279,7 @@ void setup() {
   Rtc.SetSquareWavePin(DS3231SquareWavePin_ModeNone);
 
   //
+  client.set_callback(callback);
 
   clientName += "esp8266 - ";
   uint8_t mac[6];
@@ -292,28 +293,31 @@ void setup() {
   Serial.print(" as ");
   Serial.println(clientName);
 
-  if (client.connect((char*) clientName.c_str())) {
-    Serial.println("Connected to MQTT broker");
-    Serial.print("Topic is: ");
-    Serial.println(topic);
+  /*
+    if (client.connect((char*) clientName.c_str())) {
+      Serial.println("Connected to MQTT broker");
+      Serial.print("Topic is: ");
+      Serial.println(topic);
 
-    if (client.publish(hellotopic, "hello from ESP8266 s03")) {
-      Serial.println("Publish ok");
+      if (client.publish(hellotopic, "hello from ESP8266 s03")) {
+        Serial.println("Publish ok");
+      } else {
+        Serial.println("Publish failed");
+      }
+
+      if (client.subscribe(subtopic)) {
+        Serial.println("Subscribe ok");
+      } else {
+        Serial.println("Subscribe failed");
+      }
+
     } else {
-      Serial.println("Publish failed");
+      Serial.println("MQTT connect failed");
+      Serial.println("Will reset and try again...");
+      abort();
     }
+  */
 
-    if (client.subscribe(subtopic)) {
-      Serial.println("Subscribe ok");
-    } else {
-      Serial.println("Subscribe failed");
-    }
-
-  } else {
-    Serial.println("MQTT connect failed");
-    Serial.println("Will reset and try again...");
-    abort();
-  }
 
   lcd.init();                      // initialize the lcd
   lcd.backlight();
@@ -338,14 +342,14 @@ void setup() {
   lcd.setCursor(8, 2);  // power
   lcd.write(6);
 
-/*
-  lcd.setCursor(0, 3);  // dust
-  lcd.write(3);
+  /*
+    lcd.setCursor(0, 3);  // dust
+    lcd.write(3);
 
-  lcd.setCursor(13, 3); // nemo
-  lcd.write(7);
+    lcd.setCursor(13, 3); // nemo
+    lcd.write(7);
 
-*/
+  */
 
   lcd.setCursor(0, 3);  // nemo
   lcd.write(7);
@@ -353,21 +357,21 @@ void setup() {
   lcd.setCursor(8, 3); // dust
   lcd.write(3);
 
-//  
+  //
 
   lcd.setCursor(6, 1);
-  lcd.print((char)223); 
+  lcd.print((char)223);
 
   lcd.setCursor(12, 1);
-  lcd.print((char)223); 
+  lcd.print((char)223);
 
   lcd.setCursor(6, 2);
   lcd.print("%");
 
-/*
-  lcd.setCursor(14, 2);
-  lcd.write(8);
-*/
+  /*
+    lcd.setCursor(14, 2);
+    lcd.write(8);
+  */
 
   H  = -1000 ;
   T1 = -1000 ;
@@ -395,7 +399,6 @@ time_t prevDisplay = 0; // when the digital clock was displayed
 
 void loop()
 {
-
   if (timeStatus() != timeNotSet) {
     if (now() != prevDisplay) { //update the display only if time has changed
       prevDisplay = now();
@@ -407,12 +410,28 @@ void loop()
     }
   }
 
-  client.loop();
+  if (WiFi.status() == WL_CONNECTED) {
+    if (!client.connected()) {
+      if  (
+        client.connect(MQTT::Connect((char*) clientName.c_str())
+                       .set_clean_session()
+                       .set_will("status", "down")
+                       .set_keepalive(2))
+      ) {
+        client.publish(hellotopic, "hello from ESP8266 s03");
+        client.set_callback(callback);
+        client.subscribe(subtopic);
+      }
+    }
+
+    if (client.connected())
+      client.loop();
+  }
 
 }
 
 void checkDisplayValue() {
-  if ( sleepmode != o_sleepmode ) 
+  if ( sleepmode != o_sleepmode )
   {
     displaysleepmode(sleepmode);
     o_sleepmode = sleepmode;
@@ -426,11 +445,14 @@ void checkDisplayValue() {
 
   if ( NW != OLD_NW )
   {
+    /*
     if ( OLD_NW == -1000 ) {
       displayNemoWeightAvg(NW);
     } else {
       displayNemoWeightAvg(NW);
     }
+    */
+    displayNemoWeightAvg(NW);
     OLD_NW = NW;
   }
 
@@ -488,7 +510,7 @@ void displaysleepmode(int sleepmode)
     lcd.setCursor(16, 2);
     lcd.print(" ");
     lcd.setCursor(17, 2);
-    lcd.print(" ");    
+    lcd.print(" ");
   }
 
 }
@@ -588,13 +610,13 @@ void displayTemperature()
 
 void displaydustDensity()
 {
-  
+
   int n = int(dustDensity / 0.05) ;
 
   if ( n > 9 ) {
     n = 9 ;
   }
-  
+
   if (DEBUG_PRINT) {
     Serial.print(" ===> dustDensity ");
     Serial.print(dustDensity);
@@ -605,7 +627,7 @@ void displaydustDensity()
 
   for ( int i = 0 ; i < n ; i++) {
     lcd.setCursor(10 + i, 3);
-    Serial.print("*");
+    //Serial.print("*");
     lcd.write(4);
   }
 
@@ -613,9 +635,9 @@ void displaydustDensity()
   for ( int o = 0 ; o < ( 9 - n) ; o++) {
     lcd.setCursor(10 + n + o, 3);
     lcd.print(".");
-    Serial.print("+");
+    //Serial.print("+");
   }
-  Serial.println("");
+  //Serial.println("");
 }
 
 void requestSharp()
@@ -645,10 +667,10 @@ void requestSharp()
   }
 
 
-  if (( 1 < x ) && ( x < 1024 ) && ( x != OLD_x )) 
+  if (( 1 < x ) && ( x < 1024 ) && ( x != OLD_x ))
   {
     float calcVoltage = x * (5.0 / 1024.0);
-    if ( (0.17 * calcVoltage - 0.1) > 0 ) 
+    if ( (0.17 * calcVoltage - 0.1) > 0 )
     {
       dustDensity = 0.17 * calcVoltage - 0.1;
       OLD_x = x ;
@@ -656,7 +678,7 @@ void requestSharp()
   }
 }
 
-void sendI2cMsg(byte a, byte b) 
+void sendI2cMsg(byte a, byte b)
 {
   Wire.beginTransmission(2);
   Wire.write(a);
@@ -669,7 +691,7 @@ void senddustDensity()
   payload = " {\"dustDensity\":";
   payload += dustDensity;
   payload += "}";
-  if ( dustDensity < 0.6 ) 
+  if ( dustDensity < 0.6 )
   {
     sendmqttMsg(payload);
   }
@@ -678,7 +700,7 @@ void senddustDensity()
 void sendmqttMsg(String payload)
 {
   if (!client.connected()) {
-    if (client.connect((char*) clientName.c_str())) 
+    if (client.connect((char*) clientName.c_str()))
     {
       Serial.println("Connected to MQTT broker again esp8266/arduino/s03");
       Serial.print("Topic is: ");
@@ -692,14 +714,14 @@ void sendmqttMsg(String payload)
   }
 
   if (client.connected()) {
-    if (DEBUG_PRINT) 
+    if (DEBUG_PRINT)
     {
       Serial.print("Sending payload: ");
       Serial.println(payload);
     }
 
     if (client.publish(topic, (char*) payload.c_str())) {
-      if (DEBUG_PRINT) 
+      if (DEBUG_PRINT)
       {
         Serial.println("Publish ok");
       }
@@ -790,7 +812,7 @@ time_t getNtpTime()
 }
 
 // send an NTP request to the time server at the given address
-void sendNTPpacket(IPAddress &address)
+void sendNTPpacket(IPAddress & address)
 {
   Serial.println("Transmit NTP Request");
   // set all bytes in the buffer to 0
