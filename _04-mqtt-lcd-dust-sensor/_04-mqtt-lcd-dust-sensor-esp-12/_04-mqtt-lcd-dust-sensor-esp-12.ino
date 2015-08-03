@@ -43,15 +43,16 @@ WiFiClient wifiClient;
 WiFiUDP udp;
 
 // volatile
-volatile float H  ;
-volatile float T1 ;
-volatile float T2 ;
-volatile float OT ;
-volatile float PW ;
-volatile int NW ;
-volatile int PIR  ;
+float H  ;
+float T1 ;
+float T2 ;
+float OT ;
+float PW ;
+int NW ;
+int PIR  ;
+String HO  ;
 
-volatile int sleepmode = LOW ;
+int sleepmode = LOW ;
 int o_sleepmode = LOW ;
 
 float dustDensity ;
@@ -63,6 +64,8 @@ float OLD_OT ;
 float OLD_PW ;
 int OLD_NW ;
 int OLD_PIR  ;
+String OLD_HO  ;
+
 float OLD_dustDensity ;
 
 int OLD_x ;
@@ -155,7 +158,7 @@ byte nemoicon[8] =
 PubSubClient client(wifiClient, server);
 
 void callback(const MQTT::Publish& pub) {
-  if (DEBUG_PRINT) {
+  if (1) {
     Serial.print(pub.topic());
     Serial.print(" => ");
     Serial.println(pub.payload_string());
@@ -189,6 +192,7 @@ void parseMqttMsg(String payload, String receivedtopic) {
   // esp8266/arduino/s06 : Scale
   // esp8266/arduino/s02  : T, H
   // esp8266/arduino/aircon : ________
+  // home/check/checkhwmny : host
 
   if ( receivedtopic == "esp8266/arduino/s02" ) {
     H   = root["Humidity"];
@@ -213,6 +217,11 @@ void parseMqttMsg(String payload, String receivedtopic) {
     PIR = root["DOORPIR"];
   }
 
+  if ( receivedtopic == "home/check/checkhwmny" )
+  {
+    const char* HOTEMP = root["host"];
+    HO = String(HOTEMP);
+  }
 }
 
 void setup() {
@@ -381,6 +390,7 @@ void setup() {
   NW = -1000 ;
   PIR = 0 ;
   dustDensity = -1000 ;
+  HO = '0' ;
 
   OLD_H  = -1000 ;
   OLD_T1 = -1000 ;
@@ -390,6 +400,7 @@ void setup() {
   OLD_NW = -1000 ;
   OLD_PIR = 0 ;
   OLD_dustDensity = -1000 ;
+  OLD_HO = '0';
 
   OLD_x = 0 ;
 
@@ -406,6 +417,11 @@ void loop()
       if ( ( second() % 3 ) == 0 ) {
         requestSharp();
       }
+      /*
+      if ( ( second() % 50 ) == 0 ) {
+        client.subscribe(subtopic);
+      }
+      */
       checkDisplayValue();
     }
   }
@@ -413,14 +429,10 @@ void loop()
   if (WiFi.status() == WL_CONNECTED) {
     if (!client.connected()) {
       if  (
-        client.connect(MQTT::Connect((char*) clientName.c_str())
-                       .set_clean_session()
-                       .set_will("status", "down")
-                       .set_keepalive(2))
-      ) {
+        client.connect(MQTT::Connect((char*) clientName.c_str()).set_clean_session().set_keepalive(120))) {
+        client.subscribe(subtopic);
         client.publish(hellotopic, "hello from ESP8266 s03");
         client.set_callback(callback);
-        client.subscribe(subtopic);
       }
     }
 
@@ -437,6 +449,12 @@ void checkDisplayValue() {
     o_sleepmode = sleepmode;
   }
 
+  if ( HO != OLD_HO )
+  {
+    displayHost(HO);
+    OLD_HO = HO;
+  }
+
   if (( PW != OLD_PW ) && ( 0 <= PW < 10000 ))
   {
     displaypowerAvg(PW);
@@ -447,12 +465,12 @@ void checkDisplayValue() {
   {
     /*
     if ( OLD_NW == -1000 ) {
-      displayNemoWeightAvg(NW);
+      displayNemoWeight(NW);
     } else {
-      displayNemoWeightAvg(NW);
+      displayNemoWeight(NW);
     }
     */
-    displayNemoWeightAvg(NW);
+    displayNemoWeight(NW);
     OLD_NW = NW;
   }
 
@@ -494,22 +512,30 @@ void checkDisplayValue() {
     Serial.print(" ===> ");
     Serial.print(PW);
     Serial.print(" ===> ");
+    Serial.print(HO);    
+    Serial.print(" ===> ");
     Serial.println(NW);
   }
 
 }
 
+void displayHost(String HO)
+{
+  lcd.setCursor(18, 2);
+  lcd.print(HO);
+}
+
 void displaysleepmode(int sleepmode)
 {
   if ( sleepmode == HIGH ) {
-    lcd.setCursor(16, 2);
+    lcd.setCursor(15, 2);
     lcd.write(3);
-    lcd.setCursor(17, 2);
+    lcd.setCursor(16, 2);
     lcd.write(3);
   } else {
-    lcd.setCursor(16, 2);
+    lcd.setCursor(15, 2);
     lcd.print(" ");
-    lcd.setCursor(17, 2);
+    lcd.setCursor(16, 2);
     lcd.print(" ");
   }
 
@@ -528,7 +554,7 @@ void displaypowerAvg(float Power)
 
 }
 
-void displayNemoWeightAvg(int nemoWeight)
+void displayNemoWeight(int nemoWeight)
 {
   String str_nemoWeight = String(nemoWeight);
   int length_nemoWeight = str_nemoWeight.length();
