@@ -70,11 +70,9 @@ float c_tempCinside;
 
 // timer
 long startMills;
-long tv_off_Mills;
-long tv_on_Mills;
+long tv_onoff_Mills;
 long tempMills;
 long o_tempMills;
-long pir_Mills;
 
 // temp
 int o_tempminpassed = 0;
@@ -198,8 +196,7 @@ void setup()
   startMills = millis();
   tempMills = millis();
   o_tempMills = millis();
-  tv_off_Mills = millis();
-  tv_on_Mills = millis();
+  tv_onoff_Mills = millis();
 
   // lcd
   lcd.init();
@@ -316,22 +313,52 @@ void loop()
   // remote on / off, tv remote on / off
   decode_results results;
 
+  long onofftimediff = (millis() - tv_onoff_Mills ) / 1000 / 60 ;
+
+
+  // PIR
+  if ( pirOnOff != o_pirOnOff && timerOnOff == 0) {
+    if (pirOnOff == 1) {
+      Serial.println("PIR rising called");
+      o_pirOnOff = pirOnOff;
+
+      lcd.setCursor(15, 0);
+      lcd.write(6);
+
+      turn_onoff_tv(1);
+      delay(100);
+    } else {
+      Serial.println("PIR timer called");
+      o_pirOnOff = pirOnOff;
+
+      lcd.setCursor(15, 0);
+      lcd.print(" ");
+
+      turn_onoff_tv(0);
+      delay(100);
+    }
+  }
+
+  // IR receive
   if (irrecv.decode(&results)) {
     changemodebyir(&results);
     irrecv.enableIRIn();
   }
 
+  // display Temperature
   if ((millis() - tempMills) >= 2000 ) {
     getdalastemp();
     displayTemperature();
     tempMills = millis();
 
+/*
     if (timerOnOff == 0) {
-      displaytimeleft(o_tvOnTime - ((millis() - tv_off_Mills) / 1000 / 60) );
+      displaytimeleft(o_tvOnTime - ((millis() - tv_onoff_Mills) / 1000 / 60) );
     } else {
       displaytimeleft(o_tvOffTime - ((millis() - tv_on_Mills) / 1000 / 60) );
     }
-    
+*/  
+    // display difference -60 mims Temperature 3600000   
     if ( (millis() - o_tempMills) >= 600000 ) {
       Serial.println("o_tempCinside called");
       o_tempCinside = c_tempCinside;
@@ -341,18 +368,27 @@ void loop()
     }
   }
 
-  if (((millis() - tv_off_Mills) >= ( o_tvOnTime * 60 * 1000 )) && (timerOnOff == 0) && ( o_pirOnOff != 1) ) {
-    Serial.println("Timer off called");
-    turn_onoff_tv(1);
+  // timer of/off
+  if ( timerOnOff == 0 ) {
+      if ( onofftimediff >= o_tvOnTime ) {
+          Serial.println("Timer off called");
+          turn_onoff_tv(1);
+          timerOnOff = 1;
+          tv_onoff_Mills = millis();
+      }
+  } else {
+      if ( onofftimediff >= o_tvOffTime ) {
+          Serial.println("Timer on called");
+          turn_onoff_tv(0);
+          timerOnOff = 0;
+          tv_onoff_Mills = millis();        
+      }
+
   }
 
-  if (((millis() - tv_on_Mills) >= ( o_tvOffTime * 60 * 1000 )) && (timerOnOff == 1) && ( o_pirOnOff != 1)) {
-    Serial.println("Timer on called");
-    turn_onoff_tv(0);
-  }
 
   if (t != o_t) {
-    tv_off_Mills = millis();
+    tv_onoff_Mills = millis();
     o_t = t;
   }
 
@@ -362,27 +398,7 @@ void loop()
     o_r = r;
   }
 
-
-  if ( pirOnOff != o_pirOnOff ) {
-    if (pirOnOff == 1) {
-      Serial.println("PIR rising called");
-      o_pirOnOff = pirOnOff;
-      lcd.setCursor(15, 0);
-      lcd.write(6);
-      turn_onoff_tv(1);
-      delay(100);
-    } else {
-      Serial.println("PIR timer called");
-      o_pirOnOff = pirOnOff;
-      lcd.setCursor(15, 0);
-      lcd.print(" ");
-      if ( timerOnOff == 1) {
-        turn_onoff_tv(0);
-      }
-      delay(100);
-    }
-  }
-  delay(100);
+  delay(500);
 }
 
 void displaytimeleft(float a) {
@@ -399,40 +415,12 @@ void displaytimeleft(float a) {
 void turn_onoff_tv(int a)
 {
   if ( o_wrkMode == 1 && o_startMode == 1 ) {
-    if ( o_pwrSrc == 0 ) {
-        if ( a == 1 && tvPowerStatus == 1) {
-          irSendTv(0);
-          tv_off_Mills = millis();
-          tv_on_Mills = millis();
-          timerOnOff = 1;
-          r = !r;
-        }
-
-        if ( a == 0 && tvPowerStatus == 0) {
-          irSendTv(1);
-          tv_off_Mills = millis();
-          tv_on_Mills = millis();
-          timerOnOff = 0;
-          r = !r;
-        }
-    } else {
-        if ( a == 1 ) {
-          irSendTv(0);
-          tv_off_Mills = millis();
-          tv_on_Mills = millis();
-          timerOnOff = 1;
-          r = !r;
-        }
-
-        if ( a == 0 ) {
-          irSendTv(1);
-          tv_off_Mills = millis();
-          tv_on_Mills = millis();
-          timerOnOff = 0;
-          r = !r;
-        }      
-    }
-
+      if ( a == 1 ) {
+        irSendTv(1);
+      } else {
+        irSendTv(0);
+      }
+      r = !r;
   }
 }
 
@@ -446,7 +434,7 @@ void irSendTv(int a)
     irrecv.enableIRIn();
   } else {
     Serial.println("IRSend CH change called");
-    if ( a == 1) {
+    if ( a == 0) {
       irsend.sendNEC(tv_input, 32);
       delay(3000);
       for ( int i = 0 ; i < o_channelGap ; i++ ) {
@@ -519,6 +507,10 @@ void changemodebyir (decode_results *results)
         break;
       case 0x20DF10EF: // tv remore on/off
         tvPowerStatus = ! tvPowerStatus ;
+        if ( tvPowerStatus == 1 ){
+          timerOnOff = 0 ;
+        }
+        t = !t;
         r = !r;
         break;
     }
