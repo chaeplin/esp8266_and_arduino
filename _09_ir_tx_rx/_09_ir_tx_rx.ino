@@ -351,13 +351,13 @@ void loop()
     displayTemperature();
     tempMills = millis();
 
-/*
+
     if (timerOnOff == 0) {
       displaytimeleft(o_tvOnTime - ((millis() - tv_onoff_Mills) / 1000 / 60) );
     } else {
-      displaytimeleft(o_tvOffTime - ((millis() - tv_on_Mills) / 1000 / 60) );
+      displaytimeleft(o_tvOffTime - ((millis() - tv_onoff_Mills) / 1000 / 60) );
     }
-*/  
+  
     // display difference -60 mims Temperature 3600000   
     if ( (millis() - o_tempMills) >= 600000 ) {
       Serial.println("o_tempCinside called");
