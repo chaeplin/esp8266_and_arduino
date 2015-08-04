@@ -3,23 +3,23 @@
 *  002 : o_tempCinside is not a moving point
 */
 
+// eeprom
 #include <avr/eeprom.h>
-#include <Wire.h>
-#include <OneWire.h>
-#include <DallasTemperature.h>
-#include <LiquidCrystal_I2C.h>
-#include <IRremote.h>
-#include "Timer.h"
-
 #define eeprom_read_to(dst_p, eeprom_field, dst_size) eeprom_read_block(dst_p, (void *)offsetof(__eeprom_data, eeprom_field), MIN(dst_size, sizeof((__eeprom_data*)0)->eeprom_field))
 #define eeprom_read(dst, eeprom_field) eeprom_read_to(&dst, eeprom_field, sizeof(dst))
 #define eeprom_write_from(src_p, eeprom_field, src_size) eeprom_write_block(src_p, (void *)offsetof(__eeprom_data, eeprom_field), MIN(src_size, sizeof((__eeprom_data*)0)->eeprom_field))
 #define eeprom_write(src, eeprom_field) { typeof(src) x = src; eeprom_write_from(&x, eeprom_field, sizeof(x)); }
 #define MIN(x,y) ( x > y ? y : x )
 
-// eeprom
+#include <Wire.h>
+#include <OneWire.h>
+#include <DallasTemperature.h>
+#include <LiquidCrystal_I2C.h>
+#include <IRremote.h>
+
 // Change this any time the EEPROM content changes
 const long magic_number = 0x326;
+
 
 struct __eeprom_data {
   long magic;
@@ -33,9 +33,13 @@ struct __eeprom_data {
   int tvOffTime;  // 5 ~ 20
 };
 
-// pins
+//
 int SETUP_IN_PIN    = A2;
 int WRK_MODE_IN_PIN = A0;
+/*
+int UP_IN_PIN    = 12;
+int DN_IN_PIN    = 11;
+*/
 
 int IR_IN_PIN    = 10;
 int PIR_IN_PIN   = 2;
@@ -61,11 +65,32 @@ DeviceAddress insideThermometer;
 
 // Temperature
 float tempCinside;
-float tempCprevious[12] = {100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100};
+float o_tempCinside;
+float c_tempCinside;
 
-// Timer
-Timer t;
-long temp_Mills;
+// timer
+long startMills;
+long tv_onoff_Mills;
+long tempMills;
+long o_tempMills;
+
+// temp
+int o_tempminpassed = 0;
+
+// sw status
+int setUpStatus;
+int wrkModeStatus;
+int tvPowerStatus = 0;
+int timerStatus   = 0;
+int timerOnOff    = 0;
+
+volatile int pirOnOff      = 0;
+int o_pirOnOff    = 0;
+
+int r   = LOW;
+int o_r = LOW;
+int t   = LOW;
+int o_t = LOW;
 
 // eeprom status
 int o_pwrSrc;
@@ -77,23 +102,14 @@ int o_channelGap;
 int o_tvOnTime;
 int o_tvOffTime;
 
-// sw pin status
-int setUpStatus;
-int wrkModeStatus;
-
-// tv IR code
+// tv
 unsigned long tv_input = 0x20DFD02F;
 unsigned long tv_right = 0x20DF609F;
 unsigned long tv_left  = 0x20DFE01F;
 unsigned long tv_enter = 0x20DF22DD;
 unsigned long tv_onoff = 0x20DF10EF;
 
-
-// PIR
-volatile int pirOnOff = LOW;
-int o_pirOnOff        = LOW;
-
-// lcd icon
+// lcd
 byte termometru[8] =
 {
   B00100,
@@ -166,9 +182,7 @@ byte piricon[8] =
   B11111,
 };
 
-// to reset after setup
 void(* resetFunc) (void) = 0; //declare reset function @ address 0
-
 
 void setup()
 {
@@ -178,16 +192,16 @@ void setup()
   Serial.println("TV controller Starting");
   delay(20);
 
+  // Timer start
+  startMills = millis();
+  tempMills = millis();
+  o_tempMills = millis();
+  tv_onoff_Mills = millis();
+
   // lcd
   lcd.init();
   lcd.backlight();
   lcd.clear();
-
-  // when connected to usb of TV...
-  delay(10000);
-
-  // Timer start
-  temp_Mills = millis();
 
   // ir
   irrecv.enableIRIn();
@@ -207,21 +221,12 @@ void setup()
   digitalWrite(SETUP_IN_PIN, HIGH);
   digitalWrite(WRK_MODE_IN_PIN, HIGH);
 
-  delay(300);
-
-  // read pin status
-  setUpStatus   = digitalRead(SETUP_IN_PIN);
-  wrkModeStatus = digitalRead(WRK_MODE_IN_PIN);
+  delay(200);
 
   // eeprom read
   long o_magic;
+
   eeprom_read(o_magic, magic);
-
-  if (o_magic != magic_number  || setUpStatus == 0 ) {
-    run_initialise_setup();
-    resetFunc();
-  }
-
   eeprom_read(o_pwrSrc, pwrSrc);
   eeprom_read(o_wrkMode, wrkMode);
   eeprom_read(o_startMode, startMode);
@@ -231,10 +236,41 @@ void setup()
   eeprom_read(o_tvOnTime, tvOnTime);
   eeprom_read(o_tvOffTime, tvOffTime);
 
+  // read pin status
+  setUpStatus   = digitalRead(SETUP_IN_PIN);
+  wrkModeStatus = digitalRead(WRK_MODE_IN_PIN);
+
+  if (o_magic != magic_number ) {
+    run_initialise_setup();
+    resetFunc();
+  }
+
+  if ( setUpStatus == 0 ) {
+    run_initialise_setup();
+    resetFunc();
+  }
+
+  if ( wrkModeStatus == 0 ) {
+    o_wrkMode = wrkModeStatus;
+  }
+
+  if ( o_pwrSrc == 1) {
+    o_offMode = 0;
+  }
+
+
   // temp sensor
   sensors.begin();
   if (!sensors.getAddress(insideThermometer, 0)) Serial.println("Unable to find address for Device 0");
   sensors.setResolution(insideThermometer, TEMPERATURE_PRECISION);
+  sensors.requestTemperatures();
+  tempCinside   = sensors.getTempC(insideThermometer);
+  c_tempCinside = tempCinside;
+
+  if ( isnan(tempCinside) ) {
+    Serial.println("Failed to read from sensor!");
+    return;
+  }
 
   // lcd
   lcd.createChar(1, termometru);
@@ -263,14 +299,6 @@ void setup()
     lcd.write(4);
   }
 
-
-  // event Timer
-  int updateTempCEvent      = t.every(2000, doUpdateTempC);
-  int updateTempCArrayEvent = t.every(4000, doUpdateTempCArray);
-  /*
-  int updateTempCArrayEvent = t.every(300000, doUpdateTempCArray);
-  */
-  // PIR
   attachInterrupt(0, PIRCHECKING, CHANGE);
 }
 
@@ -279,37 +307,218 @@ void PIRCHECKING()
   pirOnOff = digitalRead(PIR_IN_PIN);
 }
 
-
-
-
-
-
 void loop()
 {
+  // receiving ir and change status
+  // remote on / off, tv remote on / off
+  decode_results results;
 
-  t.update();
-
-}
+  long onofftimediff = (millis() - tv_onoff_Mills ) / 1000 / 60 ;
 
 
+  // PIR
+  if ( pirOnOff != o_pirOnOff && timerOnOff == 0) {
+    if (pirOnOff == 1) {
+      Serial.println("PIR rising called");
+      o_pirOnOff = pirOnOff;
 
-void doUpdateTempC()
-{
-  tempCinside = getdalastemp();
-  displayTemperature(tempCinside);
-}
+      lcd.setCursor(15, 0);
+      lcd.write(6);
 
-void doUpdateTempCArray()
-{
-  for ( int i = 0 ; i < 11 ; i++ ) {
-    tempCprevious[i] = tempCprevious[i+1]; 
+      turn_onoff_tv(1);
+      delay(100);
+    } else {
+      Serial.println("PIR timer called");
+      o_pirOnOff = pirOnOff;
+
+      lcd.setCursor(15, 0);
+      lcd.print(" ");
+
+      turn_onoff_tv(0);
+      delay(100);
+    }
   }
-  tempCprevious[11] = tempCinside;
+
+  // IR receive
+  if (irrecv.decode(&results)) {
+    changemodebyir(&results);
+    irrecv.enableIRIn();
+  }
+
+  // display Temperature
+  if ((millis() - tempMills) >= 2000 ) {
+    getdalastemp();
+    displayTemperature();
+    tempMills = millis();
+
+
+    if (timerOnOff == 0) {
+      displaytimeleft(o_tvOnTime - ((millis() - tv_onoff_Mills) / 1000 / 60) );
+    } else {
+      displaytimeleft(o_tvOffTime - ((millis() - tv_onoff_Mills) / 1000 / 60) );
+    }
+  
+    // display difference -60 mims Temperature 3600000   
+    if ( (millis() - o_tempMills) >= 600000 ) {
+      Serial.println("o_tempCinside called");
+      o_tempCinside = c_tempCinside;
+      c_tempCinside = tempCinside;
+      o_tempminpassed = 1;
+      o_tempMills = millis();
+    }
+  }
+
+  // timer of/off
+  if ( timerOnOff == 0 ) {
+      if ( onofftimediff >= o_tvOnTime ) {
+          Serial.println("Timer off called");
+          turn_onoff_tv(1);
+          timerOnOff = 1;
+          tv_onoff_Mills = millis();
+      }
+  } else {
+      if ( onofftimediff >= o_tvOffTime ) {
+          Serial.println("Timer on called");
+          turn_onoff_tv(0);
+          timerOnOff = 0;
+          tv_onoff_Mills = millis();        
+      }
+
+  }
+
+
+  if (t != o_t) {
+    tv_onoff_Mills = millis();
+    o_t = t;
+  }
+
+  if (r != o_r) {
+    changelcdicon();
+    alarm_set();
+    o_r = r;
+  }
+
+  delay(500);
 }
 
-void displayTemperature(float Temperature)
+void displaytimeleft(float a) {
+  String str_a = String(int(a));
+  int length_a = str_a.length();
+
+  lcd.setCursor(10, 1);
+  for ( int i = 0; i < ( 3 - length_a ) ; i++ ) {
+    lcd.print(" ");
+  }
+  lcd.print(str_a);
+}
+
+void turn_onoff_tv(int a)
 {
-  lcd.setCursor(1, 0);
+  if ( o_wrkMode == 1 && o_startMode == 1 ) {
+      if ( a == 1 ) {
+        irSendTv(1);
+      } else {
+        irSendTv(0);
+      }
+      r = !r;
+  }
+}
+
+void irSendTv(int a)
+{
+  if ( o_offMode == 1 ) {
+    Serial.println("IRSend on/off called");
+    irsend.sendNEC(tv_onoff, 32);
+    tvPowerStatus = !tvPowerStatus ;
+    delay(300);
+    irrecv.enableIRIn();
+  } else {
+    Serial.println("IRSend CH change called");
+    if ( a == 0) {
+      irsend.sendNEC(tv_input, 32);
+      delay(3000);
+      for ( int i = 0 ; i < o_channelGap ; i++ ) {
+        irsend.sendNEC(tv_left, 32);
+        delay(300);
+      }
+      irsend.sendNEC(tv_enter, 32);
+    } else {
+      irsend.sendNEC(tv_input, 32);
+      delay(3000);
+      for ( int i = 0 ; i < o_channelGap ; i++ ) {
+        irsend.sendNEC(tv_right, 32);
+        delay(300);
+      }
+      irsend.sendNEC(tv_enter, 32);
+    }
+    irrecv.enableIRIn();
+  }
+}
+
+
+void changelcdicon()
+{
+
+  if ( o_wrkMode == 1 && o_startMode == 1 ) {
+    lcd.setCursor(0, 1);
+    lcd.write(2);
+
+    if ( o_beepMode == 1 ) {
+      lcd.setCursor(2, 1);
+      lcd.write(3);
+    }
+
+    if ( timerStatus == 0 ) {
+      lcd.setCursor(4, 1);
+      lcd.write(4);
+    } else {
+      lcd.setCursor(4, 1);
+      lcd.print(" ");
+    }
+
+  } else {
+    lcd.setCursor(0, 1);
+    lcd.print("     ");
+  }
+
+  if ( tvPowerStatus == 1 ) {
+    lcd.setCursor(6, 1);
+    lcd.write(5);
+  } else {
+    lcd.setCursor(6, 1);
+    lcd.print(" ");
+  }
+  irrecv.enableIRIn();
+}
+
+void changemodebyir (decode_results *results)
+{
+  if ( results->bits > 0 && results->bits == 32 ) {
+    switch (results->value) {
+      case 0xFF02FD: // remote on
+        o_wrkMode = ! o_wrkMode;
+        o_startMode = 1;
+        r = !r;
+        break;
+      case 0xFF9867: // remote off
+        timerStatus = ! timerStatus;
+        r = !r;
+        t = !t;
+        break;
+      case 0x20DF10EF: // tv remore on/off
+        tvPowerStatus = ! tvPowerStatus ;
+        if ( tvPowerStatus == 1 ){
+          timerOnOff = 0 ;
+        }
+        t = !t;
+        r = !r;
+        break;
+    }
+  }
+}
+
+void displayTemperaturedigit(float Temperature)
+{
   String str_Temperature = String(int(Temperature)) ;
   int length_Temperature = str_Temperature.length();
 
@@ -318,9 +527,18 @@ void displayTemperature(float Temperature)
   }
 
   lcd.print(Temperature, 1);
+}
 
-  if ( tempCprevious[0] != 100 ){
-    float tempdiff = tempCinside - tempCprevious[0];
+
+void displayTemperature()
+{
+  lcd.setCursor(1, 0);
+  displayTemperaturedigit(tempCinside);
+
+  if ( o_tempminpassed == 0 ) {
+    return;
+  } else {
+    float tempdiff = tempCinside - o_tempCinside;
 
     lcd.setCursor(8, 0);
     if ( tempdiff >= 0 ) {
@@ -336,32 +554,31 @@ void displayTemperature(float Temperature)
     lcd.print(abs(tempdiff), 1);
     if ( length_tempdiff == 1) {
       lcd.print(" ");
-    }    
+    }
+
   }
 }
 
-
-float getdalastemp()
+void getdalastemp()
 {
   sensors.requestTemperatures();
-  float tempC  = sensors.getTempC(insideThermometer);
+  tempCinside  = sensors.getTempC(insideThermometer);
 
-  return tempC;
+  if ( isnan(tempCinside) ) {
+    Serial.println("Failed to read from sensor!");
+    return;
+  }
 }
-
 
 void alarm_set()
 {
-  /*
   if (( o_beepMode == 1) || (setUpStatus == 0) || (o_magic != magic_number ))  {
     digitalWrite(BZ_OU_PIN, LOW);
     delay(50);
     digitalWrite(BZ_OU_PIN, HIGH);
   }
   irrecv.enableIRIn();
-  */
 }
-
 
 // eeprom
 int initialise_boolean_select()
@@ -648,3 +865,7 @@ int initialise_eeprom(int i_pwrSrc, int i_wrkMode, int i_startMode, int i_beepMo
 
   return 1;
 }
+
+/*
+*
+*/
