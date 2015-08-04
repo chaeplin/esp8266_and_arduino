@@ -266,8 +266,10 @@ void setup()
 
   // event Timer
   int updateTempCEvent      = t.every(2000, doUpdateTempC);
+  int updateTempCArrayEvent = t.every(4000, doUpdateTempCArray);
+  /*
   int updateTempCArrayEvent = t.every(300000, doUpdateTempCArray);
-
+  */
   // PIR
   attachInterrupt(0, PIRCHECKING, CHANGE);
 }
@@ -344,24 +346,22 @@ float getdalastemp()
   sensors.requestTemperatures();
   float tempC  = sensors.getTempC(insideThermometer);
 
-  if ( isnan(tempC) ) {
-    Serial.println("Failed to read from sensor!");
-    return;
-  }
-
   return tempC;
 }
 
 
 void alarm_set()
 {
+  /*
   if (( o_beepMode == 1) || (setUpStatus == 0) || (o_magic != magic_number ))  {
     digitalWrite(BZ_OU_PIN, LOW);
     delay(50);
     digitalWrite(BZ_OU_PIN, HIGH);
   }
   irrecv.enableIRIn();
+  */
 }
+
 
 // eeprom
 int initialise_boolean_select()
