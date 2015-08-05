@@ -616,7 +616,7 @@ void displaytimeleft() {
     }
     lcd.print(str_a);
   } else {
-    lcd.print("-- -");
+    lcd.print("---");
   }
 
 }
