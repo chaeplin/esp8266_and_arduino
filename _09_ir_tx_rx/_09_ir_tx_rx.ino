@@ -451,37 +451,26 @@ void PIRCHECKING()
   } else {
 
     pirOnOff = digitalRead(PIR_IN_PIN);
-<<<<<<< HEAD
+
     if (DEBUG_PRINT) {
       Serial.println("PIRp called");
     }
-=======
->>>>>>> origin/contorl_tv_using_pir_and_timer
+
     pir_Mills = millis();
   }
 }
 
 void tvOnTimer()
 {
-<<<<<<< HEAD
-
-  tvIsOnEvent = t.every((o_tvOnTime * 1000 * 60) , doTvOffTimer);
-=======
   long time_o_tvOnTime = o_tvOnTime * 1000 * 60 ;
   tvIsOnEvent = t.every(time_o_tvOnTime , doTvOffTimer);
->>>>>>> origin/contorl_tv_using_pir_and_timer
   t.stop(tvIsOffEvent);
 }
 
 void tvOffTimer()
 {
-<<<<<<< HEAD
-
-  tvIsOffEvent = t.every((o_tvOffTime * 1000 * 60) , doTvOnTimer);
-=======
   long time_o_tvOffTime = o_tvOffTime * 1000 * 60;
   tvIsOffEvent = t.every(time_o_tvOffTime , doTvOnTimer);
->>>>>>> origin/contorl_tv_using_pir_and_timer
   t.stop(tvIsOnEvent);
 }
 
@@ -638,12 +627,9 @@ void doUpdateTempC()
   tempCinside = getdalastemp();
   displayTemperature(tempCinside);
   displaytimeleft();
-<<<<<<< HEAD
   if (DEBUG_PRINT) {
     Serial.println(digitalRead(PIR_IN_PIN));
   }
-=======
->>>>>>> origin/contorl_tv_using_pir_and_timer
 }
 
 // update every 5 mins
@@ -946,12 +932,10 @@ void run_initialise_setup() {
   o_tvOffTime = initialise_number_select(5, 20, 10, 5);
   alarm_set();
 
-  //
-  // int initialise_eeprom_done =  initialise_eeprom(o_pwrSrc, o_wrkMode, o_startMode, o_beepMode, o_offMode, o_channelGap, o_tvOnTime, o_tvOffTime) ;
+  
+  int initialise_eeprom_done =  initialise_eeprom(o_pwrSrc, o_wrkMode, o_startMode, o_beepMode, o_offMode, o_channelGap, o_tvOnTime, o_tvOffTime) ;
 
-  //while (initialise_eeprom_done != 1 ) { }
-
-  while ( initialise_eeprom(o_pwrSrc, o_wrkMode, o_startMode, o_beepMode, o_offMode, o_channelGap, o_tvOnTime, o_tvOffTime) != 1 ) {}
+  while (initialise_eeprom_done != 1 ) { }
 
   lcd.clear();
   lcd.setCursor(0, 0);
