@@ -66,6 +66,7 @@ float tempCprevious[12] = {100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100
 // Timer
 Timer t;
 long temp_Mills;
+long pir_Mills;
 int tvIsOnEvent;
 int tvIsOffEvent;
 
@@ -199,6 +200,7 @@ void setup()
 
   // Timer start
   temp_Mills = millis();
+  pir_Mills = millis();
 
   // ir
   irrecv.enableIRIn();
@@ -210,13 +212,13 @@ void setup()
   digitalWrite(SETUP_IN_PIN, HIGH);
   digitalWrite(WRK_MODE_IN_PIN, HIGH);
 
-  pinMode(PIR_IN_PIN, INPUT);
+  pinMode(PIR_IN_PIN, INPUT_PULLUP);
 
   // buzzer
   pinMode(BZ_OU_PIN, OUTPUT);
   digitalWrite(BZ_OU_PIN, HIGH);
 
-  delay(3000);
+  delay(2000);
 
   // PIR
   attachInterrupt(0, PIRCHECKING, CHANGE);
@@ -390,8 +392,14 @@ void changemodebyir (decode_results *results)
 
 void PIRCHECKING()
 {
-  pirOnOff = digitalRead(PIR_IN_PIN);
-  Serial.println("PIR rising called");
+  if (( millis() - pir_Mills ) < 600 ) {
+    return;
+  } else {
+
+    pirOnOff = !digitalRead(PIR_IN_PIN);
+    Serial.println("PIR rising called");
+    pir_Mills = millis();
+  }
 }
 
 
@@ -529,7 +537,7 @@ void irSendTv(int onoff, int bywhat)
         default:
           return;
           break;
-          
+
       }
     }
   } else {
@@ -570,7 +578,7 @@ void doUpdateTempC()
   tempCinside = getdalastemp();
   displayTemperature(tempCinside);
   displaytimeleft();
-  Serial.println(digitalRead(PIR_IN_PIN));
+  Serial.println(!digitalRead(PIR_IN_PIN));
 }
 
 // update every 5 mins
