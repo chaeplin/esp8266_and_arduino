@@ -195,7 +195,7 @@ void setup()
   lcd.backlight();
   lcd.clear();
 
-  delay(5000);
+  delay(1000);
 
   // Timer start
   temp_Mills = millis();
@@ -216,7 +216,7 @@ void setup()
   pinMode(BZ_OU_PIN, OUTPUT);
   digitalWrite(BZ_OU_PIN, HIGH);
 
-  delay(300);
+  delay(3000);
 
   // PIR
   attachInterrupt(0, PIRCHECKING, CHANGE);
@@ -409,7 +409,7 @@ void tvOffTimer()
 
 void doTvOffTimer()
 {
-  irSendTv(0);
+  irSendTv(0, 0);
   tvOffTimer();
   lcd.setCursor(15, 0);
   lcd.write(6);
@@ -417,7 +417,7 @@ void doTvOffTimer()
 
 void doTvOnTimer()
 {
-  irSendTv(1);
+  irSendTv(1, 0);
   tvOnTimer();
   lcd.setCursor(15, 0);
   lcd.print(" ");
@@ -431,18 +431,18 @@ void doTvControlbyPir(int onoff)
     case 1:
       lcd.setCursor(15, 0);
       lcd.print(" ");
-      irSendTv(1);
+      irSendTv(1, 1);
       break;
     case 0:
       lcd.setCursor(15, 0);
       lcd.write(6);
-      irSendTv(0);
+      irSendTv(0, 1);
       break;
   }
   r = !r;
 }
 
-void irSendTv(int onoff)
+void irSendTv(int onoff, int bywhat)
 {
   if ( o_wrkMode == 1 && o_startMode == 1 )
   {
@@ -453,8 +453,12 @@ void irSendTv(int onoff)
           if ( tvPowerStatus == 0 )
           {
             irsend.sendNEC(tv_onoff, 32);
-            tvPowerStatus = 1;
-            temp_Mills = millis();
+
+            if ( bywhat == 0 ) {
+              tvPowerStatus = 1;
+              temp_Mills = millis();
+            }
+
             delay(300);
             irrecv.enableIRIn();
           }
@@ -463,8 +467,12 @@ void irSendTv(int onoff)
           if ( tvPowerStatus == 1 )
           {
             irsend.sendNEC(tv_onoff, 32);
-            tvPowerStatus = 0;
-            temp_Mills = millis();
+
+            if ( bywhat == 0 ) {
+              tvPowerStatus = 0;
+              temp_Mills = millis();
+            }
+
             delay(300);
             irrecv.enableIRIn();
           }
@@ -472,6 +480,7 @@ void irSendTv(int onoff)
         default:
           return;
           break;
+
       }
     } else {
       switch (onoff) {
@@ -480,12 +489,18 @@ void irSendTv(int onoff)
           {
             irsend.sendNEC(tv_input, 32);
             delay(3000);
+
             for ( int i = 0 ; i < o_channelGap ; i++ ) {
               irsend.sendNEC(tv_left, 32);
               delay(300);
             }
+
             irsend.sendNEC(tv_enter, 32);
-            tvPowerStatus = 1;
+
+            if ( bywhat == 0 ) {
+              tvPowerStatus = 1;
+            }
+
             delay(300);
             irrecv.enableIRIn();
           }
@@ -495,12 +510,18 @@ void irSendTv(int onoff)
           {
             irsend.sendNEC(tv_input, 32);
             delay(3000);
+
             for ( int i = 0 ; i < o_channelGap ; i++ ) {
               irsend.sendNEC(tv_right, 32);
               delay(300);
             }
+
             irsend.sendNEC(tv_enter, 32);
-            tvPowerStatus = 0;
+
+            if ( bywhat == 0 ) {
+              tvPowerStatus = 0;
+            }
+
             delay(300);
             irrecv.enableIRIn();
           }
@@ -508,6 +529,7 @@ void irSendTv(int onoff)
         default:
           return;
           break;
+          
       }
     }
   } else {
