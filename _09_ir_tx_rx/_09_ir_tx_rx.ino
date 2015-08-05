@@ -386,10 +386,10 @@ void changemodebyir (decode_results *results)
       case 0xFF02FD: // remote on
         if ( o_wrkMode == 0 ) {
           t.stop(tvIsOffEvent);
-          t.stop(tvIsOnEvent);   
+          t.stop(tvIsOnEvent);
         } else {
-          tvOnTimer();  
-          temp_Mills = millis();          
+          tvOnTimer();
+          temp_Mills = millis();
         }
         o_wrkMode = ! o_wrkMode;
         o_startMode = 1;
@@ -398,9 +398,9 @@ void changemodebyir (decode_results *results)
       case 0xFF9867: // remote off
         if ( timerStatus == 1 ) {
           t.stop(tvIsOffEvent);
-          t.stop(tvIsOnEvent);            
+          t.stop(tvIsOnEvent);
         } else {
-          tvOnTimer();  
+          tvOnTimer();
           temp_Mills = millis();
         }
         timerStatus = ! timerStatus;
@@ -411,7 +411,7 @@ void changemodebyir (decode_results *results)
           t.stop(tvIsOffEvent);
           t.stop(tvIsOnEvent);
         } else {
-          tvOnTimer();  
+          tvOnTimer();
           temp_Mills = millis();
         }
         tvPowerStatus = ! tvPowerStatus;
@@ -432,7 +432,7 @@ void PIRCHECKING()
     pir_Mills = millis();
   }
 }
-    
+
 void tvOnTimer()
 {
   t.stop(tvIsOffEvent);
@@ -462,25 +462,25 @@ void doTvOnTimer()
     tvOnTimer();
     lcd.setCursor(15, 0);
     lcd.print(" ");
-  } 
+  }
 }
 
-// 
+//
 void doTvControlbyPir(int onoff)
 {
-   if ( o_wrkMode == 1 && o_startMode == 1 ) {
-      switch (onoff) {
-        case 1:
-          lcd.setCursor(15, 0);
-          lcd.print(" ");
-          irSendTvbypir(1);
-          break;
-        case 0:
-          lcd.setCursor(15, 0);
-          lcd.write(6);
-          irSendTvbypir(0);
-          break;
-      }
+  if ( o_wrkMode == 1 && o_startMode == 1 ) {
+    switch (onoff) {
+      case 1:
+        lcd.setCursor(15, 0);
+        lcd.print(" ");
+        irSendTvbypir(1);
+        break;
+      case 0:
+        lcd.setCursor(15, 0);
+        lcd.write(6);
+        irSendTvbypir(0);
+        break;
+    }
   }
   r = !r;
 }
@@ -508,15 +508,15 @@ void irSendTvbytimer()
   }
 }
 
-void irSendTvbypir() 
+void irSendTvbypir()
 {
   if ( tvPowerStatus == 1 ) {
     switch (onoff) {
       case 1:
-          irSendTvOut(1);
+        irSendTvOut(1);
         break;
       case 0:
-          irSendTvOut(0);
+        irSendTvOut(0);
         break;
     }
   }
@@ -539,7 +539,7 @@ void irSendTvOut(int a)
           irsend.sendNEC(tv_left, 32);
           delay(300);
         }
-        irsend.sendNEC(tv_enter, 32);      
+        irsend.sendNEC(tv_enter, 32);
         break;
       case 1:
         irsend.sendNEC(tv_input, 32);
