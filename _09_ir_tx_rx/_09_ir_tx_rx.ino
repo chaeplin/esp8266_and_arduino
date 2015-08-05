@@ -384,7 +384,7 @@ void changemodebyir (decode_results *results)
   if ( results->bits > 0 && results->bits == 32 ) {
     switch (results->value) {
       case 0xFF02FD: // remote on
-        if ( o_wrkMode == 0 ) {
+        if ( o_wrkMode == 1 ) {
           t.stop(tvIsOffEvent);
           t.stop(tvIsOnEvent);
           timerStatus = 0;
