@@ -88,7 +88,7 @@ int wrkModeStatus;
 int tvPowerStatus;
 
 // Timer status
-int timerStatus = 0 ;
+int timerStatus = 0;
 
 // tv IR code
 unsigned long tv_input = 0x20DFD02F;
@@ -212,7 +212,7 @@ void setup()
   digitalWrite(SETUP_IN_PIN, HIGH);
   digitalWrite(WRK_MODE_IN_PIN, HIGH);
 
-  pinMode(PIR_IN_PIN, INPUT_PULLUP);
+  pinMode(PIR_IN_PIN, INPUT);
 
   // buzzer
   pinMode(BZ_OU_PIN, OUTPUT);
@@ -221,7 +221,11 @@ void setup()
   delay(2000);
 
   // PIR
-  attachInterrupt(0, PIRCHECKING, CHANGE);
+  if ( digitalRead(PIR_IN_PIN) == 0 ) {
+    attachInterrupt(0, PIRCHECKING, CHANGE);
+  } else {
+    attachInterrupt(0, remove_poweron_error, FALLING);
+  }
 
   // read pin status
   setUpStatus   = digitalRead(SETUP_IN_PIN);
@@ -296,13 +300,17 @@ void setup()
 
   // event Timer
   int TempCEvent      = t.every(2000, doUpdateTempC);
-  int TempCArrayEvent = t.every(4000, doUpdateTempCArray);
-  /*
   int updateTempCArrayEvent = t.every(300000, doUpdateTempCArray);
-  */
 
 }
 
+
+// PIR
+void remove_poweron_error()
+{
+  detachInterrupt(0);
+  attachInterrupt(0, PIRCHECKING, CHANGE);
+}
 
 void loop()
 {
@@ -396,23 +404,22 @@ void PIRCHECKING()
     return;
   } else {
 
-    pirOnOff = !digitalRead(PIR_IN_PIN);
-    Serial.println("PIR rising called");
+    pirOnOff = digitalRead(PIR_IN_PIN);
+    Serial.println("PIRp called");
     pir_Mills = millis();
   }
 }
-
-
+    
 void tvOnTimer()
 {
   t.stop(tvIsOffEvent);
-  tvIsOnEvent = t.every(3000000, doTvOffTimer);
+  tvIsOnEvent = t.every(o_tvOnTime * 1000 * 60 , doTvOffTimer);
 }
 
 void tvOffTimer()
 {
   t.stop(tvIsOnEvent);
-  tvIsOffEvent = t.every(600000, doTvOnTimer);
+  tvIsOffEvent = t.every(o_tvOffTime * 1000 * 60 , doTvOnTimer);
 }
 
 void doTvOffTimer()
@@ -458,7 +465,7 @@ void irSendTv(int onoff, int bywhat)
     {
       switch (onoff) {
         case 1:
-          if ( tvPowerStatus == 0 )
+          if ( tvPowerStatus == 0 || bywhat == 1 )
           {
             irsend.sendNEC(tv_onoff, 32);
 
@@ -493,7 +500,7 @@ void irSendTv(int onoff, int bywhat)
     } else {
       switch (onoff) {
         case 1:
-          if ( tvPowerStatus == 0 )
+          if ( tvPowerStatus == 0 || bywhat == 1 )
           {
             irsend.sendNEC(tv_input, 32);
             delay(3000);
@@ -578,7 +585,7 @@ void doUpdateTempC()
   tempCinside = getdalastemp();
   displayTemperature(tempCinside);
   displaytimeleft();
-  Serial.println(!digitalRead(PIR_IN_PIN));
+  Serial.println(digitalRead(PIR_IN_PIN));
 }
 
 // update every 5 mins
