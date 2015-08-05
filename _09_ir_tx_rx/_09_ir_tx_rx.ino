@@ -387,7 +387,9 @@ void changemodebyir (decode_results *results)
         if ( o_wrkMode == 0 ) {
           t.stop(tvIsOffEvent);
           t.stop(tvIsOnEvent);
+          timerStatus = 0;
         } else {
+          timerStatus = 1;
           tvOnTimer();
           temp_Mills = millis();
         }
@@ -410,7 +412,9 @@ void changemodebyir (decode_results *results)
         if ( tvPowerStatus == 1 ) {
           t.stop(tvIsOffEvent);
           t.stop(tvIsOnEvent);
+          timerStatus = 0;
         } else {
+          timerStatus = 1;
           tvOnTimer();
           temp_Mills = millis();
         }
@@ -435,14 +439,16 @@ void PIRCHECKING()
 
 void tvOnTimer()
 {
+  
+  tvIsOnEvent = t.every((o_tvOnTime * 1000 * 60) , doTvOffTimer);
   t.stop(tvIsOffEvent);
-  tvIsOnEvent = t.every(o_tvOnTime * 1000 * 60 , doTvOffTimer);
 }
 
 void tvOffTimer()
 {
+  
+  tvIsOffEvent = t.every((o_tvOffTime * 1000 * 60) , doTvOnTimer);
   t.stop(tvIsOnEvent);
-  tvIsOffEvent = t.every(o_tvOffTime * 1000 * 60 , doTvOnTimer);
 }
 
 void doTvOffTimer()
@@ -486,7 +492,7 @@ void doTvControlbyPir(int onoff)
 }
 
 
-void irSendTvbytimer()
+void irSendTvbytimer(int onoff)
 {
   switch (onoff) {
     case 1:
@@ -508,7 +514,7 @@ void irSendTvbytimer()
   }
 }
 
-void irSendTvbypir()
+void irSendTvbypir(int onoff)
 {
   if ( tvPowerStatus == 1 ) {
     switch (onoff) {
@@ -575,7 +581,7 @@ void displaytimeleft() {
     }
     lcd.print(str_a);
   } else {
-    lcd.print("   ");
+    lcd.print("---");
   }
 
 }
