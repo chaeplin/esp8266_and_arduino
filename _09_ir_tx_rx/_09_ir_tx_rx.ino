@@ -342,6 +342,8 @@ void loop()
     o_r = r;
   }
 
+  delay(200);
+
 }
 
 void changelcdicon()
@@ -396,6 +398,14 @@ void changemodebyir (decode_results *results)
         o_wrkMode = ! o_wrkMode;
         o_startMode = 1;
         r = !r;
+
+        Serial.print("timerStatus : ");
+        Serial.print(timerStatus);
+        Serial.print(" o_wrkMode : ");
+        Serial.print(o_wrkMode);
+        Serial.print(" o_startMode : ");
+        Serial.println(o_startMode);
+
         break;
       case 0xFF9867: // remote off
         if ( timerStatus == 1 ) {
@@ -423,6 +433,7 @@ void changemodebyir (decode_results *results)
         break;
     }
   }
+  return;
 }
 
 void PIRCHECKING()
@@ -432,22 +443,21 @@ void PIRCHECKING()
   } else {
 
     pirOnOff = digitalRead(PIR_IN_PIN);
-    Serial.println("PIRp called");
     pir_Mills = millis();
   }
 }
 
 void tvOnTimer()
 {
-  
-  tvIsOnEvent = t.every((o_tvOnTime * 1000 * 60) , doTvOffTimer);
+  long time_o_tvOnTime = o_tvOnTime * 1000 * 60 ;
+  tvIsOnEvent = t.every(time_o_tvOnTime , doTvOffTimer);
   t.stop(tvIsOffEvent);
 }
 
 void tvOffTimer()
 {
-  
-  tvIsOffEvent = t.every((o_tvOffTime * 1000 * 60) , doTvOnTimer);
+  long time_o_tvOffTime = o_tvOffTime * 1000 * 60;
+  tvIsOffEvent = t.every(time_o_tvOffTime , doTvOnTimer);
   t.stop(tvIsOnEvent);
 }
 
@@ -574,6 +584,14 @@ void displaytimeleft() {
   String str_a = String(int(timeleft));
   int length_a = str_a.length();
 
+
+  Serial.print("timerStatus : ");
+  Serial.print(timerStatus);
+  Serial.print(" o_wrkMode : ");
+  Serial.print(o_wrkMode);
+  Serial.print(" o_startMode : ");
+  Serial.println(o_startMode);
+
   lcd.setCursor(10, 1);
   if ( timerStatus == 1 &&  o_wrkMode == 1 && o_startMode == 1 ) {
     for ( int i = 0; i < ( 3 - length_a ) ; i++ ) {
@@ -581,7 +599,7 @@ void displaytimeleft() {
     }
     lcd.print(str_a);
   } else {
-    lcd.print("---");
+    lcd.print("-- -");
   }
 
 }
@@ -592,7 +610,6 @@ void doUpdateTempC()
   tempCinside = getdalastemp();
   displayTemperature(tempCinside);
   displaytimeleft();
-  Serial.println(digitalRead(PIR_IN_PIN));
 }
 
 // update every 5 mins
@@ -621,9 +638,9 @@ void displayTemperature(float Temperature)
 
     lcd.setCursor(8, 0);
     if ( tempdiff >= 0 ) {
-      lcd.print("+");
+      lcd.print(" + ");
     } else {
-      lcd.print("-");
+      lcd.print(" - ");
     }
 
     String str_tempdiff = String(int abs(tempdiff));
@@ -649,9 +666,9 @@ void alarm_set()
 {
   /*
   if (( o_beepMode == 1) || (setUpStatus == 0) || (o_magic != magic_number ))  {
-    digitalWrite(BZ_OU_PIN, LOW);
-    delay(50);
-    digitalWrite(BZ_OU_PIN, HIGH);
+  digitalWrite(BZ_OU_PIN, LOW);
+  delay(50);
+  digitalWrite(BZ_OU_PIN, HIGH);
   }
   irrecv.enableIRIn();
   */
@@ -823,7 +840,7 @@ void run_initialise_setup() {
 
   lcd.clear();
   lcd.setCursor(0, 0);
-  lcd.print("ON : TV on/off");
+  lcd.print("ON : TV on / off");
   lcd.setCursor(0, 1);
   lcd.print("OFF: IN change");
 
@@ -867,7 +884,7 @@ void run_initialise_setup() {
   lcd.setCursor(0, 0);
   lcd.print("ON : change no");
   lcd.setCursor(0, 1);
-  lcd.print("OFF: done");
+  lcd.print("OFF : done");
 
   int tvOnTime = initialise_number_select(30, 90, 50, 5);
   alarm_set();
@@ -888,7 +905,7 @@ void run_initialise_setup() {
   lcd.setCursor(0, 0);
   lcd.print("ON : change no");
   lcd.setCursor(0, 1);
-  lcd.print("OFF: done");
+  lcd.print("OFF : done");
 
   int tvOffTime = initialise_number_select(5, 20, 10, 5);
   alarm_set();
