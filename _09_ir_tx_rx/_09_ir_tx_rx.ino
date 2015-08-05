@@ -17,6 +17,8 @@
 #define eeprom_write(src, eeprom_field) { typeof(src) x = src; eeprom_write_from(&x, eeprom_field, sizeof(x)); }
 #define MIN(x,y) ( x > y ? y : x )
 
+#define DEBUG_PRINT 0
+
 // eeprom
 // Change this any time the EEPROM content changes
 const long magic_number = 0x326;
@@ -186,9 +188,11 @@ void(* resetFunc) (void) = 0; //declare reset function @ address 0
 void setup()
 {
   // start serial
-  Serial.begin (38400);
-  Serial.println();
-  Serial.println("TV controller Starting");
+  if (DEBUG_PRINT) {
+    Serial.begin (38400);
+    Serial.println();
+    Serial.println("TV controller Starting");
+  }
   delay(20);
 
   // lcd
@@ -200,7 +204,7 @@ void setup()
 
   // Timer start
   temp_Mills = millis();
-  pir_Mills = millis();
+  //pir_Mills = millis();
 
   // ir
   irrecv.enableIRIn();
@@ -251,7 +255,9 @@ void setup()
 
   // temp sensor
   sensors.begin();
-  if (!sensors.getAddress(insideThermometer, 0)) Serial.println("Unable to find address for Device 0");
+  if (DEBUG_PRINT) {
+    if (!sensors.getAddress(insideThermometer, 0)) Serial.println("Unable to find address for Device 0");
+  }
   sensors.setResolution(insideThermometer, TEMPERATURE_PRECISION);
 
   // lcd
@@ -314,11 +320,13 @@ void remove_poweron_error()
 
 void loop()
 {
+
+  t.update();
+
+
   // receiving ir and change status
   // remote on / off, tv remote on / off
   decode_results results;
-
-  t.update();
 
   // PIR
   if ( pirOnOff != o_pirOnOff) {
@@ -432,21 +440,23 @@ void PIRCHECKING()
   } else {
 
     pirOnOff = digitalRead(PIR_IN_PIN);
-    Serial.println("PIRp called");
+    if (DEBUG_PRINT) {
+      Serial.println("PIRp called");
+    }
     pir_Mills = millis();
   }
 }
 
 void tvOnTimer()
 {
-  
+
   tvIsOnEvent = t.every((o_tvOnTime * 1000 * 60) , doTvOffTimer);
   t.stop(tvIsOffEvent);
 }
 
 void tvOffTimer()
 {
-  
+
   tvIsOffEvent = t.every((o_tvOffTime * 1000 * 60) , doTvOnTimer);
   t.stop(tvIsOnEvent);
 }
@@ -531,12 +541,16 @@ void irSendTvbypir(int onoff)
 void irSendTvOut(int a)
 {
   if ( o_offMode == 1 ) {
-    Serial.println("IRSend on/off called");
+    if (DEBUG_PRINT) {
+      Serial.println("IRSend on/off called");
+    }
     irsend.sendNEC(tv_onoff, 32);
     delay(300);
     irrecv.enableIRIn();
   } else {
-    Serial.println("IRSend CH change called");
+    if (DEBUG_PRINT) {
+      Serial.println("IRSend CH change called");
+    }
     switch (a) {
       case 0:
         irsend.sendNEC(tv_input, 32);
@@ -592,7 +606,9 @@ void doUpdateTempC()
   tempCinside = getdalastemp();
   displayTemperature(tempCinside);
   displaytimeleft();
-  Serial.println(digitalRead(PIR_IN_PIN));
+  if (DEBUG_PRINT) {
+    Serial.println(digitalRead(PIR_IN_PIN));
+  }
 }
 
 // update every 5 mins
@@ -709,6 +725,7 @@ int initialise_number_select(int minno, int maxno, int curno, int chstep)
   }
 }
 
+
 void run_initialise_setup() {
 
   decode_results results;
@@ -720,6 +737,7 @@ void run_initialise_setup() {
   lcd.print("to start setup");
   lcd.setCursor(15, 1);
   lcd.print("*");
+
 
   irrecv.resume();
   while (irrecv.decode(&results) != 1 ) { }
@@ -743,7 +761,7 @@ void run_initialise_setup() {
   lcd.setCursor(0, 1);
   lcd.print("OFF: from other");
 
-  int pwrSrc = initialise_boolean_select();
+  o_pwrSrc = initialise_boolean_select();
   alarm_set();
 
   lcd.clear();
@@ -764,7 +782,7 @@ void run_initialise_setup() {
   lcd.setCursor(0, 1);
   lcd.print("OFF: thermo");
 
-  int wrkMode = initialise_boolean_select();
+  o_wrkMode = initialise_boolean_select();
   alarm_set();
 
   lcd.clear();
@@ -785,7 +803,7 @@ void run_initialise_setup() {
   lcd.setCursor(0, 1);
   lcd.print("OFF: do nothing");
 
-  int startMode = initialise_boolean_select();
+  o_startMode = initialise_boolean_select();
   alarm_set();
 
   lcd.clear();
@@ -806,7 +824,7 @@ void run_initialise_setup() {
   lcd.setCursor(0, 1);
   lcd.print("OFF: beep off");
 
-  int beepMode = initialise_boolean_select();
+  o_beepMode = initialise_boolean_select();
   alarm_set();
 
   lcd.clear();
@@ -827,7 +845,7 @@ void run_initialise_setup() {
   lcd.setCursor(0, 1);
   lcd.print("OFF: IN change");
 
-  int offMode = initialise_boolean_select();
+  o_offMode = initialise_boolean_select();
   alarm_set();
 
   lcd.clear();
@@ -848,7 +866,7 @@ void run_initialise_setup() {
   lcd.setCursor(0, 1);
   lcd.print("OFF: done");
 
-  int channelGap = initialise_number_select(1, 5, 1, 1);
+  o_channelGap = initialise_number_select(1, 5, 1, 1);
   alarm_set();
 
   lcd.clear();
@@ -869,7 +887,7 @@ void run_initialise_setup() {
   lcd.setCursor(0, 1);
   lcd.print("OFF: done");
 
-  int tvOnTime = initialise_number_select(30, 90, 50, 5);
+  o_tvOnTime = initialise_number_select(30, 90, 50, 5);
   alarm_set();
 
   lcd.clear();
@@ -890,13 +908,15 @@ void run_initialise_setup() {
   lcd.setCursor(0, 1);
   lcd.print("OFF: done");
 
-  int tvOffTime = initialise_number_select(5, 20, 10, 5);
+  o_tvOffTime = initialise_number_select(5, 20, 10, 5);
   alarm_set();
 
   //
-  int initialise_eeprom_done =  initialise_eeprom(pwrSrc, wrkMode, startMode, beepMode, offMode, channelGap, tvOnTime, tvOffTime) ;
+  // int initialise_eeprom_done =  initialise_eeprom(o_pwrSrc, o_wrkMode, o_startMode, o_beepMode, o_offMode, o_channelGap, o_tvOnTime, o_tvOffTime) ;
 
-  while (initialise_eeprom_done != 1 ) { }
+  //while (initialise_eeprom_done != 1 ) { }
+
+  while ( initialise_eeprom(o_pwrSrc, o_wrkMode, o_startMode, o_beepMode, o_offMode, o_channelGap, o_tvOnTime, o_tvOffTime) != 1 ) {}
 
   lcd.clear();
   lcd.setCursor(0, 0);
@@ -943,3 +963,4 @@ int initialise_eeprom(int i_pwrSrc, int i_wrkMode, int i_startMode, int i_beepMo
 
   return 1;
 }
+
