@@ -60,7 +60,7 @@
 - pub power usage
 
 
-#### __07-ac-ir-remote-time ####
+#### _07-ac-ir-remote-time ####
 - pro mini
 - optical isolator
 - add timer to LG air conditioner remote
