@@ -300,7 +300,7 @@ void setup()
 
   // event Timer
   int TempCEvent      = t.every(2000, doUpdateTempC);
-  int updateTempCArrayEvent = t.every(300000, doUpdateTempCArray);
+  int TempCArrayEvent = t.every(300000, doUpdateTempCArray);
 
 }
 
@@ -341,6 +341,7 @@ void loop()
     alarm_set();
     o_r = r;
   }
+
 }
 
 void changelcdicon()
@@ -377,20 +378,42 @@ void changelcdicon()
   }
 }
 
+// need to add timer reset, power status
 void changemodebyir (decode_results *results)
 {
   if ( results->bits > 0 && results->bits == 32 ) {
     switch (results->value) {
       case 0xFF02FD: // remote on
+        if ( o_wrkMode == 0 ) {
+          t.stop(tvIsOffEvent);
+          t.stop(tvIsOnEvent);   
+        } else {
+          tvOnTimer();  
+          temp_Mills = millis();          
+        }
         o_wrkMode = ! o_wrkMode;
         o_startMode = 1;
         r = !r;
         break;
       case 0xFF9867: // remote off
+        if ( timerStatus == 1 ) {
+          t.stop(tvIsOffEvent);
+          t.stop(tvIsOnEvent);            
+        } else {
+          tvOnTimer();  
+          temp_Mills = millis();
+        }
         timerStatus = ! timerStatus;
         r = !r;
         break;
-      case 0x20DF10EF: // tv remore on/off
+      case 0x20DF10EF: // tv remote on/off
+        if ( tvPowerStatus == 1 ) {
+          t.stop(tvIsOffEvent);
+          t.stop(tvIsOnEvent);
+        } else {
+          tvOnTimer();  
+          temp_Mills = millis();
+        }
         tvPowerStatus = ! tvPowerStatus;
         r = !r;
         break;
@@ -424,136 +447,114 @@ void tvOffTimer()
 
 void doTvOffTimer()
 {
-  irSendTv(0, 0);
-  tvOffTimer();
-  lcd.setCursor(15, 0);
-  lcd.write(6);
+  if ( o_wrkMode == 1 && o_startMode == 1 ) {
+    irSendTvbytimer(0);
+    tvOffTimer();
+    lcd.setCursor(15, 0);
+    lcd.write(6);
+  }
 }
 
 void doTvOnTimer()
 {
-  irSendTv(1, 0);
-  tvOnTimer();
-  lcd.setCursor(15, 0);
-  lcd.print(" ");
+  if ( o_wrkMode == 1 && o_startMode == 1 ) {
+    irSendTvbytimer(1);
+    tvOnTimer();
+    lcd.setCursor(15, 0);
+    lcd.print(" ");
+  } 
 }
 
-
-
+// 
 void doTvControlbyPir(int onoff)
 {
-  switch (onoff) {
-    case 1:
-      lcd.setCursor(15, 0);
-      lcd.print(" ");
-      irSendTv(1, 1);
-      break;
-    case 0:
-      lcd.setCursor(15, 0);
-      lcd.write(6);
-      irSendTv(0, 1);
-      break;
+   if ( o_wrkMode == 1 && o_startMode == 1 ) {
+      switch (onoff) {
+        case 1:
+          lcd.setCursor(15, 0);
+          lcd.print(" ");
+          irSendTvbypir(1);
+          break;
+        case 0:
+          lcd.setCursor(15, 0);
+          lcd.write(6);
+          irSendTvbypir(0);
+          break;
+      }
   }
   r = !r;
 }
 
-void irSendTv(int onoff, int bywhat)
+
+void irSendTvbytimer()
 {
-  if ( o_wrkMode == 1 && o_startMode == 1 )
-  {
-    if ( o_offMode == 1 )
-    {
-      switch (onoff) {
-        case 1:
-          if ( tvPowerStatus == 0 || bywhat == 1 )
-          {
-            irsend.sendNEC(tv_onoff, 32);
-
-            if ( bywhat == 0 ) {
-              tvPowerStatus = 1;
-              temp_Mills = millis();
-            }
-
-            delay(300);
-            irrecv.enableIRIn();
-          }
-          break;
-        case 0:
-          if ( tvPowerStatus == 1 )
-          {
-            irsend.sendNEC(tv_onoff, 32);
-
-            if ( bywhat == 0 ) {
-              tvPowerStatus = 0;
-              temp_Mills = millis();
-            }
-
-            delay(300);
-            irrecv.enableIRIn();
-          }
-          break;
-        default:
-          return;
-          break;
-
+  switch (onoff) {
+    case 1:
+      if ( tvPowerStatus == 0 )
+      {
+        irSendTvOut(1);
+        tvPowerStatus = 1;
+        temp_Mills = millis();
       }
-    } else {
-      switch (onoff) {
-        case 1:
-          if ( tvPowerStatus == 0 || bywhat == 1 )
-          {
-            irsend.sendNEC(tv_input, 32);
-            delay(3000);
-
-            for ( int i = 0 ; i < o_channelGap ; i++ ) {
-              irsend.sendNEC(tv_left, 32);
-              delay(300);
-            }
-
-            irsend.sendNEC(tv_enter, 32);
-
-            if ( bywhat == 0 ) {
-              tvPowerStatus = 1;
-            }
-
-            delay(300);
-            irrecv.enableIRIn();
-          }
-          break;
-        case 0:
-          if ( tvPowerStatus == 1 )
-          {
-            irsend.sendNEC(tv_input, 32);
-            delay(3000);
-
-            for ( int i = 0 ; i < o_channelGap ; i++ ) {
-              irsend.sendNEC(tv_right, 32);
-              delay(300);
-            }
-
-            irsend.sendNEC(tv_enter, 32);
-
-            if ( bywhat == 0 ) {
-              tvPowerStatus = 0;
-            }
-
-            delay(300);
-            irrecv.enableIRIn();
-          }
-          break;
-        default:
-          return;
-          break;
-
+      break;
+    case 0:
+      if ( tvPowerStatus == 1 )
+      {
+        irSendTvOut(0);
+        tvPowerStatus = 0;
+        temp_Mills = millis();
       }
-    }
-  } else {
-
-    return;
-
+      break;
   }
-
 }
+
+void irSendTvbypir() 
+{
+  if ( tvPowerStatus == 1 ) {
+    switch (onoff) {
+      case 1:
+          irSendTvOut(1);
+        break;
+      case 0:
+          irSendTvOut(0);
+        break;
+    }
+  }
+}
+
+void irSendTvOut(int a)
+{
+  if ( o_offMode == 1 ) {
+    Serial.println("IRSend on/off called");
+    irsend.sendNEC(tv_onoff, 32);
+    delay(300);
+    irrecv.enableIRIn();
+  } else {
+    Serial.println("IRSend CH change called");
+    switch (a) {
+      case 0:
+        irsend.sendNEC(tv_input, 32);
+        delay(3000);
+        for ( int i = 0 ; i < o_channelGap ; i++ ) {
+          irsend.sendNEC(tv_left, 32);
+          delay(300);
+        }
+        irsend.sendNEC(tv_enter, 32);      
+        break;
+      case 1:
+        irsend.sendNEC(tv_input, 32);
+        delay(3000);
+        for ( int i = 0 ; i < o_channelGap ; i++ ) {
+          irsend.sendNEC(tv_right, 32);
+          delay(300);
+        }
+        irsend.sendNEC(tv_enter, 32);
+        break;
+    }
+  }
+  irrecv.enableIRIn();
+}
+
 
 // TimeTime
 void displaytimeleft() {
