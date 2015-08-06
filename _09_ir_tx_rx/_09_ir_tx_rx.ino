@@ -35,10 +35,19 @@ struct __eeprom_data {
 // pins
 int SETUP_IN_PIN    = A2;
 int WRK_MODE_IN_PIN = A0;
+int UP_IN_PIN       = 12;
+
+/*
+int UP_IN_PIN    = 12;
+int DN_IN_PIN    = 11;
+*/
+
 
 int IR_IN_PIN    = 10;
 int PIR_IN_PIN   = 2;
 int BZ_OU_PIN    = 9;
+
+
 
 // LCD
 LiquidCrystal_I2C lcd(0x27, 16, 2);
@@ -78,6 +87,7 @@ long o_tvOnTime;
 // sw pin status
 int setUpStatus;
 int wrkModeStatus;
+int backlightStatus;
 
 // tv power status
 int tvPowerStatus;
@@ -204,6 +214,7 @@ void setup()
   // pin mode
   pinMode(SETUP_IN_PIN, INPUT);
   pinMode(WRK_MODE_IN_PIN, INPUT);
+  pinMode(UP_IN_PIN, INPUT_PULLUP);
   // SETUP_IN_PIN and WRK_MODE_IN_PIN is analog pin, to pull-up
   digitalWrite(SETUP_IN_PIN, HIGH);
   digitalWrite(WRK_MODE_IN_PIN, HIGH);
@@ -226,6 +237,11 @@ void setup()
   // read pin status
   setUpStatus   = digitalRead(SETUP_IN_PIN);
   wrkModeStatus = digitalRead(WRK_MODE_IN_PIN);
+  backlightStatus = digitalRead(UP_IN_PIN);
+
+  if ( backlightStatus == 1 ) {
+    lcd.backlight();
+  }
 
   // eeprom read
   long o_magic;
