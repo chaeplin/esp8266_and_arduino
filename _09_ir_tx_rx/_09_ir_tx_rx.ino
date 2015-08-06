@@ -17,7 +17,7 @@
 #define eeprom_write(src, eeprom_field) { typeof(src) x = src; eeprom_write_from(&x, eeprom_field, sizeof(x)); }
 #define MIN(x,y) ( x > y ? y : x )
 
-#define DEBUG_PRINT 0
+#define DEBUG_PRINT 1
 
 // eeprom
 // Change this any time the EEPROM content changes
@@ -30,7 +30,7 @@ struct __eeprom_data {
   int startMode;  // if wrkMode == 1, 1 : auto start timer, pir, 0 : do nothing indicating a sign on the lcd
   int beepMode;   // 1 : beep on
   int channelGap; // 1 ~ 5
-  int tvOnTime;   // 30 ~ 90
+  long tvOnTime;   // 30 ~ 90
 };
 
 // pins
@@ -68,7 +68,6 @@ Timer t;
 long temp_Mills;
 long pir_Mills;
 int tvIsOnEvent;
-int tvIsOffEvent;
 
 // eeprom status
 int o_pwrSrc;
@@ -76,7 +75,7 @@ int o_wrkMode;
 int o_startMode;
 int o_beepMode;
 int o_channelGap;
-int o_tvOnTime;
+long o_tvOnTime;
 
 // sw pin status
 int setUpStatus;
@@ -244,7 +243,7 @@ void setup()
   eeprom_read(o_startMode, startMode);
   eeprom_read(o_beepMode, beepMode);
   eeprom_read(o_channelGap, channelGap);
- // eeprom_read(o_tvOnTime, tvOnTime);
+  // eeprom_read(o_tvOnTime, tvOnTime);
 
   // temp sensor
   sensors.begin();
@@ -378,6 +377,12 @@ void changelcdicon()
     lcd.setCursor(6, 1);
     lcd.print(" ");
   }
+
+  if ( tvPowerStatus == 1 && timerStatus == 1 ) {
+    tvOnTimer();
+    temp_Mills = millis();
+  }
+
 }
 
 // need to add timer reset, power status
@@ -390,8 +395,6 @@ void changemodebyir (decode_results *results)
           timerStatus = 0;
         } else {
           timerStatus = 1;
-          tvOnTimer();
-          temp_Mills = millis();
         }
         o_wrkMode = ! o_wrkMode;
         o_startMode = 1;
@@ -399,20 +402,24 @@ void changemodebyir (decode_results *results)
         break;
       case 0xFF9867: // remote off
         if ( timerStatus == 1 ) {
+          t.stop(tvIsOnEvent);
         } else {
-          tvOnTimer();
-          temp_Mills = millis();
+          if ( tvPowerStatus == 1  ) {
+            temp_Mills = millis();
+            tvOnTimer();
+          }
         }
         timerStatus = ! timerStatus;
         r = !r;
         break;
       case 0x20DF10EF: // tv remote on/off
         if ( tvPowerStatus == 1 ) {
+          t.stop(tvIsOnEvent);
           timerStatus = 0;
         } else {
+          temp_Mills = millis();
           timerStatus = 1;
           tvOnTimer();
-          temp_Mills = millis();
         }
         tvPowerStatus = ! tvPowerStatus;
         r = !r;
@@ -430,45 +437,49 @@ void PIRCHECKING()
 
     pirOnOff = digitalRead(PIR_IN_PIN);
 
-    if (DEBUG_PRINT) {
-      Serial.println("PIRp called");
-    }
-
     pir_Mills = millis();
   }
 }
 
 void tvOnTimer()
 {
-  long time_o_tvOnTime = o_tvOnTime * 1000 * 60 ;
+  //long time_o_tvOnTime = ( long(o_tvOnTime) * 1000 ) * 60 ;
+  long time_o_tvOnTime = ( o_tvOnTime * 1000 ) * 60 ;
   tvIsOnEvent = t.after(time_o_tvOnTime , doTvOffTimer);
+
+  if (DEBUG_PRINT) {
+    Serial.println(time_o_tvOnTime);
+    Serial.println("tvOnTimer called");
+  }
 }
 
 
 void doTvOffTimer()
 {
-  lcd.setCursor(15, 0);
-  lcd.write(6);
+  if (DEBUG_PRINT) {
+    Serial.println("doTvOffTimer called");
+  }
+  t.stop(tvIsOnEvent);
   irSendTvOutbytimer(0);
 }
 
 //
 void doTvControlbyPir(int onoff)
 {
-  // if ( o_wrkMode == 1 && o_startMode == 1 ) {
-  switch (onoff) {
-    case 1:
-      lcd.setCursor(15, 0);
-      lcd.print(" ");
-      irSendTvOutbypir(1);
-      break;
-    case 0:
-      lcd.setCursor(15, 0);
-      lcd.write(6);
-      irSendTvOutbypir(0);
-      break;
+  if ( o_wrkMode == 1 && o_startMode == 1 && tvPowerStatus == 1) {
+    switch (onoff) {
+      case 1:
+        lcd.setCursor(15, 0);
+        lcd.print(" ");
+        irSendTvOutbypir(0);
+        break;
+      case 0:
+        lcd.setCursor(15, 0);
+        lcd.write(6);
+        irSendTvOutbypir(1);
+        break;
+    }
   }
-  // }
   r = !r;
 }
 
@@ -499,7 +510,7 @@ void irSendTvOutbypir(int a)
       irsend.sendNEC(tv_enter, 32);
       break;
   }
-  
+
   irrecv.enableIRIn();
 }
 
@@ -513,6 +524,7 @@ void irSendTvOutbytimer(int a)
   delay(300);
   irrecv.enableIRIn();
   tvPowerStatus = ! tvPowerStatus ;
+  r = !r;
 
 }
 
@@ -530,12 +542,13 @@ void displaytimeleft() {
 
   timeleft = (( o_tvOnTime * 1000 ) * 60 ) - (millis() - temp_Mills) ;
 
+  // timeleft = ( millis() - temp_Mills) / 1000 ;
 
   String str_a = String(int(timeleft));
   int length_a = str_a.length();
 
   lcd.setCursor(8, 1);
-  if ( timerStatus == 1 &&  o_wrkMode == 1 && o_startMode == 1 ) {
+  if ( timerStatus == 1 &&  o_wrkMode == 1 && o_startMode == 1 && tvPowerStatus == 1) {
     for ( int i = 0; i < ( 7 - length_a ) ; i++ ) {
       lcd.print(" ");
     }
@@ -551,7 +564,7 @@ void doUpdateTempC()
 {
   tempCinside = getdalastemp();
   displayTemperature(tempCinside);
-  displaytimeleft();  
+  displaytimeleft();
 }
 
 // update every 5 mins
@@ -844,7 +857,7 @@ void run_initialise_setup() {
 }
 
 
-int initialise_eeprom(int o_pwrSrc, int o_wrkMode, int o_startMode, int o_beepMode, int o_channelGap, int o_tvOnTime)
+int initialise_eeprom(int o_pwrSrc, int o_wrkMode, int o_startMode, int o_beepMode, int o_channelGap, long o_tvOnTime)
 {
   eeprom_write(o_pwrSrc, pwrSrc);
   eeprom_write(o_wrkMode, wrkMode);
