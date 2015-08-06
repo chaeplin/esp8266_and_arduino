@@ -17,11 +17,11 @@
 #define eeprom_write(src, eeprom_field) { typeof(src) x = src; eeprom_write_from(&x, eeprom_field, sizeof(x)); }
 #define MIN(x,y) ( x > y ? y : x )
 
-#define DEBUG_PRINT 1
+#define DEBUG_PRINT 0
 
 // eeprom
 // Change this any time the EEPROM content changes
-const long magic_number = 0x326;
+const long magic_number = 0x807;
 
 struct __eeprom_data {
   long magic;
@@ -293,7 +293,7 @@ void setup()
   }
 
   // event Timer
-  int updateTempCEvent      = t.every(2000, doUpdateTempC);
+  int updateTempCEvent      = t.every(1000, doUpdateTempC);
   int updateTempCArrayEvent = t.every(300000, doUpdateTempCArray);
 
   o_tvOnTime  = 2;
@@ -382,6 +382,7 @@ void changemodebyir (decode_results *results)
     switch (results->value) {
       case 0xFF02FD: // remote on
         if ( wrkModeStatus == 1 ) {
+          t.stop(tvIsOnEvent);
           timerStatus = 0;
         } else {
           timerStatus = 1;
@@ -394,10 +395,8 @@ void changemodebyir (decode_results *results)
         if ( timerStatus == 1 ) {
           t.stop(tvIsOnEvent);
         } else {
-          if ( tvPowerStatus == 1  ) {
-            temp_Mills = millis();
-            tvOnTimer();
-          }
+          temp_Mills = millis();
+          tvOnTimer();
         }
         timerStatus = ! timerStatus;
         r = !r;
@@ -433,13 +432,14 @@ void PIRCHECKING()
 
 void tvOnTimer()
 {
- 
+
   long time_o_tvOnTime = ( o_tvOnTime * 1000 ) * 60 ;
   tvIsOnEvent = t.after(time_o_tvOnTime , doTvOffTimer);
 
   if (DEBUG_PRINT) {
-    Serial.println(time_o_tvOnTime);
-    Serial.println("tvOnTimer called");
+    //Serial.println(time_o_tvOnTime);
+    Serial.print("tvOnTimer called : ");
+    Serial.println(tvIsOnEvent);
   }
 }
 
@@ -449,9 +449,11 @@ void doTvOffTimer()
   if (DEBUG_PRINT) {
     Serial.println("doTvOffTimer called");
   }
-  t.stop(tvIsOnEvent);
-  tvPowerStatus = 0 ;
-  irSendTvOutbytimer(0);
+  if ( tvPowerStatus == 1) {
+    tvPowerStatus = 0 ;
+    t.stop(tvIsOnEvent);
+    irSendTvOutbytimer(0);
+  }
 }
 
 //
@@ -521,15 +523,19 @@ void irSendTvOutbytimer(int a)
 
 // TimeTime
 void displaytimeleft() {
- 
+
   long time_o_tvOnTime = ( o_tvOnTime * 1000 ) * 60 ;
-  long timeleft = time_o_tvOnTime - (millis() - temp_Mills) ;
+  long timeleft =  (time_o_tvOnTime - (millis() - temp_Mills) ) / 1000 ;
 
   if (DEBUG_PRINT) {
-    Serial.println(time_o_tvOnTime);
-    Serial.println(timeleft);
+    Serial.print("time_o_tvOnTime : ");
+    Serial.print(time_o_tvOnTime);
+    Serial.print(" timeleft : ");
+    Serial.print(timeleft);
+    Serial.print(" tvIsOnEvent : ");
+    Serial.println(tvIsOnEvent);
   }
-  
+
   String str_a = String(long(timeleft));
   int length_a = str_a.length();
 
