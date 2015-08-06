@@ -189,7 +189,7 @@ void setup()
 
   // lcd
   lcd.init();
-  lcd.backlight();
+  //lcd.backlight();
   lcd.clear();
 
   delay(1000);
