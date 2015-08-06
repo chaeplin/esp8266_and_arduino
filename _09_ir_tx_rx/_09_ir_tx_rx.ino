@@ -26,7 +26,6 @@ const long magic_number = 0x326;
 struct __eeprom_data {
   long magic;
   int pwrSrc;     // 1 : connected to TV, 0 : usb powered
-  int wrkMode;    // 1 : thermostat + TV, 0 : thermostat
   int startMode;  // if wrkMode == 1, 1 : auto start timer, pir, 0 : do nothing indicating a sign on the lcd
   int beepMode;   // 1 : beep on
   int channelGap; // 1 ~ 5
@@ -71,7 +70,6 @@ int tvIsOnEvent;
 
 // eeprom status
 int o_pwrSrc;
-int o_wrkMode;
 int o_startMode;
 int o_beepMode;
 int o_channelGap;
@@ -239,11 +237,9 @@ void setup()
   }
 
   eeprom_read(o_pwrSrc, pwrSrc);
-  eeprom_read(o_wrkMode, wrkMode);
   eeprom_read(o_startMode, startMode);
   eeprom_read(o_beepMode, beepMode);
   eeprom_read(o_channelGap, channelGap);
-  // eeprom_read(o_tvOnTime, tvOnTime);
 
   // temp sensor
   sensors.begin();
@@ -267,7 +263,7 @@ void setup()
   lcd.createChar(5, powericon);
   lcd.createChar(6, piricon);
 
-  if ( o_wrkMode == 1 && o_startMode == 1 ) {
+  if ( wrkModeStatus == 1 && o_startMode == 1 ) {
     lcd.setCursor(0, 1);
     lcd.write(2);
 
@@ -348,7 +344,7 @@ void loop()
 void changelcdicon()
 {
 
-  if ( o_wrkMode == 1 && o_startMode == 1 ) {
+  if ( wrkModeStatus == 1 && o_startMode == 1 ) {
     lcd.setCursor(0, 1);
     lcd.write(2);
 
@@ -377,12 +373,6 @@ void changelcdicon()
     lcd.setCursor(6, 1);
     lcd.print(" ");
   }
-
-  if ( tvPowerStatus == 1 && timerStatus == 1 ) {
-    tvOnTimer();
-    temp_Mills = millis();
-  }
-
 }
 
 // need to add timer reset, power status
@@ -391,12 +381,12 @@ void changemodebyir (decode_results *results)
   if ( results->bits > 0 && results->bits == 32 ) {
     switch (results->value) {
       case 0xFF02FD: // remote on
-        if ( o_wrkMode == 1 ) {
+        if ( wrkModeStatus == 1 ) {
           timerStatus = 0;
         } else {
           timerStatus = 1;
         }
-        o_wrkMode = ! o_wrkMode;
+        wrkModeStatus = ! wrkModeStatus;
         o_startMode = 1;
         r = !r;
         break;
@@ -443,7 +433,7 @@ void PIRCHECKING()
 
 void tvOnTimer()
 {
-  //long time_o_tvOnTime = ( long(o_tvOnTime) * 1000 ) * 60 ;
+ 
   long time_o_tvOnTime = ( o_tvOnTime * 1000 ) * 60 ;
   tvIsOnEvent = t.after(time_o_tvOnTime , doTvOffTimer);
 
@@ -460,26 +450,27 @@ void doTvOffTimer()
     Serial.println("doTvOffTimer called");
   }
   t.stop(tvIsOnEvent);
+  tvPowerStatus = 0 ;
   irSendTvOutbytimer(0);
 }
 
 //
 void doTvControlbyPir(int onoff)
 {
-  if ( o_wrkMode == 1 && o_startMode == 1 && tvPowerStatus == 1) {
-    switch (onoff) {
-      case 1:
-        lcd.setCursor(15, 0);
-        lcd.print(" ");
-        irSendTvOutbypir(0);
-        break;
-      case 0:
-        lcd.setCursor(15, 0);
-        lcd.write(6);
-        irSendTvOutbypir(1);
-        break;
-    }
+
+  switch (onoff) {
+    case 1:
+      lcd.setCursor(15, 0);
+      lcd.print(" ");
+      irSendTvOutbypir(0);
+      break;
+    case 0:
+      lcd.setCursor(15, 0);
+      lcd.write(6);
+      irSendTvOutbypir(1);
+      break;
   }
+
   r = !r;
 }
 
@@ -488,67 +479,62 @@ void irSendTvOutbypir(int a)
 {
 
   if (DEBUG_PRINT) {
-    Serial.println("IRSend CH change called");
+    Serial.println("IRSend PIR input change called");
   }
-  switch (a) {
-    case 0:
-      irsend.sendNEC(tv_input, 32);
-      delay(3000);
-      for ( int i = 0 ; i < o_channelGap ; i++ ) {
-        irsend.sendNEC(tv_left, 32);
-        delay(300);
-      }
-      irsend.sendNEC(tv_enter, 32);
-      break;
-    case 1:
-      irsend.sendNEC(tv_input, 32);
-      delay(3000);
-      for ( int i = 0 ; i < o_channelGap ; i++ ) {
-        irsend.sendNEC(tv_right, 32);
-        delay(300);
-      }
-      irsend.sendNEC(tv_enter, 32);
-      break;
-  }
+  if ( wrkModeStatus == 1 && o_startMode == 1 && tvPowerStatus == 1) {
+    switch (a) {
+      case 0:
+        irsend.sendNEC(tv_input, 32);
+        delay(3000);
+        for ( int i = 0 ; i < o_channelGap ; i++ ) {
+          irsend.sendNEC(tv_left, 32);
+          delay(300);
+        }
+        irsend.sendNEC(tv_enter, 32);
+        break;
+      case 1:
+        irsend.sendNEC(tv_input, 32);
+        delay(3000);
+        for ( int i = 0 ; i < o_channelGap ; i++ ) {
+          irsend.sendNEC(tv_right, 32);
+          delay(300);
+        }
+        irsend.sendNEC(tv_enter, 32);
+        break;
+    }
 
-  irrecv.enableIRIn();
+    irrecv.enableIRIn();
+  }
 }
 
 //
 void irSendTvOutbytimer(int a)
 {
   if (DEBUG_PRINT) {
-    Serial.println("IRSend on/off called");
+    Serial.println("IRSend TV off called");
   }
   irsend.sendNEC(tv_onoff, 32);
   delay(300);
   irrecv.enableIRIn();
-  tvPowerStatus = ! tvPowerStatus ;
   r = !r;
-
 }
 
 // TimeTime
 void displaytimeleft() {
-  long timeleft;
-  /*
-  if ( tvPowerStatus == 1) {
-    timeleft = o_tvOnTime - ((millis() - temp_Mills) / 1000 / 60) ;
-  } else {
-    timeleft = o_tvOffTime - ((millis() - temp_Mills) / 1000 / 60) ;
+ 
+  long time_o_tvOnTime = ( o_tvOnTime * 1000 ) * 60 ;
+  long timeleft = time_o_tvOnTime - (millis() - temp_Mills) ;
+
+  if (DEBUG_PRINT) {
+    Serial.println(time_o_tvOnTime);
+    Serial.println(timeleft);
   }
-  */
-
-
-  timeleft = (( o_tvOnTime * 1000 ) * 60 ) - (millis() - temp_Mills) ;
-
-  // timeleft = ( millis() - temp_Mills) / 1000 ;
-
-  String str_a = String(int(timeleft));
+  
+  String str_a = String(long(timeleft));
   int length_a = str_a.length();
 
   lcd.setCursor(8, 1);
-  if ( timerStatus == 1 &&  o_wrkMode == 1 && o_startMode == 1 && tvPowerStatus == 1) {
+  if ( timerStatus == 1 &&  wrkModeStatus == 1 && o_startMode == 1 && tvPowerStatus == 1) {
     for ( int i = 0; i < ( 7 - length_a ) ; i++ ) {
       lcd.print(" ");
     }
@@ -724,27 +710,6 @@ void run_initialise_setup() {
   lcd.setCursor(0, 0);
   lcd.print("Select");
   lcd.setCursor(0, 1);
-  lcd.print("working mode");
-  lcd.setCursor(15, 1);
-  lcd.print("*");
-
-  irrecv.resume();
-  while (irrecv.decode(&results) != 1 ) { }
-  alarm_set();
-
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("ON : TV + thermo");
-  lcd.setCursor(0, 1);
-  lcd.print("OFF: thermo");
-
-  o_wrkMode = initialise_boolean_select();
-  alarm_set();
-
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("Select");
-  lcd.setCursor(0, 1);
   lcd.print("start mode");
   lcd.setCursor(15, 1);
   lcd.print("*");
@@ -825,7 +790,7 @@ void run_initialise_setup() {
   o_tvOnTime = initialise_number_select(30, 90, 50, 5);
   alarm_set();
 
-  int initialise_eeprom_done =  initialise_eeprom(o_pwrSrc, o_wrkMode, o_startMode, o_beepMode, o_channelGap, o_tvOnTime) ;
+  int initialise_eeprom_done =  initialise_eeprom(o_pwrSrc, o_startMode, o_beepMode, o_channelGap, o_tvOnTime) ;
 
   while (initialise_eeprom_done != 1 ) { }
 
@@ -857,10 +822,9 @@ void run_initialise_setup() {
 }
 
 
-int initialise_eeprom(int o_pwrSrc, int o_wrkMode, int o_startMode, int o_beepMode, int o_channelGap, long o_tvOnTime)
+int initialise_eeprom(int o_pwrSrc, int o_startMode, int o_beepMode, int o_channelGap, long o_tvOnTime)
 {
   eeprom_write(o_pwrSrc, pwrSrc);
-  eeprom_write(o_wrkMode, wrkMode);
   eeprom_write(o_startMode, startMode);
   eeprom_write(o_beepMode, beepMode);
   eeprom_write(o_channelGap, channelGap);
