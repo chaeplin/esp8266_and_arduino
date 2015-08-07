@@ -245,6 +245,8 @@ void setup()
     lcd.print("+");
   } else {
     attachInterrupt(0, remove_poweron_error, FALLING);
+    pirOnOff = HIGH;
+    o_pirOnOff = HIGH;
     lcd.setCursor(15, 0);
     lcd.print("-");
   }
@@ -274,10 +276,7 @@ void setup()
 
   // temp sensor
   sensors.begin();
-  if (DEBUG_PRINT) {
-    if (!sensors.getAddress(insideThermometer, 0)) Serial.println("Unable to find address for Device 0");
-  }
-  sensors.getAddress(insideThermometer, 0);
+  if (!sensors.getAddress(insideThermometer, 0)) Serial.println("Unable to find address for Device 0");
   sensors.setResolution(insideThermometer, TEMPERATURE_PRECISION);
 
   // lcd
@@ -337,9 +336,8 @@ void remove_poweron_error()
 {
   detachInterrupt(0);
   attachInterrupt(0, PIRCHECKING, CHANGE);
-  lcd.setCursor(15, 0);
-  lcd.print("+");
-  r = !r;
+  pirOnOff = digitalRead(PIR_IN_PIN);
+  //r = !r;
 }
 
 void loop()
