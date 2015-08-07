@@ -273,6 +273,9 @@ void setup()
   eeprom_read(o_startMode, startMode);
   eeprom_read(o_beepMode, beepMode);
   eeprom_read(o_channelGap, channelGap);
+  eeprom_read(o_tvOnTime, tvOnTime);
+
+//  o_tvOnTime  = 2;
 
   // temp sensor
   sensors.begin();
@@ -325,8 +328,6 @@ void setup()
   // event Timer
   int updateTempCEvent      = t.every(1000, doUpdateTempC);
   int updateTempCArrayEvent = t.every(300000, doUpdateTempCArray);
-
-  o_tvOnTime  = 2;
 
 }
 
