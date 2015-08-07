@@ -77,7 +77,13 @@ float tempCprevious[12] = {100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100
 Timer t;
 long temp_Mills;
 long pir_Mills;
+
 int tvIsOnEvent;
+
+int irSendTvOutToCurChEvent ; 
+int irSendTvOutToBlnkChEvent ;
+
+
 
 // eeprom status
 int o_pwrSrc;
@@ -96,6 +102,9 @@ int tvPowerStatus;
 
 // Timer status
 int timerStatus = 0;
+
+// channel input selection delay ( smart tv need this)
+long channelselectiondelay = 3000;
 
 // tv IR code
 unsigned long tv_input = 0x20DFD02F;
@@ -504,6 +513,29 @@ void doTvControlbyPir(int onoff)
   r = !r;
 }
 
+void irSendTvOutToBlnkCh()
+{
+  for ( int i = 0 ; i < o_channelGap ; i++ ) {
+    irsend.sendNEC(tv_right, 32);
+    delay(100);
+  }
+  irsend.sendNEC(tv_enter, 32);
+  delay(100);
+  irrecv.enableIRIn();
+}
+
+void irSendTvOutToCurCh()
+{
+  for ( int i = 0 ; i < o_channelGap ; i++ ) {
+    irsend.sendNEC(tv_left, 32);
+    delay(100);
+  }
+  irsend.sendNEC(tv_enter, 32);
+  delay(100);
+  irrecv.enableIRIn();
+}
+
+
 
 void irSendTvOutbypir(int a)
 {
@@ -511,26 +543,16 @@ void irSendTvOutbypir(int a)
   if (DEBUG_PRINT) {
     Serial.println("IRSend PIR input change called");
   }
-  // need to update, remove delay, use timer. 
+  // need to update, remove delay, use timer.
   if ( wrkModeStatus == 1 && o_startMode == 1 && tvPowerStatus == 1) {
     switch (a) {
       case 0:
         irsend.sendNEC(tv_input, 32);
-        delay(3000);
-        for ( int i = 0 ; i < o_channelGap ; i++ ) {
-          irsend.sendNEC(tv_left, 32);
-          delay(100);
-        }
-        irsend.sendNEC(tv_enter, 32);
+        irSendTvOutToCurChEvent = t.after(channelselectiondelay, irSendTvOutToCurCh);
         break;
       case 1:
         irsend.sendNEC(tv_input, 32);
-        delay(3000);
-        for ( int i = 0 ; i < o_channelGap ; i++ ) {
-          irsend.sendNEC(tv_right, 32);
-          delay(100);
-        }
-        irsend.sendNEC(tv_enter, 32);
+        irSendTvOutToBlnkChEvent = t.after(channelselectiondelay, irSendTvOutToBlnkCh);
         break;
     }
 
@@ -609,13 +631,13 @@ void displayTemperature(float Temperature)
 
   lcd.print(Temperature, 1);
 
-   if ( ( second() % 2 ) == 0 ) {
+  if ( ( second() % 2 ) == 0 ) {
     lcd.setCursor(15, 1);
     lcd.print(".");
-   } else {
+  } else {
     lcd.setCursor(15, 1);
     lcd.print(" ");
-   }
+  }
 
 
   if ( tempCprevious[0] != 100 ) {
@@ -880,4 +902,5 @@ int initialise_eeprom(int o_pwrSrc, int o_startMode, int o_beepMode, int o_chann
 
   return 1;
 }
+
 
