@@ -10,6 +10,8 @@
 #include <LiquidCrystal_I2C.h>
 #include <IRremote.h>
 #include "Timer.h"
+#include <Time.h>
+
 
 #define eeprom_read_to(dst_p, eeprom_field, dst_size) eeprom_read_block(dst_p, (void *)offsetof(__eeprom_data, eeprom_field), MIN(dst_size, sizeof((__eeprom_data*)0)->eeprom_field))
 #define eeprom_read(dst, eeprom_field) eeprom_read_to(&dst, eeprom_field, sizeof(dst))
@@ -230,8 +232,12 @@ void setup()
   // PIR
   if ( digitalRead(PIR_IN_PIN) == 0 ) {
     attachInterrupt(0, PIRCHECKING, CHANGE);
+    lcd.setCursor(15, 0);
+    lcd.print("+");
   } else {
     attachInterrupt(0, remove_poweron_error, FALLING);
+    lcd.setCursor(15, 0);
+    lcd.print("-");
   }
 
   // read pin status
@@ -322,6 +328,9 @@ void remove_poweron_error()
 {
   detachInterrupt(0);
   attachInterrupt(0, PIRCHECKING, CHANGE);
+  lcd.setCursor(15, 0);
+  lcd.print("+");
+  r = !r;
 }
 
 void loop()
@@ -398,10 +407,13 @@ void changemodebyir (decode_results *results)
     switch (results->value) {
       case 0xFF02FD: // remote on
         if ( wrkModeStatus == 1 ) {
-          t.stop(tvIsOnEvent);
-          timerStatus = 0;
+          if ( timerStatus == 1 ) {
+            t.stop(tvIsOnEvent);
+          }
+          //timerStatus = 0;
         } else {
-          timerStatus = 1;
+          temp_Mills = millis();
+          //timerStatus = 1;
         }
         wrkModeStatus = ! wrkModeStatus;
         o_startMode = 1;
@@ -479,7 +491,7 @@ void doTvControlbyPir(int onoff)
   switch (onoff) {
     case 1:
       lcd.setCursor(15, 0);
-      lcd.print(" ");
+      lcd.print("+");
       irSendTvOutbypir(0);
       break;
     case 0:
@@ -499,6 +511,7 @@ void irSendTvOutbypir(int a)
   if (DEBUG_PRINT) {
     Serial.println("IRSend PIR input change called");
   }
+  // need to update, remove delay, use timer. 
   if ( wrkModeStatus == 1 && o_startMode == 1 && tvPowerStatus == 1) {
     switch (a) {
       case 0:
@@ -506,7 +519,7 @@ void irSendTvOutbypir(int a)
         delay(3000);
         for ( int i = 0 ; i < o_channelGap ; i++ ) {
           irsend.sendNEC(tv_left, 32);
-          delay(300);
+          delay(100);
         }
         irsend.sendNEC(tv_enter, 32);
         break;
@@ -515,7 +528,7 @@ void irSendTvOutbypir(int a)
         delay(3000);
         for ( int i = 0 ; i < o_channelGap ; i++ ) {
           irsend.sendNEC(tv_right, 32);
-          delay(300);
+          delay(100);
         }
         irsend.sendNEC(tv_enter, 32);
         break;
@@ -595,6 +608,15 @@ void displayTemperature(float Temperature)
   }
 
   lcd.print(Temperature, 1);
+
+   if ( ( second() % 2 ) == 0 ) {
+    lcd.setCursor(15, 1);
+    lcd.print(".");
+   } else {
+    lcd.setCursor(15, 1);
+    lcd.print(" ");
+   }
+
 
   if ( tempCprevious[0] != 100 ) {
     float tempdiff = tempCinside - tempCprevious[0];
