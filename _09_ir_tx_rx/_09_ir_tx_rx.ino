@@ -50,7 +50,6 @@ int PIR_IN_PIN   = 2;
 int BZ_OU_PIN    = 9;
 
 
-
 // LCD
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 
@@ -638,9 +637,15 @@ void displayTemperature(float Temperature)
     lcd.print(" ");
   }
 
+  float o_tempCprevious ;
+  if ( o_pwrSrc == 1 ) {
+    o_tempCprevious = tempCprevious[10];
+  } else {
+    o_tempCprevious = tempCprevious[0];
+  }
 
-  if ( tempCprevious[0] != 100 ) {
-    float tempdiff = tempCinside - tempCprevious[0];
+  if ( o_tempCprevious != 100 ) {
+    float tempdiff = tempCinside - o_tempCprevious;
 
     lcd.setCursor(8, 0);
     if ( tempdiff >= 0 ) {
