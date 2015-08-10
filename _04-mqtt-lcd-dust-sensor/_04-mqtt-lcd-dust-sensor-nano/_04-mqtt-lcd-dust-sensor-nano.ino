@@ -2,7 +2,6 @@
 #include <Wire.h>
 
 /*
- Standalone Sketch to use with a Arduino UNO and a
  Sharp Optical Dust Sensor GP2Y1010AU0F
 */
 
