@@ -76,8 +76,8 @@ volatile int AC_FLOW        = 0;
 // 2 : high
 
 // IR
-const int AC_FLOW_TOWER[4] = {0, 4, 6};
-const int AC_FLOW_WALL[4]  = {0, 2, 4};
+const int AC_FLOW_TOWER[3] = {0, 4, 6};
+const int AC_FLOW_WALL[3]  = {0, 2, 4};
 
 unsigned long AC_CODE_TO_SEND;
 
