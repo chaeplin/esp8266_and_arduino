@@ -274,7 +274,7 @@ void loop()
 
 void runTimerDoLightOff()
 {
-  if (( relaystatus == 1 ) && ( hour() == 7 ) && ( minute() == 40 ) && ( second() < 5 ))
+  if (( relaystatus == 1 ) && ( hour() == 6 ) && ( minute() == 00 ) && ( second() < 5 ))
   {
     relaystatus = 0;
   }
