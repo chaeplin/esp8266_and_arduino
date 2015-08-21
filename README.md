@@ -68,12 +68,3 @@
 - add timer to LG air conditioner remote
 - 30 min run, 60 min off
 
-
-
-![1](https://raw.githubusercontent.com/chaeplin/esp8266_and_arduino/master/_01-door-alarm/pics/01.png)
-![2](https://raw.githubusercontent.com/chaeplin/esp8266_and_arduino/master/_06-power-meter/pics/1.jpg)
-![3](https://raw.githubusercontent.com/chaeplin/esp8266_and_arduino/master/_02-mqtt-sw/pics/4.jpg)
-![4](https://raw.githubusercontent.com/chaeplin/esp8266_and_arduino/master/_03-hx711-scale/pics/4.png)
-![5](https://raw.githubusercontent.com/chaeplin/esp8266_and_arduino/master/_04-mqtt-lcd-dust-sensor/pics/4.jpg)
-![6](https://raw.githubusercontent.com/chaeplin/esp8266_and_arduino/master/_07-ac-ir-remote-timer/pics/IMG_5048.JPG)
-
