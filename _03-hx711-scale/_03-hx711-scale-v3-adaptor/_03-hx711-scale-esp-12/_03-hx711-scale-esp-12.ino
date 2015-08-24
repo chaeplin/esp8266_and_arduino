@@ -15,7 +15,7 @@
   #include "ap_setting.h"
 #endif
 
-#define nemoisOnPin 13
+#define nemoisOnPin 14
 
 char* topic = "esp8266/arduino/s06";
 char* hellotopic = "HELLO";
@@ -104,7 +104,7 @@ void loop() {
     requestHx711();
   } 
   client.loop();
-  delay(500);
+  delay(1000);
 }
 
 void requestHx711() {
@@ -115,6 +115,7 @@ void requestHx711() {
 
      a = Wire.read();
      b = Wire.read();
+     c = Wire.read();
 
      x = a;
      x = x << 8 | b;

@@ -44,7 +44,7 @@ void loop()
       toI2cMeasured = int(ave.mean());
       typeofMeasured = 1;
     } else {
-      toI2cMeasured = Measured ;
+      toI2cMeasured = Measured;
     }
     digitalWrite(nemoisonPin, HIGH);
   } else {
@@ -62,7 +62,7 @@ void loop()
   Serial.println(toI2cMeasured);
 
   nofchecked++;
-  delay(500);
+  delay(1000);
 
 }
 
@@ -73,8 +73,9 @@ void requestEvent()
   myArray[1] = toI2cMeasured & 0xFF;
   myArray[2] = typeofMeasured;
   Wire.write(myArray, 3);
-  if ( typeofMeasured == 1) {
+  if ( typeofMeasured == 1)  {
     MeasuredIsSent = HIGH;
+    typeofMeasured = 0;
   }
 }
 
