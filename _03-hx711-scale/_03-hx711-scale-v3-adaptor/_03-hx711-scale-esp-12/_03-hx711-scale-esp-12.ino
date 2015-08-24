@@ -17,7 +17,10 @@
 
 #define nemoisOnPin 14
 
-char* topic = "esp8266/arduino/s06";
+char* topicEvery   = "esp8266/arduino/s16";
+char* topicAverage = "esp8266/arduino/s06";
+
+
 char* hellotopic = "HELLO";
 
 String clientName;
@@ -82,7 +85,7 @@ void setup() {
   if (client.connect((char*) clientName.c_str())) {
     Serial.println("Connected to MQTT broker");
     Serial.print("Topic is: ");
-    Serial.println(topic);
+    Serial.println(topicEvery);
 
     if (client.publish(hellotopic, "hello from ESP8266 s06")) {
       Serial.println("Publish ok");
@@ -129,7 +132,7 @@ void requestHx711() {
        payload += x;
        payload += "}";
 
-      sendHx711(payload);
+      sendHx711topicEvery(payload);
     }
 
      if ( c == 1 ) {
@@ -141,18 +144,18 @@ void requestHx711() {
        payload += x;
        payload += "}";
 
-      sendHx711(payload);
+      sendHx711topicAverage(payload);
     }
 
 }
 
 
-void sendHx711(String payload) {
+void sendHx711topicEvery(String payload) {
   if (!client.connected()) {
     if (client.connect((char*) clientName.c_str())) {
       Serial.println("Connected to MQTT broker again HX711");
       Serial.print("Topic is: ");
-      Serial.println(topic);
+      Serial.println(topicEvery);
     }
     else {
       Serial.println("MQTT connect failed");
@@ -166,7 +169,40 @@ void sendHx711(String payload) {
     Serial.println(payload);
 
     if (
-      client.publish(MQTT::Publish(topic, (char*) payload.c_str())
+      client.publish(MQTT::Publish(topicEvery, (char*) payload.c_str())
+                     .set_retain()
+                    )
+    ) {
+      Serial.println("Publish ok");
+    }
+    else {
+      Serial.println("Publish failed");
+    }
+  }
+
+}
+
+
+void sendHx711topicAverage(String payload) {
+  if (!client.connected()) {
+    if (client.connect((char*) clientName.c_str())) {
+      Serial.println("Connected to MQTT broker again HX711");
+      Serial.print("Topic is: ");
+      Serial.println(topicAverage);
+    }
+    else {
+      Serial.println("MQTT connect failed");
+      Serial.println("Will reset and try again...");
+      abort();
+    }
+  }
+
+  if (client.connected()) {
+    Serial.print("Sending payload: ");
+    Serial.println(payload);
+
+    if (
+      client.publish(MQTT::Publish(topicAverage, (char*) payload.c_str())
                      .set_retain()
                     )
     ) {
