@@ -209,7 +209,7 @@ void parseMqttMsg(String payload, String receivedtopic) {
   }
 
   if ( receivedtopic == "esp8266/arduino/s06" ) {
-    NW  = root["NemoWeight"];
+    NW  = root["NemoWeightAvg"];
   }
 
   if ( receivedtopic == "raspberrypi/doorpir" )
