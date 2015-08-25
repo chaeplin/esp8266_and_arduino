@@ -17,6 +17,7 @@
 #endif
 
 #define nemoisOnPin 14
+#define ledPin 13
 
 Average<float> ave(10);
 
@@ -47,6 +48,7 @@ void setup() {
   delay(20);
 
   pinMode(nemoisOnPin, INPUT);
+  pinMode(ledPin, OUTPUT);
 
   Serial.println();
   Serial.println();
@@ -110,6 +112,7 @@ void loop() {
   inuse = digitalRead(nemoisOnPin);
   if ( inuse == HIGH ) {
     measured = requestHX711();
+    digitalWrite(ledPin, HIGH);
     if (( measured > 500 ) && ( measured < 10000 ))
     {
       ave.push(measured);
@@ -133,6 +136,7 @@ void loop() {
     measured       = 0;
     nofchecked     = 0;
     AvgMeasuredIsSent = LOW;
+    digitalWrite(ledPin, LOW);
   }
 
   nofchecked++;

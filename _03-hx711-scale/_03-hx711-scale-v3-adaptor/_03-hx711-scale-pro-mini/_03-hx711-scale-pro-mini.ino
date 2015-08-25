@@ -4,7 +4,7 @@
 
 HX711 scale(A0, A1);
 
-#define DEBUG_OUT 0
+#define DEBUG_OUT 1
 
 int nemoisonPin    = 9;
 int measured       = 0;
@@ -35,7 +35,7 @@ void loop()
 
   measured = int( scale.get_units(5) * 1000 );
 
-  if ( Measured > 500 )
+  if ( measured > 500 )
   {
     digitalWrite(nemoisonPin, HIGH);
   } else {
