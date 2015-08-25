@@ -140,7 +140,7 @@ void requestHx711() {
        Serial.print(x);
 
 
-       String payload = "{\"NemoWeightAvg\":";
+       String payload = "{\"WeightAvg\":";
        payload += x;
        payload += "}";
 
