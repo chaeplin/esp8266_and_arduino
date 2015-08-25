@@ -62,7 +62,7 @@ void loop()
   Serial.println(toI2cMeasured);
 
   nofchecked++;
-  delay(1000);
+  delay(500);
 
 }
 

@@ -107,7 +107,7 @@ void loop() {
     requestHx711();
   } 
   client.loop();
-  delay(1000);
+  delay(500);
 }
 
 void requestHx711() {
