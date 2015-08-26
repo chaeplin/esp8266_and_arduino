@@ -20,7 +20,7 @@ void setup()
   pinMode(nemoisonPin, OUTPUT);
   digitalWrite(nemoisonPin, LOW);
 
-  delay(500);
+  delay(1000);
 
   scale.set_scale(23040.f);
   scale.tare();
@@ -33,7 +33,7 @@ void setup()
 void loop()
 {
 
-  measured = int( scale.get_units(5) * 1000 );
+  measured = int( scale.get_units(10) * 1000 );
 
   if ( measured > 500 )
   {
