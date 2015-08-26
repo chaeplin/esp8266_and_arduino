@@ -16,7 +16,6 @@
 #endif
 
 #define nemoisOnPin 14
-#define ledPin 13
 
 char* topicEvery   = "esp8266/arduino/s16";
 char* topicAverage = "esp8266/arduino/s06";
@@ -43,8 +42,6 @@ void setup() {
   delay(20);
 
   pinMode(nemoisOnPin,INPUT);
-  pinMode(ledPin, OUTPUT);
-  digitalWrite(ledPin, LOW);
 
   Serial.println();
   Serial.println();
@@ -108,10 +105,7 @@ void loop() {
   inuse = digitalRead(nemoisOnPin);
   if ( inuse == HIGH ) {
     requestHx711();
-    digitalWrite(ledPin, HIGH);
-  } else {
-    digitalWrite(ledPin, LOW);
-  }
+  } 
   client.loop();
   delay(500);
 }
@@ -213,7 +207,6 @@ void sendHx711topicAverage(String payload) {
                     )
     ) {
       Serial.println("Publish ok");
-      digitalWrite(ledPin, LOW);
     }
     else {
       Serial.println("Publish failed");
