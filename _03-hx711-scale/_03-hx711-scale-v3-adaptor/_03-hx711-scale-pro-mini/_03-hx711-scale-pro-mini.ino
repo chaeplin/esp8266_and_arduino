@@ -50,7 +50,7 @@ void loop()
     Serial.print(" : ");
     Serial.println(measured);
   }
-  delay(10);
+  delay(100);
 }
 
 void requestEvent()
