@@ -16,7 +16,7 @@
 
 RtcDS3231 Rtc;
 
-#define DEBUG_PRINT 0
+#define DEBUG_PRINT 1
 
 // wifi
 #ifdef __IS_MY_HOME
@@ -25,9 +25,9 @@ RtcDS3231 Rtc;
 #include "ap_setting.h"
 #endif
 
-char* topic = "esp8266/arduino/s03";
-char* subtopic = "#";
-char* hellotopic = "HELLO";
+const char* topic = "esp8266/arduino/s03";
+const char* subtopic = "#";
+const char* hellotopic = "HELLO";
 
 LiquidCrystal_I2C lcd(0x27, 20, 4);
 
@@ -50,7 +50,13 @@ float OT ;
 float PW ;
 int NW ;
 int PIR  ;
-String HO  ;
+int HO  ;
+int HL;
+
+int unihost;
+int rsphost;
+int unitot;
+int rsptot;
 
 int sleepmode = LOW ;
 int o_sleepmode = LOW ;
@@ -64,7 +70,8 @@ float OLD_OT ;
 float OLD_PW ;
 int OLD_NW ;
 int OLD_PIR  ;
-String OLD_HO  ;
+int OLD_HO  ;
+int OLD_HL  ;
 
 float OLD_dustDensity ;
 
@@ -192,35 +199,67 @@ void parseMqttMsg(String payload, String receivedtopic) {
   // esp8266/arduino/s06 : Scale
   // esp8266/arduino/s02  : T, H
   // esp8266/arduino/aircon : ________
-  // home/check/checkhwmny : host
+  // home/check/checkhwmny : unihost, rsphost, unitot, rsptot
+
 
   if ( receivedtopic == "esp8266/arduino/s02" ) {
-    H   = root["Humidity"];
-    T1  = root["Temperature"];
-    T2  = root["DS18B20"];
+    if (root.containsKey("Humidity")) {
+      H   = root["Humidity"];
+    }
+    if (root.containsKey("Temperature")) {
+      T1  = root["Temperature"];
+    }
+    if (root.containsKey("DS18B20")) {
+      T2  = root["DS18B20"];
+    }
   }
 
   if ( receivedtopic == "esp8266/arduino/s04" ) {
-    OT  = root["OUTSIDE"];
+    if (root.containsKey("OUTSIDE")) {
+      OT  = root["OUTSIDE"];
+    }
   }
 
   if ( receivedtopic == "esp8266/arduino/s07" ) {
-    PW  = root["powerAvg"];
+    if (root.containsKey("powerAvg")) {
+      PW  = root["powerAvg"];
+    }
   }
 
   if ( receivedtopic == "esp8266/arduino/s06" ) {
-    NW  = root["WeightAvg"];
+    if (root.containsKey("WeightAvg")) {
+      NW  = root["WeightAvg"];
+    }
   }
 
   if ( receivedtopic == "raspberrypi/doorpir" )
   {
-    PIR = root["DOORPIR"];
+    if (root.containsKey("DOORPIR")) {
+      PIR = root["DOORPIR"];
+    }
   }
 
   if ( receivedtopic == "home/check/checkhwmny" )
   {
-    const char* HOTEMP = root["host"];
-    HO = String(HOTEMP);
+    if (root.containsKey("unihost")) {
+      const char* tempunihost =  root["unihost"].asString();
+      unihost = atoi(tempunihost);
+    }
+
+    if (root.containsKey("rsphost")) {
+      const char* temprsphost =  root["rsphost"].asString();
+      rsphost = atoi(temprsphost);
+    }
+
+    if (root.containsKey("unitot")) {
+      const char* tempunitot =  root["unitot"].asString();
+      unitot = atoi(tempunitot);
+    }
+
+    if (root.containsKey("rsptot")) {
+      const char* temprsptot =  root["rsptot"].asString();
+      rsptot = atoi(temprsptot);
+    }
   }
 }
 
@@ -302,33 +341,7 @@ void setup() {
   Serial.print(" as ");
   Serial.println(clientName);
 
-  /*
-    if (client.connect((char*) clientName.c_str())) {
-      Serial.println("Connected to MQTT broker");
-      Serial.print("Topic is: ");
-      Serial.println(topic);
-
-      if (client.publish(hellotopic, "hello from ESP8266 s03")) {
-        Serial.println("Publish ok");
-      } else {
-        Serial.println("Publish failed");
-      }
-
-      if (client.subscribe(subtopic)) {
-        Serial.println("Subscribe ok");
-      } else {
-        Serial.println("Subscribe failed");
-      }
-
-    } else {
-      Serial.println("MQTT connect failed");
-      Serial.println("Will reset and try again...");
-      abort();
-    }
-  */
-
-
-  lcd.init();                      // initialize the lcd
+  lcd.init();
   lcd.backlight();
   lcd.clear();
   lcd.createChar(1, termometru);
@@ -338,9 +351,6 @@ void setup() {
   lcd.createChar(5, pirfill);
   lcd.createChar(6, powericon);
   lcd.createChar(7, nemoicon);
-  /*
-  lcd.createChar(8, watticon);
-  */
 
   lcd.setCursor(0, 1);
   lcd.write(1);
@@ -350,15 +360,6 @@ void setup() {
 
   lcd.setCursor(8, 2);  // power
   lcd.write(6);
-
-  /*
-    lcd.setCursor(0, 3);  // dust
-    lcd.write(3);
-
-    lcd.setCursor(13, 3); // nemo
-    lcd.write(7);
-
-  */
 
   lcd.setCursor(0, 3);  // nemo
   lcd.write(7);
@@ -390,7 +391,14 @@ void setup() {
   NW = -1000 ;
   PIR = 0 ;
   dustDensity = -1000 ;
-  HO = '0' ;
+  HO = 0 ;
+  HL = 0;
+  
+  unihost = 0;
+  rsphost = 0;
+  
+  unitot = 0;
+  rsptot = 0;
 
   OLD_H  = -1000 ;
   OLD_T1 = -1000 ;
@@ -400,7 +408,8 @@ void setup() {
   OLD_NW = -1000 ;
   OLD_PIR = 0 ;
   OLD_dustDensity = -1000 ;
-  OLD_HO = '0';
+  OLD_HO = 0;
+  OLD_HL = 0;
 
   OLD_x = 0 ;
 
@@ -449,10 +458,14 @@ void checkDisplayValue() {
     o_sleepmode = sleepmode;
   }
 
-  if ( HO != OLD_HO )
+  HO = unihost + rsphost;
+  HL = unitot + rsptot;
+  
+  if (( HO != OLD_HO ) || ( HL != OLD_HL))
   {
-    displayHost(HO);
+    displayHost(HO, HL);
     OLD_HO = HO;
+    OLD_HL = HL;
   }
 
   if (( PW != OLD_PW ) && ( 0 <= PW < 10000 ))
@@ -463,13 +476,6 @@ void checkDisplayValue() {
 
   if ( NW != OLD_NW )
   {
-    /*
-    if ( OLD_NW == -1000 ) {
-      displayNemoWeight(NW);
-    } else {
-      displayNemoWeight(NW);
-    }
-    */
     displayNemoWeight(NW);
     OLD_NW = NW;
   }
@@ -512,17 +518,22 @@ void checkDisplayValue() {
     Serial.print(" ===> ");
     Serial.print(PW);
     Serial.print(" ===> ");
-    Serial.print(HO);    
+    Serial.print(HO);
     Serial.print(" ===> ");
     Serial.println(NW);
   }
-
 }
 
-void displayHost(String HO)
+void displayHost(int numofhost, int numofall)
 {
-  lcd.setCursor(18, 2);
-  lcd.print(HO);
+  lcd.setCursor(15, 2);
+  lcd.print(numofhost);
+
+  lcd.setCursor(17, 2);
+    if (numofall < 10) {
+    lcd.print(' ');
+  }
+  lcd.print(numofall);
 }
 
 void displaysleepmode(int sleepmode)
