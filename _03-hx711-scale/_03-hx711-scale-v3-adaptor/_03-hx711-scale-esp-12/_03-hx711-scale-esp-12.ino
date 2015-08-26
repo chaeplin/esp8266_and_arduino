@@ -106,7 +106,7 @@ void setup() {
 
   for (int i = 0; i < 10; ++i) {
     ave.push(requestHX711());
-    delay(300);
+    delay(10);
   }
   measured_blank = int(ave.mean());
 
@@ -117,7 +117,7 @@ void loop() {
   measured = requestHX711();
   if ( inuse == HIGH ) {
     digitalWrite(ledPin, HIGH);
-    if (( measured > 500 ) && ( measured < 10000 ))
+    if (( measured > 200 ) && ( measured < 10000 ))
     {
       ave.push(measured);
 
@@ -140,7 +140,7 @@ void loop() {
     if ( AvgMeasuredIsSent == HIGH ) {
       for (int i = 0; i < 10; ++i) {
         ave.push(requestHX711());
-        delay(300);
+        delay(10);
       }
       measured_poop = int(ave.mean());
 
@@ -157,7 +157,7 @@ void loop() {
   }
 
   nofchecked++;
-  delay(500);
+  delay(10);
 
 }
 
