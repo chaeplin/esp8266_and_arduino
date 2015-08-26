@@ -58,7 +58,7 @@ void loop()
     Serial.println(measured);
   }
   nofchecked++;
-  delay(100);
+  delay(200);
 }
 
 void requestEvent()
