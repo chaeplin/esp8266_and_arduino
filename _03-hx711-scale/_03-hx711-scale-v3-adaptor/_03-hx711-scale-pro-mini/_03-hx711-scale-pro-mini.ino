@@ -8,6 +8,7 @@ HX711 scale(A0, A1);
 
 int nemoisonPin    = 9;
 int measured       = 0;
+int nofchecked     = 0;
 long startMills;
 
 void setup()
@@ -38,11 +39,15 @@ void loop()
   measured = int( scale.get_units(10) * 1000 );
   if ( measured < 0 ) { measured = 0; }
 
-  if ( measured > 200 )
+  if ( measured > 500 )
   {
     digitalWrite(nemoisonPin, HIGH);
   } else {
     digitalWrite(nemoisonPin, LOW);
+    if ( nofchecked > 600 ) {
+      nofchecked = 0;
+      scale.tare();
+    }
   }
 
   if ( DEBUG_OUT ) {
@@ -50,6 +55,7 @@ void loop()
     Serial.print(" : ");
     Serial.println(measured);
   }
+  nofchecked++;
   delay(100);
 }
 

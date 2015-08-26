@@ -117,16 +117,28 @@ void setup() {
 
 void check_blank()
 {
-
   for (int i = 0; i < 10; ++i) {
+    int blank_measured = requestHX711();
     digitalWrite(ledPin, HIGH);
-    ave.push(requestHX711());
+    ave.push(blank_measured);
     delay(500);
     digitalWrite(ledPin, LOW);
     delay(500);
   }
   measured_blank = int(ave.mean());
   blank_checked = HIGH;
+  Serial.print("blank_checked : ");
+  Serial.println(measured_blank);
+}
+
+void check_blank_again()
+{
+  for (int i = 0; i < 10; ++i) {
+    int blank_measured = requestHX711();
+    if ( blank_measured > 500 ) { return; }
+    delay(1000);
+  }
+  measured_blank = int(ave.mean());
   Serial.print("blank_checked : ");
   Serial.println(measured_blank);
 }
@@ -140,7 +152,7 @@ void loop() {
   measured = requestHX711();
   if ( inuse == HIGH ) {
     digitalWrite(ledPin, HIGH);
-    if (( measured > 200 ) && ( measured < 10000 ))
+    if (( measured > 500 ) && ( measured < 10000 ))
     {
       ave.push(measured);
 
@@ -170,6 +182,7 @@ void loop() {
         digitalWrite(ledPin, LOW);
         delay(500);
       }
+      
       measured_poop = int(ave.mean());
 
       Serial.print("measured_poop : ");
@@ -181,9 +194,14 @@ void loop() {
 
       sendHx711toMqtt(payload, topicEvery);
     }
+
     measured       = 0;
-    nofchecked     = 0;
     AvgMeasuredIsSent = LOW;
+
+    if ( nofchecked > 600 ) {
+      nofchecked     = 0;
+      check_blank_again();
+    }
   }
 
   nofchecked++;
