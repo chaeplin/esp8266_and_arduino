@@ -37,9 +37,9 @@ int AvgMeasuredIsSent = LOW;
 int inuse             = LOW;
 int measured          = 0;
 int nofchecked        = 0;
+int measured_blank    = 0;
+int measured_poop     = 0;
 
-void callback(const MQTT::Publish& pub) {
-}
 
 void setup() {
   Serial.begin(38400);
@@ -54,8 +54,6 @@ void setup() {
   Serial.println();
   Serial.print("Connecting to ");
   Serial.println(ssid);
-
-  client.set_callback(callback);
 
   WiFi.mode(WIFI_STA);
 
@@ -106,14 +104,20 @@ void setup() {
     abort();
   }
 
+  for (int i = 0; i < 10; ++i) {
+    ave.push(requestHX711());
+    delay(10);
+  }
+  measured_blank = int(ave.mean());
+
 }
 
 void loop() {
   inuse = digitalRead(nemoisOnPin);
+  measured = requestHX711();
   if ( inuse == HIGH ) {
-    measured = requestHX711();
     digitalWrite(ledPin, HIGH);
-    if (( measured > 500 ) && ( measured < 10000 ))
+    if (( measured > 200 ) && ( measured < 10000 ))
     {
       ave.push(measured);
 
@@ -133,6 +137,19 @@ void loop() {
       }
     }
   } else {
+    if ( AvgMeasuredIsSent == HIGH ) {
+      for (int i = 0; i < 10; ++i) {
+        ave.push(requestHX711());
+        delay(10);
+      }
+      measured_poop = int(ave.mean());
+
+      payload = "{\"Weightpoop\":";
+      payload += measured_poop - measured_blank;
+      payload += "}";
+
+      sendHx711toMqtt(payload, topicEvery);
+    }
     measured       = 0;
     nofchecked     = 0;
     AvgMeasuredIsSent = LOW;
@@ -140,8 +157,8 @@ void loop() {
   }
 
   nofchecked++;
-  client.loop();
-  delay(500);
+  delay(10);
+
 }
 
 int requestHX711() {

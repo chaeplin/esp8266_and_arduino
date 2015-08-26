@@ -8,6 +8,7 @@ HX711 scale(A0, A1);
 
 int nemoisonPin    = 9;
 int measured       = 0;
+long startMills;
 
 void setup()
 {
@@ -17,10 +18,12 @@ void setup()
     delay(100);
   }
 
+  startMills = millis();
+
   pinMode(nemoisonPin, OUTPUT);
   digitalWrite(nemoisonPin, LOW);
 
-  delay(500);
+  delay(1000);
 
   scale.set_scale(23040.f);
   scale.tare();
@@ -32,10 +35,10 @@ void setup()
 
 void loop()
 {
+  measured = int( scale.get_units(10) * 1000 );
+  if ( measured < 0 ) { measured = 0; }
 
-  measured = int( scale.get_units(5) * 1000 );
-
-  if ( measured > 500 )
+  if ( measured > 200 )
   {
     digitalWrite(nemoisonPin, HIGH);
   } else {
@@ -43,11 +46,11 @@ void loop()
   }
 
   if ( DEBUG_OUT ) {
-    Serial.print("measured :  ");
+    Serial.print((millis() - startMills) * 0.001, 2);
+    Serial.print(" : ");
     Serial.println(measured);
   }
-  delay(300);
-
+  delay(10);
 }
 
 void requestEvent()
@@ -57,5 +60,3 @@ void requestEvent()
   myArray[1] = measured & 0xFF;
   Wire.write(myArray, 2);
 }
-
-
