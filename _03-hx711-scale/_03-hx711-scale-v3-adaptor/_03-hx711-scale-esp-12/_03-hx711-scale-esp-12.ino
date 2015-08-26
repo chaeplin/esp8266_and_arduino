@@ -66,7 +66,10 @@ void setup() {
 #endif
 
   while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
+    digitalWrite(ledPin, HIGH);
+    delay(200);
+    digitalWrite(ledPin, LOW);
+    delay(200);
     Serial.print(".");
   }
 
@@ -88,7 +91,12 @@ void setup() {
   Serial.print(" as ");
   Serial.println(clientName);
 
-  if (client.connect((char*) clientName.c_str())) {
+  if (
+    client.connect(MQTT::Connect((char*) clientName.c_str())
+                   .set_clean_session()
+                   .set_will("status", "down")
+                   .set_keepalive(2))
+  ) {
     Serial.println("Connected to MQTT broker");
     Serial.print("Topic is: ");
     Serial.println(topicEvery);
@@ -109,9 +117,13 @@ void setup() {
 
 void check_blank()
 {
+
   for (int i = 0; i < 10; ++i) {
+    digitalWrite(ledPin, HIGH);
     ave.push(requestHX711());
-    delay(1000);
+    delay(500);
+    digitalWrite(ledPin, LOW);
+    delay(500);
   }
   measured_blank = int(ave.mean());
   blank_checked = HIGH;
@@ -148,17 +160,21 @@ void loop() {
       }
     }
   } else {
+    digitalWrite(ledPin, LOW);
     if ( AvgMeasuredIsSent == HIGH ) {
       delay(2000);
       for (int i = 0; i < 10; ++i) {
+        digitalWrite(ledPin, HIGH);
         ave.push(requestHX711());
-        delay(1000);
+        delay(500);
+        digitalWrite(ledPin, LOW);
+        delay(500);
       }
       measured_poop = int(ave.mean());
 
       Serial.print("measured_poop : ");
       Serial.println(measured_poop);
-      
+
       payload = "{\"Weightpoop\":";
       payload += (measured_poop - measured_blank);
       payload += "}";
@@ -168,7 +184,6 @@ void loop() {
     measured       = 0;
     nofchecked     = 0;
     AvgMeasuredIsSent = LOW;
-    digitalWrite(ledPin, LOW);
   }
 
   nofchecked++;
@@ -194,7 +209,12 @@ int requestHX711() {
 
 void sendHx711toMqtt(String payload, char* topic) {
   if (!client.connected()) {
-    if (client.connect((char*) clientName.c_str())) {
+    if (
+      client.connect(MQTT::Connect((char*) clientName.c_str())
+                     .set_clean_session()
+                     .set_will("status", "down")
+                     .set_keepalive(2))
+    ) {
       Serial.println("Connected to MQTT broker again HX711");
     }
     else {
