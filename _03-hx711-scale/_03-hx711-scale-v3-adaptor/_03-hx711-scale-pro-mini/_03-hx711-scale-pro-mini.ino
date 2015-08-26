@@ -6,9 +6,10 @@ HX711 scale(A0, A1);
 
 #define DEBUG_OUT 1
 
-int nemoisonPin    = 9;
-int measured       = 0;
-int nofchecked     = 0;
+const int nemoisonPin = 9;
+volatile int measured = 0;
+volatile int tosend   = 0;
+int nofchecked = 0;
 long startMills;
 
 void setup()
@@ -38,6 +39,7 @@ void loop()
 {
   measured = int( scale.get_units(10) * 1000 );
   if ( measured < 0 ) { measured = 0; }
+  tosend = measured;
 
   if ( measured > 500 )
   {
@@ -62,7 +64,7 @@ void loop()
 void requestEvent()
 {
   byte myArray[2];
-  myArray[0] = (measured >> 8 ) & 0xFF;
-  myArray[1] = measured & 0xFF;
+  myArray[0] = (tosend >> 8 ) & 0xFF;
+  myArray[1] = tosend & 0xFF;
   Wire.write(myArray, 2);
 }
