@@ -16,7 +16,7 @@
 
 RtcDS3231 Rtc;
 
-#define DEBUG_PRINT 0
+#define DEBUG_PRINT 1
 
 // wifi
 #ifdef __IS_MY_HOME
@@ -25,9 +25,9 @@ RtcDS3231 Rtc;
 #include "ap_setting.h"
 #endif
 
-char* topic = "esp8266/arduino/s03";
-char* subtopic = "#";
-char* hellotopic = "HELLO";
+const char* topic = "esp8266/arduino/s03";
+const char* subtopic = "#";
+const char* hellotopic = "HELLO";
 
 LiquidCrystal_I2C lcd(0x27, 20, 4);
 
@@ -50,7 +50,7 @@ float OT ;
 float PW ;
 int NW ;
 int PIR  ;
-String HO  ;
+int HO  ;
 
 int sleepmode = LOW ;
 int o_sleepmode = LOW ;
@@ -64,7 +64,7 @@ float OLD_OT ;
 float OLD_PW ;
 int OLD_NW ;
 int OLD_PIR  ;
-String OLD_HO  ;
+int OLD_HO  ;
 
 float OLD_dustDensity ;
 
@@ -192,7 +192,7 @@ void parseMqttMsg(String payload, String receivedtopic) {
   // esp8266/arduino/s06 : Scale
   // esp8266/arduino/s02  : T, H
   // esp8266/arduino/aircon : ________
-  // home/check/checkhwmny : host
+  // home/check/checkhwmny : unihost, rsphost, unitot, rsptot
 
   if ( receivedtopic == "esp8266/arduino/s02" ) {
     H   = root["Humidity"];
@@ -219,8 +219,17 @@ void parseMqttMsg(String payload, String receivedtopic) {
 
   if ( receivedtopic == "home/check/checkhwmny" )
   {
+    if ( root["unihost"] ) {
+      Serial.println(root["unihost"]);
+    }
+    /*
+    const char*
+    const char*
+
+
     const char* HOTEMP = root["host"];
     HO = String(HOTEMP);
+    */
   }
 }
 
@@ -449,11 +458,13 @@ void checkDisplayValue() {
     o_sleepmode = sleepmode;
   }
 
-  if ( HO != OLD_HO )
-  {
-    displayHost(HO);
-    OLD_HO = HO;
-  }
+  /*
+    if ( HO != OLD_HO )
+    {
+      displayHost(HO);
+      OLD_HO = HO;
+    }
+  */
 
   if (( PW != OLD_PW ) && ( 0 <= PW < 10000 ))
   {
@@ -512,18 +523,20 @@ void checkDisplayValue() {
     Serial.print(" ===> ");
     Serial.print(PW);
     Serial.print(" ===> ");
-    Serial.print(HO);    
+    Serial.print(HO);
     Serial.print(" ===> ");
     Serial.println(NW);
   }
 
 }
 
+/*
 void displayHost(String HO)
 {
   lcd.setCursor(18, 2);
   lcd.print(HO);
 }
+*/
 
 void displaysleepmode(int sleepmode)
 {
