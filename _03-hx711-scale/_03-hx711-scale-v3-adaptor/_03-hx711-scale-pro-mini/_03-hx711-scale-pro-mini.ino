@@ -9,7 +9,6 @@ HX711 scale(A0, A1);
 const int nemoisonPin = 9;
 volatile int measured = 0;
 volatile int tosend   = 0;
-int nofchecked = 0;
 long startMills;
 
 void setup()
@@ -38,7 +37,15 @@ void setup()
 void loop()
 {
   measured = int( scale.get_units(10) * 1000 );
-  if ( measured < 0 ) { measured = 0; }
+
+  if ( DEBUG_OUT ) {
+    Serial.print((millis() - startMills) * 0.001, 2);
+    Serial.print(" : ");
+    Serial.println(measured);
+  }
+
+  if (( measured < 0 ) || ( measured > 7000 )){ measured = 0; }
+
   tosend = measured;
 
   if ( measured > 500 )
@@ -46,18 +53,9 @@ void loop()
     digitalWrite(nemoisonPin, HIGH);
   } else {
     digitalWrite(nemoisonPin, LOW);
-    if ( nofchecked > 600 ) {
-      nofchecked = 0;
-      scale.tare();
     }
   }
 
-  if ( DEBUG_OUT ) {
-    Serial.print((millis() - startMills) * 0.001, 2);
-    Serial.print(" : ");
-    Serial.println(measured);
-  }
-  nofchecked++;
   delay(200);
 }
 
