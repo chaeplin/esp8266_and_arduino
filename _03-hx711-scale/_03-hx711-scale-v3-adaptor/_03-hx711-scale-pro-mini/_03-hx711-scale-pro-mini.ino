@@ -4,7 +4,7 @@
 
 HX711 scale(A0, A1);
 
-#define DEBUG_OUT 1
+#define DEBUG_OUT 0
 
 const int nemoisonPin = 9;
 volatile int measured = 0;
@@ -24,7 +24,7 @@ void setup()
   pinMode(nemoisonPin, OUTPUT);
   digitalWrite(nemoisonPin, LOW);
 
-  delay(1000);
+  delay(5000);
 
   scale.set_scale(23040.f);
   scale.tare();
@@ -36,16 +36,29 @@ void setup()
 
 void loop()
 {
-  measured = int( scale.get_units(10) * 1000 );
-
   if ( DEBUG_OUT ) {
     Serial.print((millis() - startMills) * 0.001, 2);
-    Serial.print(" : ");
-    Serial.println(measured);
+    Serial.print("\t: ");
+  }
+    
+  float fmeasured = scale.get_units(10) ; 
+  measured = int(fmeasured * 1000) ;
+
+  if ( DEBUG_OUT ) {
+    Serial.print(fmeasured, 5);
+    Serial.print("\t: ");
+    Serial.print(measured);    
   }
 
-  if (( measured < 0 ) || ( measured > 7000 )){ measured = 0; }
-
+  if (( measured < 0 ) || ( measured > 7000 )) {
+    measured = 0;
+  }
+  
+  if ( DEBUG_OUT ) {
+    Serial.print("\t:\t");
+    Serial.println(measured);
+  }
+  
   tosend = measured;
 
   if ( measured > 500 )
@@ -53,10 +66,11 @@ void loop()
     digitalWrite(nemoisonPin, HIGH);
   } else {
     digitalWrite(nemoisonPin, LOW);
-    }
   }
 
+  //scale.power_down();
   delay(200);
+  //scale.power_up();
 }
 
 void requestEvent()
