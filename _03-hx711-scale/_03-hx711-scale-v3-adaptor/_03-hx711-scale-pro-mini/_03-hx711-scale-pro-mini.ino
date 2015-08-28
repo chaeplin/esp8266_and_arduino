@@ -4,7 +4,7 @@
 
 HX711 scale(A0, A1);
 
-#define DEBUG_OUT 0
+#define DEBUG_OUT 1
 
 const int nemoisonPin = 9;
 volatile int measured = 0;
@@ -49,10 +49,6 @@ void loop()
     Serial.print("\t: ");
     Serial.print(measured);    
   }
-
-  if (( measured < 0 ) || ( measured > 7000 )) {
-    measured = 0;
-  }
   
   if ( DEBUG_OUT ) {
     Serial.print("\t:\t");
@@ -75,8 +71,14 @@ void loop()
 
 void requestEvent()
 {
-  byte myArray[2];
-  myArray[0] = (tosend >> 8 ) & 0xFF;
-  myArray[1] = tosend & 0xFF;
-  Wire.write(myArray, 2);
+  byte myArray[3];
+  myArray[0] = (abs(tosend) >> 8 ) & 0xFF;
+  myArray[1] = abs(tosend) & 0xFF;
+  if ( tosend < 0 ) {
+    myArray[2] = 1;
+  } else {
+    myArray[2] = 0;
+  }
+
+  Wire.write(myArray, 3);
 }

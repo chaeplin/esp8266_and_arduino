@@ -119,7 +119,7 @@ void check_blank()
 {
   for (int i = 0; i < 15; i++) {
     int blank_measured = requestHX711();
-    if ( blank_measured > 300 ) { return ; }
+    if ( blank_measured > 500 ) { return ; }
     digitalWrite(ledPin, HIGH);
     ave.push(blank_measured);
     delay(500);
@@ -196,14 +196,17 @@ void loop() {
     if ( AvgMeasuredIsSent == HIGH ) {
         check_poop();  
     }
+
+    payload = "{\"NemoEmpty\":";
+    payload += measured;
+    payload += "}";
+
+    sendHx711toMqtt(payload, topicEvery);
+
     measured          = 0;
     nofchecked        = 0;
     AvgMeasuredIsSent = LOW;
-  }
 
-  if ( nofchecked > 6000 ) {
-    nofchecked     = 0;
-    blank_checked = LOW;
   }
 
   nofchecked++;
@@ -215,13 +218,19 @@ int requestHX711() {
   Wire.requestFrom(2, 3);
 
   int x;
-  byte a, b;
+  byte a, b, c;
 
   a = Wire.read();
   b = Wire.read();
+  c = Wire.read();
+
 
   x = a;
   x = x << 8 | b;
+
+  if ( c == 1 ) {
+    x = x * -1;
+  }
 
   return x;
 }
