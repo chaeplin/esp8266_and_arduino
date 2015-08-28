@@ -37,6 +37,7 @@ int AvgMeasuredIsSent = LOW;
 int inuse             = LOW;
 int measured          = 0;
 int nofchecked        = 0;
+int nofnotinuse       = 0;
 int measured_blank    = 0;
 int measured_poop     = 0;
 int blank_checked     = LOW;
@@ -119,7 +120,9 @@ void check_blank()
 {
   for (int i = 0; i < 15; i++) {
     int blank_measured = requestHX711();
-    if ( blank_measured > 500 ) { return ; }
+    if ( blank_measured > 500 ) {
+      return ;
+    }
     digitalWrite(ledPin, HIGH);
     ave.push(blank_measured);
     delay(500);
@@ -164,12 +167,16 @@ void check_poop()
 
 void loop() {
   if ( blank_checked == LOW ) {
-        delay(5000);
-        check_blank();
+    delay(5000);
+    check_blank();
   }
 
   inuse = digitalRead(nemoisOnPin);
   measured = requestHX711();
+
+  Serial.print("measured : ");
+  Serial.println(measured);
+
   if ( inuse == HIGH ) {
     digitalWrite(ledPin, HIGH);
     if ( measured > 20 )
@@ -180,40 +187,47 @@ void loop() {
       {
         payload = "{\"WeightAvg\":";
         payload += int(ave.mean());
+        payload += ",\"WeightAvgStddev\":";
+        payload += ave.stddev();
         payload += "}";
 
         sendHx711toMqtt(payload, topicAverage);
       } else {
-        payload = "{\"NemoWeight\":";
-        payload += measured;
-        payload += "}";
+        if ( nofchecked > 3 ) {
+          payload = "{\"NemoWeight\":";
+          payload += measured;
+          payload += "}";
 
-        sendHx711toMqtt(payload, topicEvery);
+          sendHx711toMqtt(payload, topicEvery);
+        }
       }
     }
   } else {
     digitalWrite(ledPin, LOW);
     if ( AvgMeasuredIsSent == HIGH ) {
-        check_poop();
-        AvgMeasuredIsSent = LOW; 
+      check_poop();
+      AvgMeasuredIsSent = LOW;
     }
 
     ave.push(measured);
 
-    if ( ( ave.stddev() < 20) && ( nofchecked > 15 ) ) {
+    if ( ( ave.stddev() < 50) && ( nofnotinuse > 15 ) ) {
       payload = "{\"NemoEmpty\":";
       payload += int(ave.mean());
+      payload += ",\"NemoEmptyStddev\":";
+      payload += ave.stddev();
       payload += "}";
 
       sendHx711toMqtt(payload, topicEvery);
 
-      measured   = 0;
-      nofchecked = 0;
+      measured    = 0;
+      nofnotinuse = 0;
     }
-
+    nofchecked = 0;
   }
 
   nofchecked++;
+  nofnotinuse++;
   delay(1000);
 
 }
@@ -233,7 +247,7 @@ int requestHX711() {
   x = x << 8 | b;
 
   if ( x >= 7000 ) {
-    x = 0;  
+    x = 0;
   }
 
   if ( c == 1 ) {
