@@ -194,18 +194,22 @@ void loop() {
   } else {
     digitalWrite(ledPin, LOW);
     if ( AvgMeasuredIsSent == HIGH ) {
-        check_poop();  
+        check_poop();
+        AvgMeasuredIsSent = LOW; 
     }
 
-    payload = "{\"NemoEmpty\":";
-    payload += measured;
-    payload += "}";
+    ave.push(measured);
 
-    sendHx711toMqtt(payload, topicEvery);
+    if ( ( ave.stddev() < 20) && ( nofchecked > 15 ) ) {
+      payload = "{\"NemoEmpty\":";
+      payload += int(ave.mean());
+      payload += "}";
 
-    measured          = 0;
-    nofchecked        = 0;
-    AvgMeasuredIsSent = LOW;
+      sendHx711toMqtt(payload, topicEvery);
+
+      measured   = 0;
+      nofchecked = 0;
+    }
 
   }
 
