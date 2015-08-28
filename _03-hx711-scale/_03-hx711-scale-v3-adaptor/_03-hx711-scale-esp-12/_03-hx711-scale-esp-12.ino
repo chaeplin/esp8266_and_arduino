@@ -117,8 +117,9 @@ void setup() {
 
 void check_blank()
 {
-  for (int i = 0; i < 10; ++i) {
+  for (int i = 0; i < 15; i++) {
     int blank_measured = requestHX711();
+    if ( blank_measured > 300 ) { return ; }
     digitalWrite(ledPin, HIGH);
     ave.push(blank_measured);
     delay(500);
@@ -129,34 +130,53 @@ void check_blank()
   blank_checked = HIGH;
   Serial.print("blank_checked : ");
   Serial.println(measured_blank);
+
+  payload = "{\"WeightBlank\":";
+  payload += measured_blank;
+  payload += "}";
+
+  sendHx711toMqtt(payload, topicEvery);
+
 }
 
-void check_blank_again()
+void check_poop()
 {
-  for (int i = 0; i < 10; ++i) {
-    int blank_measured = requestHX711();
-    if ( blank_measured > 500 ) { return; }
-    delay(1000);
+  for (int i = 0; i < 15; i++) {
+    int poop_measured = requestHX711();
+    digitalWrite(ledPin, HIGH);
+    ave.push(poop_measured);
+    delay(500);
+    digitalWrite(ledPin, LOW);
+    delay(500);
   }
-  measured_blank = int(ave.mean());
-  Serial.print("blank_checked : ");
-  Serial.println(measured_blank);
+
+  measured_poop = int(ave.mean());
+  Serial.print("poop_checked : ");
+  Serial.println(measured_poop);
+
+  payload = "{\"WeightPoop\":";
+  payload += measured_poop;
+  payload += "}";
+
+  sendHx711toMqtt(payload, topicEvery);
+
 }
 
 void loop() {
   if ( blank_checked == LOW ) {
-    check_blank();
+        delay(5000);
+        check_blank();
   }
 
   inuse = digitalRead(nemoisOnPin);
   measured = requestHX711();
   if ( inuse == HIGH ) {
     digitalWrite(ledPin, HIGH);
-    if (( measured > 500 ) && ( measured < 10000 ))
+    if ( measured > 20 )
     {
       ave.push(measured);
 
-      if ( ((ave.maximum() - ave.minimum()) < 100 ) && ( ave.stddev() < 50) && ( nofchecked > 10 ) && ( ave.mean() > 1000 ) && ( ave.mean() < 10000 ) && ( AvgMeasuredIsSent == LOW ) )
+      if ( ((ave.maximum() - ave.minimum()) < 50 ) && ( ave.stddev() < 20) && ( nofchecked > 15 ) && ( ave.mean() > 1000 ) && ( ave.mean() < 10000 ) && ( AvgMeasuredIsSent == LOW ) )
       {
         payload = "{\"WeightAvg\":";
         payload += int(ave.mean());
@@ -174,34 +194,16 @@ void loop() {
   } else {
     digitalWrite(ledPin, LOW);
     if ( AvgMeasuredIsSent == HIGH ) {
-      delay(2000);
-      for (int i = 0; i < 10; ++i) {
-        digitalWrite(ledPin, HIGH);
-        ave.push(requestHX711());
-        delay(500);
-        digitalWrite(ledPin, LOW);
-        delay(500);
-      }
-      
-      measured_poop = int(ave.mean());
-
-      Serial.print("measured_poop : ");
-      Serial.println(measured_poop);
-
-      payload = "{\"Weightpoop\":";
-      payload += (measured_poop - measured_blank);
-      payload += "}";
-
-      sendHx711toMqtt(payload, topicEvery);
+        check_poop();  
     }
-
-    measured       = 0;
+    measured          = 0;
+    nofchecked        = 0;
     AvgMeasuredIsSent = LOW;
+  }
 
-    if ( nofchecked > 600 ) {
-      nofchecked     = 0;
-      check_blank_again();
-    }
+  if ( nofchecked > 6000 ) {
+    nofchecked     = 0;
+    blank_checked = LOW;
   }
 
   nofchecked++;
