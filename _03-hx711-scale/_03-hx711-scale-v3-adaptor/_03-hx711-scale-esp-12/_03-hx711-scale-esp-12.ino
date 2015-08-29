@@ -174,8 +174,8 @@ void loop() {
   inuse = digitalRead(nemoisOnPin);
   measured = requestHX711();
 
-  Serial.print("measured : ");
-  Serial.println(measured);
+  //Serial.print("measured : ");
+  //Serial.println(measured);
 
   if ( inuse == HIGH ) {
     digitalWrite(ledPin, HIGH);
