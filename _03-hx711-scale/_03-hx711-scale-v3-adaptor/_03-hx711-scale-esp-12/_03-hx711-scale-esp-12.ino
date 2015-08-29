@@ -41,7 +41,7 @@ int nofnotinuse       = 0;
 int measured_blank    = 0;
 int measured_poop     = 0;
 int blank_checked     = LOW;
-
+int measured_empty    = 0;
 
 void setup() {
   Serial.begin(38400);
@@ -158,10 +158,13 @@ void check_poop()
   Serial.println(measured_poop);
 
   payload = "{\"WeightPoop\":";
-  payload += measured_poop;
+  payload += ( measured_poop - measured_empty );
   payload += "}";
 
   sendHx711toMqtt(payload, topicEvery);
+
+  payload = "{\"WeightAvg\":0}";
+  sendHx711toMqtt(payload, topicAverage);  
 
 }
 
@@ -186,7 +189,7 @@ void loop() {
       if ( ((ave.maximum() - ave.minimum()) < 50 ) && ( ave.stddev() < 20) && ( nofchecked > 15 ) && ( ave.mean() > 1000 ) && ( ave.mean() < 10000 ) && ( AvgMeasuredIsSent == LOW ) )
       {
         payload = "{\"WeightAvg\":";
-        payload += int(ave.mean());
+        payload += ( int(ave.mean()) - measured_empty );
         payload += ",\"WeightAvgStddev\":";
         payload += ave.stddev();
         payload += "}";
@@ -195,7 +198,7 @@ void loop() {
       } else {
         if ( nofchecked > 3 ) {
           payload = "{\"NemoWeight\":";
-          payload += measured;
+          payload += ( measured - measured_empty );
           payload += "}";
 
           sendHx711toMqtt(payload, topicEvery);
@@ -219,6 +222,8 @@ void loop() {
       payload += "}";
 
       sendHx711toMqtt(payload, topicEvery);
+
+      measured_empty = int(ave.mean());
 
       measured    = 0;
       nofnotinuse = 0;
