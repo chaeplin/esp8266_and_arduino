@@ -228,7 +228,10 @@ void parseMqttMsg(String payload, String receivedtopic) {
 
   if ( receivedtopic == "esp8266/arduino/s06" ) {
     if (root.containsKey("WeightAvg")) {
-      NW  = root["WeightAvg"];
+      int temp_NW = root["WeightAvg"];
+      if ( temp_NW > 0 ) {
+        NW  = root["WeightAvg"];
+      }
     }
   }
 
