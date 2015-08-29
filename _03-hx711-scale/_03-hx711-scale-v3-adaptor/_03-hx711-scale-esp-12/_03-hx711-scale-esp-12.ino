@@ -225,7 +225,9 @@ void loop() {
 
       sendHx711toMqtt(payload, topicEvery);
 
-      measured_empty = int(ave.mean());
+      if ( ave.stddev() < 10 ) {
+        measured_empty = int(ave.mean());
+      }
 
       measured    = 0;
       nofnotinuse = 0;
