@@ -99,29 +99,6 @@ void setup(void)
 
   delay(100);
 
-  /*
-    if (client.connect((char*) clientName.c_str())) {
-      Serial.println("Connected to MQTT broker");
-      Serial.print("Topic is: ");
-      Serial.println(topic);
-
-      if (client.publish(hellotopic, "hello from ESP8266")) {
-        Serial.println("Publish ok");
-      }
-      else {
-        Serial.println("Publish failed");
-      }
-    }
-    else {
-      Serial.println("MQTT connect failed");
-      Serial.println("Will reset and try again...");
-      abort();
-    }
-
-    Serial.println(millis() - startMills);
-    //-------
-  */
-
   pinMode(dsout, OUTPUT);
   digitalWrite(dsout, HIGH);
   delay(20);

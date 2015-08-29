@@ -58,20 +58,26 @@ void setup() {
   Serial.println(ssid);
 
   WiFi.mode(WIFI_STA);
-
-#ifdef __IS_MY_HOME
-  WiFi.begin(ssid, password, channel, bssid);
-  WiFi.config(IPAddress(192, 168, 10, 16), IPAddress(192, 168, 10, 1), IPAddress(255, 255, 255, 0));
-#else
   WiFi.begin(ssid, password);
-#endif
 
+  #ifdef __IS_MY_HOME
+  WiFi.config(IPAddress(192, 168, 10, 16), IPAddress(192, 168, 10, 1), IPAddress(255, 255, 255, 0));
+  #endif
+
+  int Attempt = 0;
   while (WiFi.status() != WL_CONNECTED) {
     digitalWrite(ledPin, HIGH);
-    delay(200);
+    delay(50);
     digitalWrite(ledPin, LOW);
-    delay(200);
+    delay(50);
+    Attempt++;
     Serial.print(".");
+    if (Attempt == 100)
+    {
+      Serial.println();
+      Serial.println("Could not connect to WIFI");
+      ESP.restart();
+    }
   }
 
   Serial.println("");
@@ -86,33 +92,6 @@ void setup() {
   clientName += macToStr(mac);
   clientName += "-";
   clientName += String(micros() & 0xff, 16);
-
-  Serial.print("Connecting to ");
-  Serial.print(server);
-  Serial.print(" as ");
-  Serial.println(clientName);
-
-  if (
-    client.connect(MQTT::Connect((char*) clientName.c_str())
-                   .set_clean_session()
-                   .set_will("status", "down")
-                   .set_keepalive(60))
-  ) {
-    Serial.println("Connected to MQTT broker");
-    Serial.print("Topic is: ");
-    Serial.println(topicEvery);
-
-    if (client.publish(hellotopic, "hello from ESP8266 s06")) {
-      Serial.println("Publish ok");
-    } else {
-      Serial.println("Publish failed");
-    }
-
-  } else {
-    Serial.println("MQTT connect failed");
-    Serial.println("Will reset and try again...");
-    abort();
-  }
 
 }
 
@@ -235,6 +214,26 @@ void loop() {
     nofchecked = 0;
   }
 
+  if (WiFi.status() == WL_CONNECTED) {
+    if (!client.connected()) {
+      if  (
+        client.connect(MQTT::Connect((char*) clientName.c_str()).set_clean_session().set_keepalive(120))) {
+        client.subscribe(subtopic);
+        client.publish(hellotopic, "hello from ESP8266 s06");
+        client.set_callback(callback);
+      }
+    }
+
+    if (client.connected()) {
+      client.loop();
+    } else {
+      ESP.restart();
+    }
+  } else {
+      Serial.println("Could not connect to WIFI");
+      ESP.restart();    
+  }
+
   nofchecked++;
   nofnotinuse++;
   delay(1000);
@@ -267,36 +266,43 @@ int requestHX711() {
 }
 
 
-void sendHx711toMqtt(String payload, char* topic) {
-  if (!client.connected()) {
-    if (
-      client.connect(MQTT::Connect((char*) clientName.c_str())
-                     .set_clean_session()
-                     .set_will("status", "down")
-                     .set_keepalive(60))
-    ) {
-      Serial.println("Connected to MQTT broker again HX711");
-    }
-    else {
-      Serial.println("MQTT connect failed");
-      Serial.println("Will reset and try again...");
-      abort();
-    }
-  }
-
-  if (client.connected()) {
-    Serial.print("Sending payload: ");
-    Serial.println(payload);
-
-    if (client.publish(MQTT::Publish(topic, (char*) payload.c_str()).set_retain())) {
-      Serial.println("Publish ok");
-      if ( topic == "esp8266/arduino/s06" ) {
-        AvgMeasuredIsSent = HIGH;
+void sendHx711toMqtt(String payload, char* topic) 
+{
+  if (WiFi.status() == WL_CONNECTED) {
+      if (!client.connected()) {
+        if (
+          client.connect(MQTT::Connect((char*) clientName.c_str())
+                         .set_clean_session()
+                         .set_will("status", "down")
+                         .set_keepalive(60))
+        ) {
+          Serial.println("Connected to MQTT broker again HX711");
+        }
+        else {
+          Serial.println("MQTT connect failed");
+          Serial.println("Will reset and try again...");
+          ESP.restart(); 
+        }
       }
-    }
-    else {
-      Serial.println("Publish failed");
-    }
+
+      if (client.connected()) {
+        Serial.print("Sending payload: ");
+        Serial.println(payload);
+
+        if (client.publish(MQTT::Publish(topic, (char*) payload.c_str()).set_retain())) {
+          Serial.println("Publish ok");
+          if ( topic == "esp8266/arduino/s06" ) {
+            AvgMeasuredIsSent = HIGH;
+          }
+        }
+        else {
+          Serial.println("Publish failed");
+          ESP.restart(); 
+        }
+      }
+  } else {
+      Serial.println("Could not connect to WIFI");
+      ESP.restart();    
   }
 }
 

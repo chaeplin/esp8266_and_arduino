@@ -281,13 +281,21 @@ void setup() {
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
 
-#ifdef __IS_MY_HOME
+  #ifdef __IS_MY_HOME
   WiFi.config(IPAddress(192, 168, 10, 12), IPAddress(192, 168, 10, 1), IPAddress(255, 255, 255, 0));
-#endif
+  #endif
 
+  int Attempt = 0;
   while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
+    delay(100);
+    Attempt++;
     Serial.print(".");
+    if (Attempt == 100)
+    {
+      Serial.println();
+      Serial.println("Could not connect to WIFI");
+      ESP.restart();
+    }
   }
 
   Serial.println("");
@@ -436,22 +444,28 @@ void loop()
       */
       checkDisplayValue();
     }
-  }
+  
 
-  if (WiFi.status() == WL_CONNECTED) {
-    if (!client.connected()) {
-      if  (
-        client.connect(MQTT::Connect((char*) clientName.c_str()).set_clean_session().set_keepalive(120))) {
-        client.subscribe(subtopic);
-        client.publish(hellotopic, "hello from ESP8266 s03");
-        client.set_callback(callback);
+    if (WiFi.status() == WL_CONNECTED) {
+      if (!client.connected()) {
+        if  (
+          client.connect(MQTT::Connect((char*) clientName.c_str()).set_clean_session().set_keepalive(120))) {
+          client.subscribe(subtopic);
+          client.publish(hellotopic, "hello from ESP8266 s03");
+          client.set_callback(callback);
+        }
       }
+
+      if (client.connected()) {
+        client.loop();
+      } else {
+        ESP.restart();
+      }
+    } else {
+        Serial.println("Could not connect to WIFI");
+        ESP.restart();    
     }
-
-    if (client.connected())
-      client.loop();
   }
-
 }
 
 void checkDisplayValue() {
@@ -739,36 +753,42 @@ void senddustDensity()
 
 void sendmqttMsg(String payload)
 {
-  if (!client.connected()) {
-    if (client.connect((char*) clientName.c_str()))
-    {
-      Serial.println("Connected to MQTT broker again esp8266/arduino/s03");
-      Serial.print("Topic is: ");
-      Serial.println(topic);
-    }
-    else {
-      Serial.println("MQTT connect failed");
-      Serial.println("Will reset and try again...");
-      abort();
-    }
-  }
-
-  if (client.connected()) {
-    if (DEBUG_PRINT)
-    {
-      Serial.print("Sending payload: ");
-      Serial.println(payload);
-    }
-
-    if (client.publish(topic, (char*) payload.c_str())) {
-      if (DEBUG_PRINT)
-      {
-        Serial.println("Publish ok");
+  if (WiFi.status() == WL_CONNECTED) {
+      if (!client.connected()) {
+        if (client.connect((char*) clientName.c_str()))
+        {
+          Serial.println("Connected to MQTT broker again esp8266/arduino/s03");
+          Serial.print("Topic is: ");
+          Serial.println(topic);
+        }
+        else {
+          Serial.println("MQTT connect failed");
+          Serial.println("Will reset and try again...");
+          ESP.restart();
+        }
       }
-    }
-    else {
-      Serial.println("Publish failed");
-    }
+
+      if (client.connected()) {
+        if (DEBUG_PRINT)
+        {
+          Serial.print("Sending payload: ");
+          Serial.println(payload);
+        }
+
+        if (client.publish(topic, (char*) payload.c_str())) {
+          if (DEBUG_PRINT)
+          {
+            Serial.println("Publish ok");
+          }
+        }
+        else {
+          Serial.println("Publish failed");
+          ESP.restart(); 
+        }
+      }
+  } else {
+      Serial.println("Could not connect to WIFI");
+      ESP.restart();    
   }
 }
 

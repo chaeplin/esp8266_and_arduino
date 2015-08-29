@@ -81,10 +81,19 @@ void setup()
   WiFi.config(IPAddress(192, 168, 10, 14), IPAddress(192, 168, 10, 1), IPAddress(255, 255, 255, 0));
   #endif
   
+  int Attempt = 0;
   while (WiFi.status() != WL_CONNECTED) {
     delay(100);
+    Attempt++;
     Serial.print(".");
+    if (Attempt == 100)
+    {
+      Serial.println();
+      Serial.println("Could not connect to WIFI");
+      ESP.restart();
+    }
   }
+  
   Serial.println(millis() - startMills);
   
   Serial.println("");

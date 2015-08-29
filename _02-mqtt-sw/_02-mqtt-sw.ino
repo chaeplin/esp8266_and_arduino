@@ -105,8 +105,6 @@ void setup()
   Serial.begin(38400);
   Serial.println("DHTxx test!");
   delay(20);
-
-  client.set_callback(callback);
   
   startMills = millis();
 
@@ -128,10 +126,17 @@ void setup()
   WiFi.config(IPAddress(192, 168, 10, 11), IPAddress(192, 168, 10, 1), IPAddress(255, 255, 255, 0));
   #endif
 
-
+  int Attempt = 0;
   while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
+    delay(100);
+    Attempt++;
     Serial.print(".");
+    if (Attempt == 100)
+    {
+      Serial.println();
+      Serial.println("Could not connect to WIFI");
+      ESP.restart();
+    }
   }
 
   Serial.println("");
@@ -160,36 +165,6 @@ void setup()
   clientName += macToStr(mac);
   clientName += "-";
   clientName += String(micros() & 0xff, 16);
-
-  Serial.print("Connecting to ");
-  Serial.print(server);
-  Serial.print(" as ");
-  Serial.println(clientName);
-
-  if (client.connect((char*) clientName.c_str())) {
-    Serial.println("Connected to MQTT broker");
-    Serial.print("Topic is: ");
-    Serial.println(topic);
-
-    if (client.publish(hellotopic, "hello from esp8266/arduino/s02")) {
-      Serial.println("Publish ok");
-    }
-    else {
-      Serial.println("Publish failed");
-    }
-
-    if (client.subscribe(subtopic)) {
-      Serial.println("Subscribe ok");
-    } else {
-      Serial.println("Subscribe failed");
-    }
-
-  }
-  else {
-    Serial.println("MQTT connect failed");
-    Serial.println("Will reset and try again...");
-    abort();
-  }
 
   sensors.begin();
   if (!sensors.getAddress(insideThermometer, 0)) Serial.println("Unable to find address for Device 0"); 
@@ -223,7 +198,28 @@ void setup()
 
 void loop() 
 {
-  
+
+  if (WiFi.status() == WL_CONNECTED) {
+    if (!client.connected()) {
+      if  (
+        client.connect(MQTT::Connect((char*) clientName.c_str()).set_clean_session().set_keepalive(120))) {
+        client.subscribe(subtopic);
+        client.publish(hellotopic, "hello from ESP8266 s02");
+        client.set_callback(callback);
+      }
+    }
+
+    if (client.connected()) {
+      client.loop();
+    } else {
+      ESP.restart();
+    }
+  } else {
+      Serial.println("Could not connect to WIFI");
+      ESP.restart();    
+  }
+
+
   changelight();
   runTimerDoLightOff();
   
@@ -268,8 +264,6 @@ void loop()
     getdht22tempstatus = 0;
     startMills = millis();
   }
-
-  client.loop();
 }
 
 void runTimerDoLightOff()
@@ -338,35 +332,40 @@ void sendlightstatus()
 
 void sendmqttMsg(char* topictosend, String payload) 
 {
-  if (!client.connected()) {
-    if (client.connect((char*) clientName.c_str())) {
-      Serial.println("Connected to MQTT broker again TEMP");
-      Serial.print("Topic is: ");
-      Serial.println(topictosend);
+  if (WiFi.status() == WL_CONNECTED) {
+    if (!client.connected()) {
+      if (client.connect((char*) clientName.c_str())) {
+        Serial.println("Connected to MQTT broker again TEMP");
+        Serial.print("Topic is: ");
+        Serial.println(topictosend);
+      }
+      else {
+        Serial.println("MQTT connect failed");
+        Serial.println("Will reset and try again...");
+        ESP.restart();
+      }
     }
-    else {
-      Serial.println("MQTT connect failed");
-      Serial.println("Will reset and try again...");
-      abort();
+
+    if (client.connected()) {
+      Serial.print("Sending payload: ");
+      Serial.println(payload);
+
+      if (
+        client.publish(MQTT::Publish(topictosend, (char*) payload.c_str())
+                  .set_retain()
+                 )
+        ) {
+        //Serial.println("Publish ok");
+      }
+      else {
+        Serial.println("Publish failed");
+        ESP.restart();
+      }
     }
+  } else {
+      Serial.println("Could not connect to WIFI");
+      ESP.restart();    
   }
-
-  if (client.connected()) {
-    Serial.print("Sending payload: ");
-    Serial.println(payload);
-
-    if (
-      client.publish(MQTT::Publish(topictosend, (char*) payload.c_str())
-                .set_retain()
-               )
-      ) {
-      //Serial.println("Publish ok");
-    }
-    else {
-      Serial.println("Publish failed");
-    }
-  }
-
 }
 
 void run_lightcmd() 
