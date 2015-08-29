@@ -96,7 +96,7 @@ void setup() {
     client.connect(MQTT::Connect((char*) clientName.c_str())
                    .set_clean_session()
                    .set_will("status", "down")
-                   .set_keepalive(2))
+                   .set_keepalive(60))
   ) {
     Serial.println("Connected to MQTT broker");
     Serial.print("Topic is: ");
@@ -271,7 +271,7 @@ void sendHx711toMqtt(String payload, char* topic) {
       client.connect(MQTT::Connect((char*) clientName.c_str())
                      .set_clean_session()
                      .set_will("status", "down")
-                     .set_keepalive(2))
+                     .set_keepalive(60))
     ) {
       Serial.println("Connected to MQTT broker again HX711");
     }
