@@ -218,9 +218,7 @@ void loop() {
     if (!client.connected()) {
       if  (
         client.connect(MQTT::Connect((char*) clientName.c_str()).set_clean_session().set_keepalive(120))) {
-        client.subscribe(subtopic);
         client.publish(hellotopic, "hello from ESP8266 s06");
-        client.set_callback(callback);
       }
     }
 
