@@ -159,6 +159,8 @@ void check_poop()
 
   payload = "{\"WeightPoop\":";
   payload += ( measured_poop - measured_empty );
+  payload += ",\"NemoWeight\":";
+  payload += 0;
   payload += "}";
 
   sendHx711toMqtt(payload, topicEvery);
