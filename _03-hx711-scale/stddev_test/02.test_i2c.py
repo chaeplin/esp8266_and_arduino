@@ -10,7 +10,7 @@ def writeNumber(a, b ):
     bus.write_i2c_block_data(address, a, [b])
 
 
-with open('1.txt') as temp_file:
+with open('data/NemoWeight1.txt') as temp_file:
   drugs = [line.rstrip('\n') for line in temp_file]
 
 

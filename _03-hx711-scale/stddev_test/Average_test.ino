@@ -31,7 +31,7 @@ void loop() {
     }
 
 
-   
+   /*
 
     // And show some interesting results.
     Serial.print("\t\tMean:   "); Serial.print(ave.mean(), 0);
@@ -39,6 +39,17 @@ void loop() {
     Serial.print("  Min:    "); Serial.print(ave.minimum(), 0);
     Serial.print("  Max - Min:     "); Serial.print((ave.maximum() - ave.minimum()), 0);
     Serial.print("  StdDev: "); Serial.println(ave.stddev(), 0);
+
+  */
+ 
+    // And show some interesting results.
+    Serial.print("\t\tMean:   "); Serial.println(ave.mean());
+    Serial.print("Mode:   "); Serial.println(ave.mode());
+    Serial.print("Max:    "); Serial.println(ave.maximum(&maxat));
+    Serial.print(" at:    "); Serial.println(maxat);
+    Serial.print("Min:    "); Serial.println(ave.minimum(&minat));
+    Serial.print(" at:    "); Serial.println(minat);
+    Serial.print("StdDev: "); Serial.println(ave.stddev());    
     
     o_r = r ;
   }
