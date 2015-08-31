@@ -150,8 +150,27 @@ void check_poop()
 }
 
 void loop() {
+
+  if (WiFi.status() == WL_CONNECTED) {
+    if (!client.connected()) {
+      if  (
+        client.connect(MQTT::Connect((char*) clientName.c_str()).set_clean_session().set_keepalive(120))) {
+        client.publish(hellotopic, "hello from ESP8266 s06");
+      }
+    }
+
+    if (client.connected()) {
+      client.loop();
+    } else {
+      ESP.restart();
+    }
+  } else {
+      Serial.println("Could not connect to WIFI");
+      ESP.restart();    
+  }
+  
   if ( blank_checked == LOW ) {
-    delay(5000);
+    delay(2000);
     check_blank();
   }
 
@@ -212,24 +231,6 @@ void loop() {
       nofnotinuse = 0;
     }
     nofchecked = 0;
-  }
-
-  if (WiFi.status() == WL_CONNECTED) {
-    if (!client.connected()) {
-      if  (
-        client.connect(MQTT::Connect((char*) clientName.c_str()).set_clean_session().set_keepalive(120))) {
-        client.publish(hellotopic, "hello from ESP8266 s06");
-      }
-    }
-
-    if (client.connected()) {
-      client.loop();
-    } else {
-      ESP.restart();
-    }
-  } else {
-      Serial.println("Could not connect to WIFI");
-      ESP.restart();    
   }
 
   nofchecked++;
