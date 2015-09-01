@@ -431,21 +431,7 @@ time_t prevDisplay = 0; // when the digital clock was displayed
 void loop()
 {
   if (timeStatus() != timeNotSet) {
-    if (now() != prevDisplay) { //update the display only if time has changed
-      prevDisplay = now();
-      digitalClockDisplay();
-      if ( ( second() % 3 ) == 0 ) {
-        requestSharp();
-      }
-      /*
-      if ( ( second() % 50 ) == 0 ) {
-        client.subscribe(subtopic);
-      }
-      */
-      checkDisplayValue();
-    }
-  
-
+    
     if (WiFi.status() == WL_CONNECTED) {
       if (!client.connected()) {
         if  (
@@ -464,6 +450,20 @@ void loop()
     } else {
         Serial.println("Could not connect to WIFI");
         ESP.restart();    
+    }
+
+    if (now() != prevDisplay) { //update the display only if time has changed
+      prevDisplay = now();
+      digitalClockDisplay();
+      if ( ( second() % 3 ) == 0 ) {
+        requestSharp();
+      }
+      /*
+      if ( ( second() % 50 ) == 0 ) {
+        client.subscribe(subtopic);
+      }
+      */
+      checkDisplayValue();
     }
   }
 }
