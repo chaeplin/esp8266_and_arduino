@@ -61,15 +61,8 @@ void setup(void)
   Serial.print("Connecting to ");
   Serial.println(ssid);
 
-  // client.set_callback(callback);
-
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
-  //wifi_set_channel(4);
-
-#ifdef __IS_MY_HOME
-  WiFi.config(IPAddress(192, 168, 10, 13), IPAddress(192, 168, 10, 1), IPAddress(255, 255, 255, 0));
-#endif
 
   int Attempt = 0;
   while (WiFi.status() != WL_CONNECTED) {

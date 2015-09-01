@@ -60,10 +60,6 @@ void setup() {
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
 
-  #ifdef __IS_MY_HOME
-  WiFi.config(IPAddress(192, 168, 10, 16), IPAddress(192, 168, 10, 1), IPAddress(255, 255, 255, 0));
-  #endif
-
   int Attempt = 0;
   while (WiFi.status() != WL_CONNECTED) {
     digitalWrite(ledPin, HIGH);
