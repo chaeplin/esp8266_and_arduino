@@ -81,6 +81,13 @@ void setup() {
   Serial.println("IP address: ");
   Serial.println(WiFi.localIP());
 
+  if (WiFi.status() == WL_CONNECTED) {
+    if (!client.connected()) {
+      if  ( client.connect(MQTT::Connect((char*) clientName.c_str()).set_clean_session().set_keepalive(120))) {
+        client.publish(hellotopic, "hello from ESP8266 s06 with reset");
+      }
+    }
+  }
 
   clientName += "esp8266-";
   uint8_t mac[6];
@@ -150,7 +157,7 @@ void loop() {
   if (WiFi.status() == WL_CONNECTED) {
     if (!client.connected()) {
       if  ( client.connect(MQTT::Connect((char*) clientName.c_str()).set_clean_session().set_keepalive(120))) {
-        client.publish(hellotopic, "hello from ESP8266 s06");
+        client.publish(hellotopic, "hello again from ESP8266 s06");
       }
     }
 
@@ -263,7 +270,7 @@ void sendHx711toMqtt(String payload, char* topic)
   if (WiFi.status() == WL_CONNECTED) {
     if (!client.connected()) {
       if ( client.connect(MQTT::Connect((char*) clientName.c_str()).set_clean_session().set_keepalive(120))) {
-        client.publish(hellotopic, "hello from ESP8266 s06");
+        client.publish(hellotopic, "hello again from ESP8266 s06");
       }
     }
 
