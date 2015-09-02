@@ -21,10 +21,41 @@
 
 Average<float> ave(10);
 
+char* topicEvery   = "esp8266/arduino/s16";
+char* topicAverage = "esp8266/arduino/s06";
+
+char* hellotopic = "HELLO";
+
+String clientName;
+String payload;
+WiFiClient wifiClient;
+
+IPAddress server(192, 168, 10, 10);
+PubSubClient client(wifiClient, server);
+
+void callback(const MQTT::Publish& pub) {
+  // handle message arrived
+}
+
+long lastReconnectAttempt = 0;
+
+boolean reconnect() {
+  if  ( client.connect(MQTT::Connect((char*) clientName.c_str()).set_clean_session().set_keepalive(120))) {
+    client.publish(hellotopic, "hello again from ESP8266 s06");
+  }
+  return client.connected();
+}
+
 volatile int measured = 0;
 volatile int inuse = LOW;
 volatile int r = LOW;
 int o_r = LOW;
+
+int AvgMeasuredIsSent = LOW;
+int nofchecked        = 0;
+int nofnotinuse       = 0;
+int measured_poop     = 0;
+int measured_empty    = 0;
 
 void setup() {
   Serial.begin(38400);
@@ -35,23 +66,149 @@ void setup() {
   pinMode(nemoisOnPin, INPUT);
   pinMode(ledPin, OUTPUT);
 
+  // WIFI
   Serial.println();
+  Serial.println();
+  Serial.print("Connecting to ");
+  Serial.println(ssid);
+
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(ssid, password);
+
+  int Attempt = 0;
+  while (WiFi.status() != WL_CONNECTED) {
+    digitalWrite(ledPin, HIGH);
+    delay(50);
+    digitalWrite(ledPin, LOW);
+    delay(50);
+    Attempt++;
+    Serial.print(".");
+    if (Attempt == 100)
+    {
+      Serial.println();
+      Serial.println("Could not connect to WIFI");
+      ESP.restart();
+    }
+  }
+
+  Serial.println("");
+  Serial.println("WiFi connected");
+  Serial.println("IP address: ");
+  Serial.println(WiFi.localIP());
+
+  clientName += "esp8266-";
+  uint8_t mac[6];
+  WiFi.macAddress(mac);
+  clientName += macToStr(mac);
+  clientName += "-";
+  clientName += String(micros() & 0xff, 16);
+
+  lastReconnectAttempt = 0;
+
+  client.setServer(server, 1883);
+  client.setCallback(callback);
+
+  if (WiFi.status() == WL_CONNECTED) {
+    if (!client.connected()) {
+      if  ( client.connect(MQTT::Connect((char*) clientName.c_str()).set_clean_session().set_keepalive(120))) {
+        client.publish(hellotopic, "hello from ESP8266 s06 with reset");
+      }
+    }
+  }
 
   attachInterrupt(14, hx711IsReady, RISING);
 }
 
-
-
 void loop()
-{ 
-  if ( r != o_r ) 
+{
+  if (WiFi.status() == WL_CONNECTED) {
+    if (!client.connected()) {
+      long now = millis();
+      if (now - lastReconnectAttempt > 5000) {
+        lastReconnectAttempt = now;
+        if (reconnect()) {
+          lastReconnectAttempt = 0;
+        }
+      }
+    } else {
+      client.loop();
+    }
+  } else {
+    Serial.println("Could not connect to WIFI");
+    ESP.restart();
+  }
+
+  if ( r != o_r )
   {
     Serial.print(inuse);
     Serial.print(" : ");
     Serial.println(measured);
+
+    ave.push(measured);
+
+    if ( inuse == HIGH ) {
+      digitalWrite(ledPin, HIGH);
+      if ( measured > 20 ) {
+        if ( ((ave.maximum() - ave.minimum()) < 100 ) && ( ave.stddev() < 20) && ( nofchecked > 15 ) && ( ave.mean() > 1000 ) && ( ave.mean() < 7000 ) && ( AvgMeasuredIsSent == LOW ) ) {
+          payload = "{\"WeightAvg\":";
+          payload += ( int(ave.mean()) - measured_empty );
+          payload += ",\"WeightAvgStddev\":";
+          payload += ave.stddev();
+          payload += "}";
+
+          sendHx711toMqtt(payload, topicAverage);
+        } else {
+          if ( nofchecked > 3 ) {
+            payload = "{\"NemoWeight\":";
+            payload += ( measured - measured_empty );
+            payload += "}";
+
+            sendHx711toMqtt(payload, topicEvery);
+          }
+        }
+      }
+    } else {
+      digitalWrite(ledPin, LOW);
+
+      if ( ( ave.stddev() < 10) && ( nofnotinuse > 20 ) ) {
+        if ( AvgMeasuredIsSent == HIGH ) {
+          Serial.print("poop_checked : ");
+          Serial.println(int(ave.mean()));
+
+          payload = "{\"WeightPoop\":";
+          payload += ( int(ave.mean()) - measured_empty );
+          payload += ",\"NemoWeight\":0}";
+          sendHx711toMqtt(payload, topicEvery);
+
+          payload = "{\"WeightAvg\":0}";
+          sendHx711toMqtt(payload, topicAverage);
+
+          AvgMeasuredIsSent = LOW;
+        } esle {          
+          payload = "{\"NemoEmpty\":";
+          payload += int(ave.mean());
+          payload += ",\"NemoEmptyStddev\":";
+          payload += ave.stddev();
+          payload += ",\"ScaleFreeHeap\":";
+          payload += ESP.getFreeHeap();
+          payload += ",\"ScaleRSSI\":";
+          payload += WiFi.RSSI();
+          payload += "}";
+
+          sendHx711toMqtt(payload, topicEvery);
+        }
+        nofnotinuse = 0;
+      }
+
+      if ( ave.stddev() < 10 ) {
+        measured_empty = int(ave.mean());
+      }
+      nofchecked = 0;
+    }
+    nofchecked++;
+    nofnotinuse++;
     o_r = r;
   }
-  
 }
 
 
@@ -86,4 +243,46 @@ void hx711IsReady()
   }
   measured = x;
   r = !r;
+}
+
+void sendHx711toMqtt(String payload, char* topic)
+{
+  if (WiFi.status() == WL_CONNECTED) {
+    if (!client.connected()) {
+      if ( client.connect(MQTT::Connect((char*) clientName.c_str()).set_clean_session().set_keepalive(120))) {
+        client.publish(hellotopic, "hello again from ESP8266 s06");
+      }
+    }
+
+    if (client.connected()) {
+      Serial.print("Sending payload: ");
+      Serial.println(payload);
+
+      if (client.publish(MQTT::Publish(topic, (char*) payload.c_str()).set_retain())) {
+        Serial.println("Publish ok");
+        if ( topic == "esp8266/arduino/s06" ) {
+          AvgMeasuredIsSent = HIGH;
+        }
+      }
+      else {
+        Serial.println("Publish failed");
+        ESP.restart();
+      }
+    }
+  } else {
+    Serial.println("Could not connect to WIFI");
+    ESP.restart();
+  }
+}
+
+
+String macToStr(const uint8_t* mac)
+{
+  String result;
+  for (int i = 0; i < 6; ++i) {
+    result += String(mac[i], 16);
+    if (i < 5)
+      result += ':';
+  }
+  return result;
 }
