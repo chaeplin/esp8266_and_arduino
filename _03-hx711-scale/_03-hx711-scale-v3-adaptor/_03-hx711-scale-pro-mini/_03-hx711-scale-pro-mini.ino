@@ -40,13 +40,13 @@ void setup()
   Wire.onRequest(requestEvent);
 
   // event Timer
-  int updateEvent = t.every(1000, doUpdateHX711);
+  int updateEvent = t.every(500, doUpdateHX711);
 
 }
 
 void doUpdateHX711()
 {
-    volatile float fmeasured = scale.get_units(10) ;
+    volatile float fmeasured = scale.get_units(5) ;
     measured = int(fmeasured * 1000) ;
     tosend = measured;
     isSent = ! isSent;
@@ -74,7 +74,7 @@ void loop()
 void notifyesp8266() 
 {
     digitalWrite(nemoisonPin, HIGH);
-    delay(50);
+    delay(30);
     digitalWrite(nemoisonPin, LOW);  
 } 
 

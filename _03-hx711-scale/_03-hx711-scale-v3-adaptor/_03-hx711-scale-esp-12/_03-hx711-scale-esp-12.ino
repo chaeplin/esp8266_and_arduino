@@ -21,10 +21,10 @@
 
 Average<float> ave(10);
 
-int measured = 0;
-int r   = LOW;
+volatile int measured = 0;
+volatile int inuse = LOW;
+volatile int r = LOW;
 int o_r = LOW;
-
 
 void setup() {
   Serial.begin(38400);
@@ -37,10 +37,6 @@ void setup() {
 
   Serial.println();
 
-  r   = LOW;
-  o_r = LOW;
-  measured = 0;
-
   attachInterrupt(14, hx711IsReady, RISING);
 }
 
@@ -48,15 +44,20 @@ void setup() {
 
 void loop()
 { 
-  if ( r = !r ) 
+  if ( r != o_r ) 
   {
+    Serial.print(inuse);
+    Serial.print(" : ");
     Serial.println(measured);
+    o_r = r;
   }
+  
 }
 
 
 void hx711IsReady()
 {
+
   Wire.requestFrom(2, 3);
 
   int x;
@@ -78,6 +79,11 @@ void hx711IsReady()
     x = x * -1;
   }
 
+  if ( x > 500 ) {
+    inuse = HIGH;
+  } else {
+    inuse = LOW;
+  }
   measured = x;
   r = !r;
 }
