@@ -1,16 +1,22 @@
 #include "HX711.h"
 #include <Wire.h>
 #include <Average.h>
+#include "Timer.h"
+#include <Time.h>
 
 HX711 scale(A0, A1);
 
 #define DEBUG_OUT 1
 
 const int nemoisonPin = 9;
-int isSent;
-int measured = 0;
-int tosend   = 0;
+volatile int measured = 0;
+volatile int tosend   = 0;
+volatile int isSent   = LOW;
+volatile int o_isSent = LOW;
 long startMills;
+
+// Timer
+Timer t;
 
 void setup()
 {
@@ -25,54 +31,55 @@ void setup()
   pinMode(nemoisonPin, OUTPUT);
   digitalWrite(nemoisonPin, LOW);
 
-  delay(5000);
-  isSent = LOW;
+  delay(1000);
 
   scale.set_scale(23040.f);
   scale.tare();
 
   Wire.begin(2);
   Wire.onRequest(requestEvent);
+
+  // event Timer
+  int updateEvent = t.every(500, doUpdateHX711);
+
 }
 
+void doUpdateHX711()
+{
+  volatile float fmeasured = scale.get_units(5) ;
+  measured = int(fmeasured * 1000) ;
+  tosend = measured;
+  isSent = ! isSent;
+}
 
 void loop()
 {
-  if ( DEBUG_OUT ) {
-    Serial.print((millis() - startMills) * 0.001, 2);
-    Serial.print("\t: ");
-  }
+  t.update();
 
-  if ( isSent == LOW ) {
-    //scale.power_up();
-    float fmeasured = scale.get_units(10) ;
-    measured = int(fmeasured * 1000) ;
-    tosend = measured;
-
-    if ( DEBUG_OUT ) {
-      Serial.print(fmeasured, 5);
+  if ( isSent != o_isSent )
+  {
+    notifyesp8266();
+    o_isSent = isSent;
+    if ( DEBUG_OUT )
+    {
+      Serial.print((millis() - startMills) * 0.001, 2);
       Serial.print("\t: ");
       Serial.print(measured);
       Serial.print("\t:\t");
       Serial.println(tosend);
     }
-
   }
+}
 
-  if ( measured > 500 )
-  {
-    digitalWrite(nemoisonPin, HIGH);
-  } else {
-    digitalWrite(nemoisonPin, LOW);
-  }
-
-  //scale.power_down();
-  delay(200);
+void notifyesp8266()
+{
+  digitalWrite(nemoisonPin, HIGH);
+  delay(30);
+  digitalWrite(nemoisonPin, LOW);
 }
 
 void requestEvent()
 {
-  isSent = HIGH;
   byte myArray[3];
   myArray[0] = (abs(tosend) >> 8 ) & 0xFF;
   myArray[1] = abs(tosend) & 0xFF;
@@ -83,5 +90,4 @@ void requestEvent()
   }
 
   Wire.write(myArray, 3);
-  isSent = LOW;
 }

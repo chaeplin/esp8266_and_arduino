@@ -33,14 +33,28 @@ WiFiClient wifiClient;
 IPAddress server(192, 168, 10, 10);
 PubSubClient client(wifiClient, server);
 
+void callback(const MQTT::Publish& pub) {
+  // handle message arrived
+}
+
+long lastReconnectAttempt = 0;
+
+boolean reconnect() {
+  if  ( client.connect(MQTT::Connect((char*) clientName.c_str()).set_clean_session().set_keepalive(120))) {
+    client.publish(hellotopic, "hello again from ESP8266 s06");
+  }
+  return client.connected();
+}
+
+volatile int measured = 0;
+volatile int inuse = LOW;
+volatile int r = LOW;
+int o_r = LOW;
+
 int AvgMeasuredIsSent = LOW;
-int inuse             = LOW;
-int measured          = 0;
 int nofchecked        = 0;
 int nofnotinuse       = 0;
-int measured_blank    = 0;
 int measured_poop     = 0;
-int blank_checked     = LOW;
 int measured_empty    = 0;
 
 void setup() {
@@ -52,6 +66,7 @@ void setup() {
   pinMode(nemoisOnPin, INPUT);
   pinMode(ledPin, OUTPUT);
 
+  // WIFI
   Serial.println();
   Serial.println();
   Serial.print("Connecting to ");
@@ -81,6 +96,15 @@ void setup() {
   Serial.println("IP address: ");
   Serial.println(WiFi.localIP());
 
+  clientName += "esp8266-";
+  uint8_t mac[6];
+  WiFi.macAddress(mac);
+  clientName += macToStr(mac);
+  clientName += "-";
+  clientName += String(micros() & 0xff, 16);
+
+  lastReconnectAttempt = 0;
+
   if (WiFi.status() == WL_CONNECTED) {
     if (!client.connected()) {
       if  ( client.connect(MQTT::Connect((char*) clientName.c_str()).set_clean_session().set_keepalive(120))) {
@@ -89,79 +113,21 @@ void setup() {
     }
   }
 
-  clientName += "esp8266-";
-  uint8_t mac[6];
-  WiFi.macAddress(mac);
-  clientName += macToStr(mac);
-  clientName += "-";
-  clientName += String(micros() & 0xff, 16);
-
+  attachInterrupt(14, hx711IsReady, RISING);
 }
 
-void check_blank()
+void loop()
 {
-  for (int i = 0; i < 15; i++) {
-    int blank_measured = requestHX711();
-    if ( blank_measured > 500 ) {
-      return ;
-    }
-    digitalWrite(ledPin, HIGH);
-    ave.push(blank_measured);
-    delay(500);
-    digitalWrite(ledPin, LOW);
-    delay(500);
-  }
-  measured_blank = int(ave.mean());
-  blank_checked = HIGH;
-  Serial.print("blank_checked : ");
-  Serial.println(measured_blank);
-
-  payload = "{\"WeightBlank\":";
-  payload += measured_blank;
-  payload += "}";
-
-  sendHx711toMqtt(payload, topicEvery);
-
-}
-
-void check_poop()
-{
-  for (int i = 0; i < 15; i++) {
-    int poop_measured = requestHX711();
-    digitalWrite(ledPin, HIGH);
-    ave.push(poop_measured);
-    delay(500);
-    digitalWrite(ledPin, LOW);
-    delay(500);
-  }
-
-  measured_poop = int(ave.mean());
-  Serial.print("poop_checked : ");
-  Serial.println(measured_poop);
-
-  payload = "{\"WeightPoop\":";
-  payload += ( measured_poop - measured_empty );
-  payload += ",\"NemoWeight\":";
-  payload += 0;
-  payload += "}";
-
-  sendHx711toMqtt(payload, topicEvery);
-
-  payload = "{\"WeightAvg\":0}";
-  sendHx711toMqtt(payload, topicAverage);
-
-}
-
-void loop() {
-
   if (WiFi.status() == WL_CONNECTED) {
     if (!client.connected()) {
-      if  ( client.connect(MQTT::Connect((char*) clientName.c_str()).set_clean_session().set_keepalive(120))) {
-        client.publish(hellotopic, "hello again from ESP8266 s06");
+      long now = millis();
+      if (now - lastReconnectAttempt > 5000) {
+        lastReconnectAttempt = now;
+        if (reconnect()) {
+          lastReconnectAttempt = 0;
+        }
       }
-    }
-
-    if (client.connected()) {
+    } else {
       client.loop();
     }
   } else {
@@ -169,77 +135,84 @@ void loop() {
     ESP.restart();
   }
 
-  if ( blank_checked == LOW ) {
-    delay(2000);
-    check_blank();
-  }
+  if ( r != o_r )
+  {
+    ave.push(measured);
 
-  inuse = digitalRead(nemoisOnPin);
-  measured = requestHX711();
-
-  //Serial.print("measured : ");
-  //Serial.println(measured);
-
-  if ( inuse == HIGH ) {
-    digitalWrite(ledPin, HIGH);
-    if ( measured > 20 )
-    {
-      ave.push(measured);
-
-      if ( ((ave.maximum() - ave.minimum()) < 50 ) && ( ave.stddev() < 20) && ( nofchecked > 10 ) && ( ave.mean() > 1000 ) && ( ave.mean() < 10000 ) && ( AvgMeasuredIsSent == LOW ) )
+    if ( inuse == HIGH ) {
+      digitalWrite(ledPin, HIGH);
+      if ( measured > 20 )
       {
-        payload = "{\"WeightAvg\":";
-        payload += ( int(ave.mean()) - measured_empty );
-        payload += ",\"WeightAvgStddev\":";
-        payload += ave.stddev();
-        payload += "}";
+        if ( ((ave.maximum() - ave.minimum()) < 100 ) && ( ave.stddev() < 20) && ( nofchecked > 15 ) && ( ave.mean() > 1000 ) && ( ave.mean() < 7000 ) && ( AvgMeasuredIsSent == LOW ) ) 
+        {
+          payload = "{\"WeightAvg\":";
+          payload += ( int(ave.mean()) - measured_empty );
+          payload += ",\"WeightAvgStddev\":";
+          payload += ave.stddev();
+          payload += "}";
 
-        sendHx711toMqtt(payload, topicAverage);
-      } else {
-        if ( nofchecked > 3 ) {
-          payload = "{\"NemoWeight\":";
-          payload += ( measured - measured_empty );
+          sendHx711toMqtt(payload, topicAverage);
+        } else {
+          if ( nofchecked > 3 ) 
+          {
+            payload = "{\"NemoWeight\":";
+            payload += ( measured - measured_empty );
+            payload += "}";
+
+            sendHx711toMqtt(payload, topicEvery);
+          }
+        }
+      }
+    } else {
+      digitalWrite(ledPin, LOW);
+
+      if ( ( ave.stddev() < 10) && ( nofnotinuse > 20 ) ) {
+        if ( AvgMeasuredIsSent == HIGH ) 
+        {
+          Serial.print("poop_checked : ");
+          Serial.println(int(ave.mean()));
+
+          payload = "{\"WeightPoop\":";
+          payload += ( int(ave.mean()) - measured_empty );
+          payload += ",\"NemoWeight\":0}";
+          sendHx711toMqtt(payload, topicEvery);
+
+          payload = "{\"WeightAvg\":0}";
+          sendHx711toMqtt(payload, topicAverage);
+
+          AvgMeasuredIsSent = LOW;
+        } else {
+          payload = "{\"NemoEmpty\":";
+          payload += int(ave.mean());
+          payload += ",\"NemoEmptyStddev\":";
+          payload += ave.stddev();
+          payload += ",\"ScaleFreeHeap\":";
+          payload += ESP.getFreeHeap();
+          payload += ",\"ScaleRSSI\":";
+          payload += WiFi.RSSI();
           payload += "}";
 
           sendHx711toMqtt(payload, topicEvery);
         }
+        nofnotinuse = 0;
       }
-    }
-  } else {
-    digitalWrite(ledPin, LOW);
-    if ( AvgMeasuredIsSent == HIGH ) {
-      check_poop();
-      AvgMeasuredIsSent = LOW;
-    }
 
-    ave.push(measured);
-
-    if ( ( ave.stddev() < 50) && ( nofnotinuse > 15 ) ) {
-      payload = "{\"NemoEmpty\":";
-      payload += int(ave.mean());
-      payload += ",\"NemoEmptyStddev\":";
-      payload += ave.stddev();
-      payload += "}";
-
-      sendHx711toMqtt(payload, topicEvery);
-
-      if ( ave.stddev() < 10 ) {
+      if ( ave.stddev() < 10 ) 
+      {
         measured_empty = int(ave.mean());
       }
-
-      measured    = 0;
-      nofnotinuse = 0;
+      nofchecked = 0;
     }
-    nofchecked = 0;
+    nofchecked++;
+    nofnotinuse++;
+    o_r = r;
   }
-
-  nofchecked++;
-  nofnotinuse++;
-  delay(1000);
-
 }
 
-int requestHX711() {
+
+void hx711IsReady()
+{
+
   Wire.requestFrom(2, 3);
 
   int x;
@@ -261,9 +234,14 @@ int requestHX711() {
     x = x * -1;
   }
 
-  return x;
+  if ( x > 500 ) {
+    inuse = HIGH;
+  } else {
+    inuse = LOW;
+  }
+  measured = x;
+  r = !r;
 }
-
 
 void sendHx711toMqtt(String payload, char* topic)
 {
@@ -306,4 +284,3 @@ String macToStr(const uint8_t* mac)
   }
   return result;
 }
-
