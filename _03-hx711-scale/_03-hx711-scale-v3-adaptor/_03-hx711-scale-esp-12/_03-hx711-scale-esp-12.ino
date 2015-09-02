@@ -105,9 +105,6 @@ void setup() {
 
   lastReconnectAttempt = 0;
 
-  client.setServer(server, 1883);
-  client.setCallback(callback);
-
   if (WiFi.status() == WL_CONNECTED) {
     if (!client.connected()) {
       if  ( client.connect(MQTT::Connect((char*) clientName.c_str()).set_clean_session().set_keepalive(120))) {
@@ -140,16 +137,14 @@ void loop()
 
   if ( r != o_r )
   {
-    Serial.print(inuse);
-    Serial.print(" : ");
-    Serial.println(measured);
-
     ave.push(measured);
 
     if ( inuse == HIGH ) {
       digitalWrite(ledPin, HIGH);
-      if ( measured > 20 ) {
-        if ( ((ave.maximum() - ave.minimum()) < 100 ) && ( ave.stddev() < 20) && ( nofchecked > 15 ) && ( ave.mean() > 1000 ) && ( ave.mean() < 7000 ) && ( AvgMeasuredIsSent == LOW ) ) {
+      if ( measured > 20 )
+      {
+        if ( ((ave.maximum() - ave.minimum()) < 100 ) && ( ave.stddev() < 20) && ( nofchecked > 15 ) && ( ave.mean() > 1000 ) && ( ave.mean() < 7000 ) && ( AvgMeasuredIsSent == LOW ) ) 
+        {
           payload = "{\"WeightAvg\":";
           payload += ( int(ave.mean()) - measured_empty );
           payload += ",\"WeightAvgStddev\":";
@@ -158,7 +153,8 @@ void loop()
 
           sendHx711toMqtt(payload, topicAverage);
         } else {
-          if ( nofchecked > 3 ) {
+          if ( nofchecked > 3 ) 
+          {
             payload = "{\"NemoWeight\":";
             payload += ( measured - measured_empty );
             payload += "}";
@@ -171,7 +167,8 @@ void loop()
       digitalWrite(ledPin, LOW);
 
       if ( ( ave.stddev() < 10) && ( nofnotinuse > 20 ) ) {
-        if ( AvgMeasuredIsSent == HIGH ) {
+        if ( AvgMeasuredIsSent == HIGH ) 
+        {
           Serial.print("poop_checked : ");
           Serial.println(int(ave.mean()));
 
@@ -184,7 +181,7 @@ void loop()
           sendHx711toMqtt(payload, topicAverage);
 
           AvgMeasuredIsSent = LOW;
-        } esle {          
+        } else {
           payload = "{\"NemoEmpty\":";
           payload += int(ave.mean());
           payload += ",\"NemoEmptyStddev\":";
@@ -200,7 +197,8 @@ void loop()
         nofnotinuse = 0;
       }
 
-      if ( ave.stddev() < 10 ) {
+      if ( ave.stddev() < 10 ) 
+      {
         measured_empty = int(ave.mean());
       }
       nofchecked = 0;

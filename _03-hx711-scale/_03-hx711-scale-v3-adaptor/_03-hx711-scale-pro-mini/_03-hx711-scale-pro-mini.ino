@@ -46,21 +46,21 @@ void setup()
 
 void doUpdateHX711()
 {
-    volatile float fmeasured = scale.get_units(5) ;
-    measured = int(fmeasured * 1000) ;
-    tosend = measured;
-    isSent = ! isSent;
+  volatile float fmeasured = scale.get_units(5) ;
+  measured = int(fmeasured * 1000) ;
+  tosend = measured;
+  isSent = ! isSent;
 }
 
 void loop()
 {
   t.update();
 
-  if ( isSent != o_isSent ) 
+  if ( isSent != o_isSent )
   {
     notifyesp8266();
     o_isSent = isSent;
-    if ( DEBUG_OUT ) 
+    if ( DEBUG_OUT )
     {
       Serial.print((millis() - startMills) * 0.001, 2);
       Serial.print("\t: ");
@@ -71,12 +71,12 @@ void loop()
   }
 }
 
-void notifyesp8266() 
+void notifyesp8266()
 {
-    digitalWrite(nemoisonPin, HIGH);
-    delay(30);
-    digitalWrite(nemoisonPin, LOW);  
-} 
+  digitalWrite(nemoisonPin, HIGH);
+  delay(30);
+  digitalWrite(nemoisonPin, LOW);
+}
 
 void requestEvent()
 {
