@@ -41,7 +41,7 @@ long lastReconnectAttempt = 0;
 
 boolean reconnect() {
   if  ( client.connect(MQTT::Connect((char*) clientName.c_str()).set_clean_session().set_keepalive(120))) {
-    client.publish(hellotopic, "hello again from ESP8266 s06");
+    client.publish(hellotopic, "hello again 1 from ESP8266 s06");
   }
   return client.connected();
 }
@@ -151,7 +151,7 @@ void loop()
           payload += ave.stddev();
           payload += "}";
 
-          sendHx711toMqtt(payload, topicAverage);
+          sendHx711toMqtt(payload, topicAverage, 1);
         } else {
           if ( nofchecked > 3 ) 
           {
@@ -159,7 +159,7 @@ void loop()
             payload += ( measured - measured_empty );
             payload += "}";
 
-            sendHx711toMqtt(payload, topicEvery);
+            sendHx711toMqtt(payload, topicEvery, 0);
           }
         }
       }
@@ -175,10 +175,10 @@ void loop()
           payload = "{\"WeightPoop\":";
           payload += ( int(ave.mean()) - measured_empty );
           payload += ",\"NemoWeight\":0}";
-          sendHx711toMqtt(payload, topicEvery);
+          sendHx711toMqtt(payload, topicEvery, 0);
 
           payload = "{\"WeightAvg\":0}";
-          sendHx711toMqtt(payload, topicAverage);
+          sendHx711toMqtt(payload, topicAverage, 0);
 
           AvgMeasuredIsSent = LOW;
         } else {
@@ -192,7 +192,7 @@ void loop()
           payload += WiFi.RSSI();
           payload += "}";
 
-          sendHx711toMqtt(payload, topicEvery);
+          sendHx711toMqtt(payload, topicEvery, 0);
         }
         nofnotinuse = 0;
       }
@@ -243,34 +243,38 @@ void hx711IsReady()
   r = !r;
 }
 
-void sendHx711toMqtt(String payload, char* topic)
+void sendHx711toMqtt(String payload, char* topic, int retain)
 {
-  if (WiFi.status() == WL_CONNECTED) {
-    if (!client.connected()) {
-      if ( client.connect(MQTT::Connect((char*) clientName.c_str()).set_clean_session().set_keepalive(120))) {
-        client.publish(hellotopic, "hello again from ESP8266 s06");
-      }
+  if (!client.connected()) {
+    if ( client.connect(MQTT::Connect((char*) clientName.c_str()).set_clean_session().set_keepalive(120))) {
+      client.publish(hellotopic, "hello again 2 from ESP8266 s06");
     }
-
-    if (client.connected()) {
-      Serial.print("Sending payload: ");
-      Serial.println(payload);
-
-      if (client.publish(MQTT::Publish(topic, (char*) payload.c_str()).set_retain())) {
-        Serial.println("Publish ok");
-        if ( topic == "esp8266/arduino/s06" ) {
-          AvgMeasuredIsSent = HIGH;
-        }
-      }
-      else {
-        Serial.println("Publish failed");
-        ESP.restart();
-      }
-    }
-  } else {
-    Serial.println("Could not connect to WIFI");
-    ESP.restart();
   }
+
+  if (client.connected()) {
+    Serial.print("Sending payload: ");
+    Serial.println(payload);
+
+    if ( retain == 1 ) {
+      if ( client.publish(MQTT::Publish(topic, (char*) payload.c_str()).set_retain()) ) {
+        if ( topic == "esp8266/arduino/s06" ) { AvgMeasuredIsSent = HIGH; }
+        Serial.println("Publish ok");
+      } else {
+        Serial.println("Publish failed");
+        abort();
+      }
+    } else {
+      if ( client.publish(MQTT::Publish(topic, (char*) payload.c_str()) ) {
+        if ( topic == "esp8266/arduino/s06" ) { AvgMeasuredIsSent = HIGH; }
+        Serial.println("Publish ok");
+      } else {
+        Serial.println("Publish failed");
+        abort();
+      }      
+    }
+
+  }
+
 }
 
 
