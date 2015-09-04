@@ -106,13 +106,13 @@ void setup() {
   lastReconnectAttempt = 0;
 
   String getResetInfo = "hello from ESP8266 s06 ";
-  getResetInfo += (ESP.getResetInfo().substring(0,30));
+  getResetInfo += ESP.getResetInfo().substring(0,30);
 
   if (WiFi.status() == WL_CONNECTED) {
     if (!client.connected()) {
       if  ( client.connect(MQTT::Connect((char*) clientName.c_str()).set_clean_session().set_keepalive(120))) {
         //client.publish(hellotopic, getResetInfo);
-        client.publish(MQTT::Publish(hellotopic, (char*) getResetInfo.c_str());
+        client.publish(MQTT::Publish(hellotopic, (char*) getResetInfo.c_str()).set_retain(0));
       }
     }
   }
@@ -260,7 +260,7 @@ void sendHx711toMqtt(String payload, char* topic, int retain)
     Serial.println(payload);
 
     if ( retain == 1 ) {
-      if ( client.publish(MQTT::Publish(topic, (char*) payload.c_str()).set_retain()) ) {
+      if ( client.publish(MQTT::Publish(topic, (char*) payload.c_str()).set_retain(1)) ) {
         if ( topic == "esp8266/arduino/s06" ) { AvgMeasuredIsSent = HIGH; }
         Serial.println("Publish ok");
       } else {
@@ -268,7 +268,7 @@ void sendHx711toMqtt(String payload, char* topic, int retain)
         abort();
       }
     } else {
-      if ( client.publish(MQTT::Publish(topic, (char*) payload.c_str()) ) {
+      if ( client.publish(MQTT::Publish(topic, (char*) payload.c_str()).set_retain(0)) ) {
         if ( topic == "esp8266/arduino/s06" ) { AvgMeasuredIsSent = HIGH; }
         Serial.println("Publish ok");
       } else {
@@ -280,7 +280,6 @@ void sendHx711toMqtt(String payload, char* topic, int retain)
   }
 
 }
-
 
 String macToStr(const uint8_t* mac)
 {
