@@ -1,12 +1,7 @@
 #include <PubSubClient.h>
 #include <ESP8266WiFi.h>
 #include <Average.h>
-
-#if defined(ESP8266)
 #include <pgmspace.h>
-#else
-#include <avr/pgmspace.h>
-#endif
 #include <Wire.h>
 
 // wifi
