@@ -39,6 +39,39 @@ void callback(char* topic, byte* payload, unsigned int length) {
 
 long lastReconnectAttempt = 0;
 
+void wifi_connect() {
+  // WIFI
+  Serial.println();
+  Serial.println();
+  Serial.print("Connecting to ");
+  Serial.println(ssid);
+
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(ssid, password);
+
+  int Attempt = 0;
+  while (WiFi.status() != WL_CONNECTED) {
+    digitalWrite(ledPin, HIGH);
+    delay(50);
+    digitalWrite(ledPin, LOW);
+    delay(50);
+    Attempt++;
+    Serial.print(".");
+    if (Attempt == 100)
+    {
+      Serial.println();
+      Serial.println("Could not connect to WIFI");
+      ESP.restart();
+    }
+  }
+
+  Serial.println("");
+  Serial.println("WiFi connected");
+  Serial.println("IP address: ");
+  Serial.println(WiFi.localIP());
+
+}
+
 boolean reconnect() {
   if (client.connect((char*) clientName.c_str())) {
     Serial.println("connected");
@@ -70,35 +103,7 @@ void setup() {
   pinMode(nemoisOnPin, INPUT);
   pinMode(ledPin, OUTPUT);
 
-  // WIFI
-  Serial.println();
-  Serial.println();
-  Serial.print("Connecting to ");
-  Serial.println(ssid);
-
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(ssid, password);
-
-  int Attempt = 0;
-  while (WiFi.status() != WL_CONNECTED) {
-    digitalWrite(ledPin, HIGH);
-    delay(50);
-    digitalWrite(ledPin, LOW);
-    delay(50);
-    Attempt++;
-    Serial.print(".");
-    if (Attempt == 100)
-    {
-      Serial.println();
-      Serial.println("Could not connect to WIFI");
-      ESP.restart();
-    }
-  }
-
-  Serial.println("");
-  Serial.println("WiFi connected");
-  Serial.println("IP address: ");
-  Serial.println(WiFi.localIP());
+  wifi_connect();
 
   clientName += "esp8266-";
   uint8_t mac[6];
@@ -142,8 +147,7 @@ void loop()
       client.loop();
     }
   } else {
-    Serial.println("Could not connect to WIFI");
-    ESP.restart();
+    wifi_connect();
   }
 
   if ( r != o_r )
@@ -281,7 +285,6 @@ void sendHx711toMqtt(String payload, char* topic, int retain)
       } else {
         Serial.println("Publish failed");
         free(p);
-        abort();
       }
     } else {
       if ( client.publish(topic, p, msg_length)) {
@@ -293,7 +296,6 @@ void sendHx711toMqtt(String payload, char* topic, int retain)
       } else {
         Serial.println("Publish failed");
         free(p);
-        abort();
       }
     }
 
