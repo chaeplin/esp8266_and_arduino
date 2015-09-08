@@ -1,12 +1,11 @@
 /* bugs
 *  001 : initialise_number_select cause reset when called minno ~ maxno loop moret han 3 times
-*  002 : tempCprevious is a 5 min moving point
 */
 
 #include <avr/eeprom.h>
 #include <Wire.h>
 #include <OneWire.h>
-#include <DallasTemperature.h>
+#include "DHT.h"
 #include <LiquidCrystal_I2C.h>
 #include <IRremote.h>
 #include "Timer.h"
@@ -19,7 +18,7 @@
 #define eeprom_write(src, eeprom_field) { typeof(src) x = src; eeprom_write_from(&x, eeprom_field, sizeof(x)); }
 #define MIN(x,y) ( x > y ? y : x )
 
-#define DEBUG_PRINT 0
+#define DEBUG_PRINT 1
 
 // eeprom
 // Change this any time the EEPROM content changes
@@ -29,48 +28,35 @@ struct __eeprom_data {
   long magic;
   int pwrSrc;     // 1 : connected to TV, 0 : usb powered
   int startMode;  // if wrkMode == 1, 1 : auto start timer, pir, 0 : do nothing indicating a sign on the lcd
-  int beepMode;   // 1 : beep on
   int channelGap; // 1 ~ 5
   long tvOnTime;   // 30 ~ 90
 };
 
 // pins
-int SETUP_IN_PIN    = A2;
-int WRK_MODE_IN_PIN = A0;
-int UP_IN_PIN       = 12;
-
-/*
-int UP_IN_PIN    = 12;
-int DN_IN_PIN    = 11;
-*/
+#define SETUP_IN_PIN  12
+#define IR_IN_PIN     10
+#define DHTPIN         4
+#define PIR_IN_PIN     2
 
 
-int IR_IN_PIN    = 10;
-int PIR_IN_PIN   = 2;
-int BZ_OU_PIN    = 9;
-
+// DHT22
+#define DHTTYPE DHT22   // DHT 22  (AM2302)
+DHT dht(DHTPIN, DHTTYPE, 15);
 
 // LCD
-LiquidCrystal_I2C lcd(0x27, 16, 2);
+LiquidCrystal_I2C lcd(0x27, 8, 2);
 
 // IR
 #define maxLen 800
-volatile  unsigned int irBuffer[maxLen]; //stores timings - volatile because changed by ISR
-volatile unsigned int x = 0; //Pointer thru irBuffer - volatile because changed by ISR
+volatile  unsigned int irBuffer[maxLen]; 
+volatile unsigned int x = 0;
 
 IRrecv irrecv(IR_IN_PIN);
 IRsend irsend;
 
-// DS18B20
-#define ONE_WIRE_BUS 4
-#define TEMPERATURE_PRECISION 12
-OneWire oneWire(ONE_WIRE_BUS);
-DallasTemperature sensors(&oneWire);
-DeviceAddress insideThermometer;
-
 // Temperature
 float tempCinside;
-float tempCprevious[12] = {100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100};
+float Humidityinside;
 
 // Timer
 Timer t;
@@ -83,11 +69,9 @@ int irSendTvOutToCurChEvent ;
 int irSendTvOutToBlnkChEvent ;
 
 
-
 // eeprom status
 int o_pwrSrc;
 int o_startMode;
-int o_beepMode;
 int o_channelGap;
 long o_tvOnTime;
 
@@ -133,6 +117,18 @@ byte termometru[8] =
   B01110,
 };
 
+byte picatura[8] =
+{
+  B00100,
+  B00100,
+  B01010,
+  B01010,
+  B10001,
+  B10001,
+  B10001,
+  B01110,
+};
+
 byte tvicon[8] =
 {
   B10001,
@@ -141,18 +137,6 @@ byte tvicon[8] =
   B11111,
   B10001,
   B10001,
-  B10001,
-  B11111,
-};
-
-byte beepicon[8] =
-{
-  B00000,
-  B11111,
-  B10001,
-  B10101,
-  B10101,
-  B10101,
   B10001,
   B11111,
 };
@@ -196,7 +180,6 @@ byte piricon[8] =
 // to reset after setup
 void(* resetFunc) (void) = 0; //declare reset function @ address 0
 
-
 void setup()
 {
   // start serial
@@ -222,43 +205,29 @@ void setup()
   irrecv.enableIRIn();
 
   // pin mode
-  pinMode(SETUP_IN_PIN, INPUT);
-  pinMode(WRK_MODE_IN_PIN, INPUT);
-  pinMode(UP_IN_PIN, INPUT_PULLUP);
-  // SETUP_IN_PIN and WRK_MODE_IN_PIN is analog pin, to pull-up
-  digitalWrite(SETUP_IN_PIN, HIGH);
-  digitalWrite(WRK_MODE_IN_PIN, HIGH);
-
+  pinMode(SETUP_IN_PIN, INPUT_PULLUP);
   pinMode(PIR_IN_PIN, INPUT);
-
-  // buzzer
-  pinMode(BZ_OU_PIN, OUTPUT);
-  digitalWrite(BZ_OU_PIN, HIGH);
 
   delay(2000);
 
   // PIR
   if ( digitalRead(PIR_IN_PIN) == 0 ) {
     attachInterrupt(0, PIRCHECKING, CHANGE);
-    lcd.setCursor(15, 0);
+    lcd.setCursor(7, 0);
     lcd.print("+");
   } else {
     attachInterrupt(0, remove_poweron_error, FALLING);
     pirOnOff = HIGH;
     o_pirOnOff = HIGH;
-    lcd.setCursor(15, 0);
+    lcd.setCursor(7, 0);
     lcd.print("-");
   }
 
   // read pin status
   setUpStatus   = digitalRead(SETUP_IN_PIN);
-  wrkModeStatus = digitalRead(WRK_MODE_IN_PIN);
-  backlightStatus = digitalRead(UP_IN_PIN);
 
-  if ( backlightStatus == 1 ) {
-    lcd.backlight();
-  }
-
+  lcd.backlight();
+  
   // eeprom read
   long o_magic;
   eeprom_read(o_magic, magic);
@@ -270,16 +239,10 @@ void setup()
 
   eeprom_read(o_pwrSrc, pwrSrc);
   eeprom_read(o_startMode, startMode);
-  eeprom_read(o_beepMode, beepMode);
   eeprom_read(o_channelGap, channelGap);
   eeprom_read(o_tvOnTime, tvOnTime);
 
 //  o_tvOnTime  = 2;
-
-  // temp sensor
-  sensors.begin();
-  if (!sensors.getAddress(insideThermometer, 0)) Serial.println("Unable to find address for Device 0");
-  sensors.setResolution(insideThermometer, TEMPERATURE_PRECISION);
 
   // lcd
   lcd.createChar(1, termometru);
@@ -298,11 +261,6 @@ void setup()
   if ( wrkModeStatus == 1 && o_startMode == 1 ) {
     lcd.setCursor(0, 1);
     lcd.write(2);
-
-    if ( o_beepMode == 1 ) {
-      lcd.setCursor(2, 1);
-      lcd.write(3);
-    }
 
     // if powered by TV
     if ( o_pwrSrc == 1 ) {
@@ -886,23 +844,17 @@ void run_initialise_setup() {
 
   irrecv.resume();
   while (irrecv.decode(&results) != 1 ) { }
-  alarm_set();
-  alarm_set();
-  alarm_set();
+
 }
 
 
-int initialise_eeprom(int o_pwrSrc, int o_startMode, int o_beepMode, int o_channelGap, long o_tvOnTime)
+int initialise_eeprom(int o_pwrSrc, int o_startMode, int o_channelGap, long o_tvOnTime)
 {
   eeprom_write(o_pwrSrc, pwrSrc);
   eeprom_write(o_startMode, startMode);
-  eeprom_write(o_beepMode, beepMode);
   eeprom_write(o_channelGap, channelGap);
   eeprom_write(o_tvOnTime, tvOnTime);
   eeprom_write(magic_number, magic);
-
-  alarm_set();
-  alarm_set();
 
   return 1;
 }
