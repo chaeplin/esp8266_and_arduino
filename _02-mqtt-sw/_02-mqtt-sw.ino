@@ -1,32 +1,25 @@
-/*
-*/
 #include <OneWire.h>
 #include "DHT.h"
 #include <PubSubClient.h>
 #include <ESP8266WiFi.h>
 #include <DallasTemperature.h>
-
 #include <WiFiUdp.h>
 #include <Time.h>
 
 // wifi
 #ifdef __IS_MY_HOME
-  #include "/usr/local/src/ap_setting.h"
+#include "/usr/local/src/ap_setting.h"
 #else
-  #include "ap_setting.h"
+#include "ap_setting.h"
 #endif
 
-// mqtt
-char* topic = "esp8266/arduino/s02";
-char* subtopic = "esp8266/cmd/light";
-char* hellotopic = "HELLO";
-IPAddress server(192, 168, 10, 10);
+#define DEBUG_PRINT 1
 
 // pin
 #define pir 13
 #define DHTPIN 14     // what pin we're connected to
 #define RELAYPIN 4
-#define TOPBUTTONPIN 5 
+#define TOPBUTTONPIN 5
 
 // DHT22
 #define DHTTYPE DHT22   // DHT 22  (AM2302)
@@ -41,6 +34,12 @@ DHT dht(DHTPIN, DHTTYPE, 15);
 OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature sensors(&oneWire);
 DeviceAddress insideThermometer, outsideThermometer;
+
+// mqtt
+char* topic = "esp8266/arduino/s02";
+char* subtopic = "esp8266/cmd/light";
+char* hellotopic = "HELLO";
+IPAddress server(192, 168, 10, 10);
 
 //
 unsigned int localPort = 2390;  // local port to listen for UDP packets
@@ -72,55 +71,21 @@ int getdht22tempstatus = 0;
 //
 long startMills;
 
-void callback(const MQTT::Publish& pub) {
-  
-  Serial.print(" => ");
-  Serial.print(pub.topic());
-  Serial.print(" => ");
-  Serial.print(pub.payload_string());
-  
-  String subPayload = pub.payload_string() ;
-
-  if ( subPayload == "{\"LIGHT\":1}") 
-  {
-       relaystatus = 1 ;
-    
-  } else if ( subPayload == "{\"LIGHT\":0}") 
-  {
-       relaystatus = 0 ;
-  }
-  changelight() ;
-  Serial.println("");
-  Serial.print(" => relaystatus => ");
-  Serial.println(relaystatus);
-}
-
 WiFiClient wifiClient;
-PubSubClient client(wifiClient, server);
+PubSubClient client(server, 1883, callback, wifiClient);
 WiFiUDP udp;
 
+long lastReconnectAttempt = 0;
 
-void setup() 
-{
-  Serial.begin(38400);
-  Serial.println("DHTxx test!");
-  delay(20);
-  
-  startMills = millis();
-
-  pinMode(pir,INPUT);
-  pinMode(RELAYPIN, OUTPUT);
-  pinMode(TOPBUTTONPIN, INPUT_PULLUP);
-
-  digitalWrite(RELAYPIN, relaystatus);
-
+void wifi_connect() {
+  // WIFI
   Serial.println();
   Serial.println();
   Serial.print("Connecting to ");
   Serial.println(ssid);
 
   WiFi.mode(WIFI_STA);
-  WiFi.begin(ssid, password); 
+  WiFi.begin(ssid, password);
 
   int Attempt = 0;
   while (WiFi.status() != WL_CONNECTED) {
@@ -140,6 +105,97 @@ void setup()
   Serial.println("IP address: ");
   Serial.println(WiFi.localIP());
 
+}
+
+void callback(char* topic, byte* payload, unsigned int length)
+{
+  String receivedtopic = topic;
+  String receivedpayload ;
+
+  for (int i = 0; i < length; i++) {
+    receivedpayload += (char)payload[i];
+  }
+
+  if (DEBUG_PRINT) {
+    Serial.print(topic);
+    Serial.print(" => ");
+    Serial.println(receivedpayload);
+  }
+
+  if ( receivedpayload == "{\"LIGHT\":1}") {
+    relaystatus = 1 ;
+  }
+  if ( receivedpayload == "{\"LIGHT\":0}") {
+    relaystatus = 0 ;
+  }
+
+  changelight();
+
+  if (DEBUG_PRINT) {
+    Serial.print("");
+    Serial.print(" => relaystatus => ");
+    Serial.println(relaystatus);
+  }
+}
+
+boolean reconnect()
+{
+  if (client.connect((char*) clientName.c_str())) {
+    Serial.println("connected");
+    client.publish(hellotopic, "hello again 1 from ESP8266 s02");
+    client.subscribe(subtopic);
+    client.setCallback(callback);
+  } else {
+    Serial.print("failed, rc=");
+    Serial.print(client.state());
+  }
+  return client.connected();
+}
+
+void setup()
+{
+  Serial.begin(38400);
+  Serial.println("DHTxx test!");
+  delay(20);
+
+  startMills = millis();
+
+  pinMode(pir, INPUT);
+  pinMode(RELAYPIN, OUTPUT);
+  pinMode(TOPBUTTONPIN, INPUT_PULLUP);
+
+  digitalWrite(RELAYPIN, relaystatus);
+
+  wifi_connect();
+
+  clientName += "esp8266-";
+  uint8_t mac[6];
+  WiFi.macAddress(mac);
+  clientName += macToStr(mac);
+  clientName += "-";
+  clientName += String(micros() & 0xff, 16);
+
+  //
+  client.setCallback(callback);
+
+  //
+  lastReconnectAttempt = 0;
+
+  String getResetInfo = "hello from ESP8266 s02 ";
+  getResetInfo += ESP.getResetInfo().substring(0, 30);
+
+  if (WiFi.status() == WL_CONNECTED) {
+    if (!client.connected()) {
+      if (client.connect((char*) clientName.c_str())) {
+        client.publish(hellotopic, (char*) getResetInfo.c_str());
+        client.subscribe(subtopic);
+        client.setCallback(callback);
+        Serial.print("Sending payload: ");
+        Serial.println(getResetInfo);
+      }
+    }
+  }
+
   //
   Serial.println("Starting UDP");
   udp.begin(localPort);
@@ -153,18 +209,11 @@ void setup()
   }
 
   attachInterrupt(13, motion_detection, RISING);
-  attachInterrupt(5, run_lightcmd, CHANGE); 
-
-  clientName += "esp8266-";
-  uint8_t mac[6];
-  WiFi.macAddress(mac);
-  clientName += macToStr(mac);
-  clientName += "-";
-  clientName += String(micros() & 0xff, 16);
+  attachInterrupt(5, run_lightcmd, CHANGE);
 
   sensors.begin();
-  if (!sensors.getAddress(insideThermometer, 0)) Serial.println("Unable to find address for Device 0"); 
-  if (!sensors.getAddress(outsideThermometer, 1)) Serial.println("Unable to find address for Device 1"); 
+  if (!sensors.getAddress(insideThermometer, 0)) Serial.println("Unable to find address for Device 0");
+  if (!sensors.getAddress(outsideThermometer, 1)) Serial.println("Unable to find address for Device 1");
 
   // set the resolution to 9 bit
   sensors.setResolution(insideThermometer, TEMPERATURE_PRECISION);
@@ -189,38 +238,33 @@ void setup()
     Serial.println("Failed to read from sensor!");
     return;
   }
-
 }
 
-void loop() 
+void loop()
 {
-
   if (WiFi.status() == WL_CONNECTED) {
     if (!client.connected()) {
-      if  (
-        client.connect(MQTT::Connect((char*) clientName.c_str()).set_clean_session().set_keepalive(120))) {
-        client.subscribe(subtopic);
-        client.publish(hellotopic, "hello from ESP8266 s02");
-        client.set_callback(callback);
+      long now = millis();
+      if (now - lastReconnectAttempt > 5000) {
+        lastReconnectAttempt = now;
+        if (reconnect()) {
+          lastReconnectAttempt = 0;
+        }
       }
-    }
-
-    if (client.connected()) {
-      client.loop();
+      Serial.print("failed, rc=");
+      Serial.print(client.state());
     } else {
-      ESP.restart();
+      client.loop();
     }
   } else {
-      Serial.println("Could not connect to WIFI");
-      ESP.restart();    
+    wifi_connect();
   }
-
 
   changelight();
   runTimerDoLightOff();
-  
+
   pirValue = digitalRead(pir);
-  
+
   payload = "{\"Humidity\":";
   payload += h;
   payload += ",\"Temperature\":";
@@ -232,27 +276,27 @@ void loop()
   payload += ",\"PIRSTATUS\":";
   payload += pirValue;
   payload += "}";
-    
+
 
   if ( pirSent == HIGH && pirValue == HIGH )
-  {    
+  {
     sendmqttMsg(topic, payload);
     pirSent = LOW ;
     startMills = millis();
   }
-    
+
   if (((millis() - startMills) > REPORT_INTERVAL ) && ( getdalastempstatus == 0))
   {
     getdalastemp();
     getdalastempstatus = 1;
   }
-  
+
   if (((millis() - startMills) > REPORT_INTERVAL ) && ( getdht22tempstatus == 0))
   {
     getdht22temp();
     getdht22tempstatus = 1;
   }
-    
+
   if ((millis() - startMills) > REPORT_INTERVAL )
   {
     sendmqttMsg(topic, payload);
@@ -268,151 +312,103 @@ void runTimerDoLightOff()
   {
     relaystatus = 0;
   }
-
 }
 
-void changelight() 
-{ 
-  if ( relaystatus != oldrelaystatus ) 
+void changelight()
+{
+  if ( relaystatus != oldrelaystatus )
   {
-      Serial.print(" => ");
-      Serial.println("checking relay status changelight");
-      delay(10);
-      digitalWrite(RELAYPIN, relaystatus);
-      delay(20);
-      digitalWrite(RELAYPIN, relaystatus);
-      delay(20);
-      digitalWrite(RELAYPIN, relaystatus);
-      delay(20);
-      oldrelaystatus = relaystatus ;
-      Serial.print(" => ");
-      Serial.println("changing relay status");
+    Serial.print(" => ");
+    Serial.println("checking relay status changelight");
+    delay(10);
+    digitalWrite(RELAYPIN, relaystatus);
+    delay(20);
+    digitalWrite(RELAYPIN, relaystatus);
+    delay(20);
+    digitalWrite(RELAYPIN, relaystatus);
+    delay(20);
+    oldrelaystatus = relaystatus ;
+    Serial.print(" => ");
+    Serial.println("changing relay status");
 
-      sendlightstatus();
+    sendlightstatus();
   }
 }
 
 void getdht22temp()
 {
-    
-    h = dht.readHumidity();
-    t = dht.readTemperature();
-    f = dht.readTemperature(true);
 
-    if (isnan(h) || isnan(t) || isnan(f)) {
-      Serial.println("Failed to read from DHT sensor!");
-    }
+  h = dht.readHumidity();
+  t = dht.readTemperature();
+  f = dht.readTemperature(true);
 
-    float hi = dht.computeHeatIndex(f, h);  
+  if (isnan(h) || isnan(t) || isnan(f)) {
+    Serial.println("Failed to read from DHT sensor!");
+  }
+
+  float hi = dht.computeHeatIndex(f, h);
 }
 
 void getdalastemp()
 {
-    sensors.requestTemperatures();
-    tempCinside  = sensors.getTempC(outsideThermometer);
-    tempCoutside = sensors.getTempC(insideThermometer);
+  sensors.requestTemperatures();
+  tempCinside  = sensors.getTempC(outsideThermometer);
+  tempCoutside = sensors.getTempC(insideThermometer);
 
-    if ( isnan(tempCinside) || isnan(tempCoutside) ) {
-      Serial.println("Failed to read from sensor!");
-    }  
-}
-
-void sendlightstatus() 
-{
-      String lightpayload = "{\"LIGHT\":";
-      lightpayload += relaystatus;
-      lightpayload += "}";
-
-      sendmqttMsg(subtopic, lightpayload);
-}
-
-void sendmqttMsg(char* topictosend, String payload) 
-{
-  if (WiFi.status() == WL_CONNECTED) {
-    if (!client.connected()) {
-      if (client.connect((char*) clientName.c_str())) {
-        Serial.println("Connected to MQTT broker again TEMP");
-        Serial.print("Topic is: ");
-        Serial.println(topictosend);
-      }
-      else {
-        Serial.println("MQTT connect failed");
-        Serial.println("Will reset and try again...");
-        ESP.restart();
-      }
-    }
-
-    if (client.connected()) {
-      Serial.print("Sending payload: ");
-      Serial.println(payload);
-
-      if (
-        client.publish(MQTT::Publish(topictosend, (char*) payload.c_str())
-                  .set_retain()
-                 )
-        ) {
-        //Serial.println("Publish ok");
-      }
-      else {
-        Serial.println("Publish failed");
-        ESP.restart();
-      }
-    }
-  } else {
-      Serial.println("Could not connect to WIFI");
-      ESP.restart();    
+  if ( isnan(tempCinside) || isnan(tempCoutside) ) {
+    Serial.println("Failed to read from sensor!");
   }
 }
 
-void run_lightcmd() 
+void sendlightstatus()
+{
+  String lightpayload = "{\"LIGHT\":";
+  lightpayload += relaystatus;
+  lightpayload += "}";
+
+  sendmqttMsg(subtopic, lightpayload);
+}
+
+void sendmqttMsg(char* topictosend, String payload)
+{
+  if (!client.connected()) {
+    if (client.connect((char*) clientName.c_str())) {
+      client.publish(hellotopic, "hello again 2 from ESP8266 s02");
+    }
+  }
+
+  if (client.connected()) {
+    Serial.print("Sending payload: ");
+    Serial.print(payload);
+
+    unsigned int msg_length = payload.length();
+
+    Serial.print(" length: ");
+    Serial.println(msg_length);
+
+    byte* p = (byte*)malloc(msg_length);
+    memcpy(p, (char*) payload.c_str(), msg_length);
+
+    if ( client.publish(topictosend, p, msg_length, 1)) {
+      Serial.println("Publish ok");
+      free(p);
+    } else {
+      Serial.println("Publish failed");
+      free(p);
+    }
+  }
+}
+
+void run_lightcmd()
 {
   int topbuttonstatus =  ! digitalRead(TOPBUTTONPIN);
   relaystatus = topbuttonstatus ;
 }
 
-void motion_detection() 
+void motion_detection()
 {
   pirValue = HIGH ;
   pirSent  = HIGH ;
-}
-
-// function to print a device address
-void printAddress(DeviceAddress deviceAddress)
-{
-  for (uint8_t i = 0; i < 8; i++)
-  {
-    // zero pad the address if necessary
-    if (deviceAddress[i] < 16) Serial.print("0");
-    Serial.print(deviceAddress[i], HEX);
-  }
-}
-
-// function to print the temperature for a device
-void printTemperature(DeviceAddress deviceAddress)
-{
-  float tempC = sensors.getTempC(deviceAddress);
-  Serial.print("Temp C: ");
-  Serial.print(tempC);
-  Serial.print(" Temp F: ");
-  Serial.print(DallasTemperature::toFahrenheit(tempC));
-}
-
-// function to print a device's resolution
-void printResolution(DeviceAddress deviceAddress)
-{
-  Serial.print("Resolution: ");
-  Serial.print(sensors.getResolution(deviceAddress));
-  Serial.println();    
-}
-
-// main function to print information about a device
-void printData(DeviceAddress deviceAddress)
-{
-  Serial.print("Device Address: ");
-  printAddress(deviceAddress);
-  Serial.print(" ");
-  printTemperature(deviceAddress);
-  Serial.println();
 }
 
 String macToStr(const uint8_t* mac)
@@ -426,9 +422,7 @@ String macToStr(const uint8_t* mac)
   return result;
 }
 
-
 /*-------- NTP code ----------*/
-
 const int NTP_PACKET_SIZE = 48; // NTP time is in the first 48 bytes of message
 byte packetBuffer[NTP_PACKET_SIZE]; //buffer to hold incoming & outgoing packets
 
