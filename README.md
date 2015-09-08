@@ -9,7 +9,7 @@
 
 
 ### Library ###
-- https://github.com/Imroy/pubsubclient
+- https://github.com/knolleary/pubsubclient
 - https://github.com/milesburton/Arduino-Temperature-Control-Library
 - https://github.com/adafruit/DHT-sensor-library
 - https://github.com/bogde/HX711

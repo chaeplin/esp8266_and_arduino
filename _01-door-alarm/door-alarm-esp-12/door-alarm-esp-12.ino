@@ -47,11 +47,11 @@ IPAddress server(192, 168, 10, 10);
 String clientName;
 WiFiClient wifiClient;
 
-void callback(const MQTT::Publish& pub) {
+void callback(char* topic, byte* payload, unsigned int length) {
   // handle message arrived
 }
 
-PubSubClient client(wifiClient, server);
+PubSubClient client(server, 1883, callback, wifiClient);
 
 void setup()
 {
@@ -147,12 +147,7 @@ void loop()
 void sendDoorAlarm(String payload) 
 {
 
-  if (
-        client.connect(MQTT::Connect((char*) clientName.c_str())
-                .set_clean_session()
-                .set_will("status", "down")
-                .set_keepalive(2))
-    ) {
+  if (client.connect((char*) clientName.c_str())) {
     Serial.println("Connected to MQTT broker");
     Serial.print("Topic is: ");
     Serial.println(topic);

@@ -1,11 +1,6 @@
-#if defined(ESP8266)
 #include <pgmspace.h>
-#else
-#include <avr/pgmspace.h>
-#endif
 #include <Wire.h>
 #include <RtcDS3231.h>
-
 #include <PubSubClient.h>
 #include <ESP8266WiFi.h>
 #include <LiquidCrystal_I2C.h>
@@ -13,17 +8,16 @@
 #include <WiFiUdp.h>
 #include <Time.h>
 
-
-RtcDS3231 Rtc;
-
-#define DEBUG_PRINT 1
-
 // wifi
 #ifdef __IS_MY_HOME
 #include "/usr/local/src/ap_setting.h"
 #else
 #include "ap_setting.h"
 #endif
+
+RtcDS3231 Rtc;
+
+#define DEBUG_PRINT 1
 
 const char* topic = "esp8266/arduino/s03";
 const char* subtopic = "#";
@@ -161,19 +155,24 @@ byte nemoicon[8] =
   B11011,
 };
 
+PubSubClient client(server, 1883, callback, wifiClient);
 
-PubSubClient client(wifiClient, server);
+void callback(char* topic, byte* payload, unsigned int length)
+{
+  String receivedtopic = topic;
+  String receivedpayload ;
 
-void callback(const MQTT::Publish& pub) {
-  if (1) {
-    Serial.print(pub.topic());
+  for (int i=0;i<length;i++) {
+    receivedpayload += (char)payload[i];
+  }  
+
+  if (DEBUG_PRINT) {
+    Serial.print(topic);
     Serial.print(" => ");
-    Serial.println(pub.payload_string());
+    Serial.println(receivedpayload);
   }
 
-  String receivedtopic = pub.topic();
-  parseMqttMsg(pub.payload_string(), receivedtopic);
-
+  parseMqttMsg(receivedpayload, receivedtopic);
 }
 
 void parseMqttMsg(String payload, String receivedtopic) {
@@ -329,12 +328,11 @@ void setup() {
   }
 
   // never assume the Rtc was last configured by you, so
-  // just clear them to your needed state
   Rtc.Enable32kHzPin(false);
   Rtc.SetSquareWavePin(DS3231SquareWavePin_ModeNone);
 
   //
-  client.set_callback(callback);
+  client.setCallback(callback);
 
   clientName += "esp8266 - ";
   uint8_t mac[6];
@@ -430,11 +428,10 @@ void loop()
     
     if (WiFi.status() == WL_CONNECTED) {
       if (!client.connected()) {
-        if  (
-          client.connect(MQTT::Connect((char*) clientName.c_str()).set_clean_session().set_keepalive(120))) {
+        if (client.connect((char*) clientName.c_str())) {
           client.subscribe(subtopic);
           client.publish(hellotopic, "hello from ESP8266 s03");
-          client.set_callback(callback);
+          client.setCallback(callback);
         }
       }
 

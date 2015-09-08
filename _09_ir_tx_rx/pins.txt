@@ -2,13 +2,10 @@ pins
 
 A4, A5 - I2C
 
-A2 - SETUP / IN
-D13 - ENTER / IN
-D12 - DOWN / IN
-D11 - UP / IN
+D12 - SETUP / IN
+
 D10 - IR / IN
-D9 - BUZZER /OUT
-D4 - TEMP(DS18B20) /IN
+D4 - TEMP(DHT22) / IN
 D3 - IR / OUT
 D2 - PIR /IN
 
