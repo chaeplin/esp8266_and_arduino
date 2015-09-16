@@ -92,9 +92,8 @@ boolean reconnect() {
     Serial.print("failed, rc=");
     Serial.print(client.state());
   }
-  return client.connected();
-
   startMills = millis();
+  return client.connected();
 }
 
 volatile int measured = 0;

@@ -116,9 +116,8 @@ boolean reconnect() {
     Serial.print("failed, rc=");
     Serial.println(client.state());
   }
-  return client.connected();
-
   timemillis = millis();
+  return client.connected();
 }
 
 void setup() {
