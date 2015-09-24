@@ -73,6 +73,7 @@ void wifi_connect() {
 
   //startMills = millis();
 
+/*
   if (WiFi.status() == WL_CONNECTED) {
     if (!client.connected()) {
       if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
@@ -87,7 +88,7 @@ void wifi_connect() {
       client.publish(hellotopic, "hello again wifi from ESP8266 s06");
     }
   }
-
+*/
 }
 
 boolean reconnect() {

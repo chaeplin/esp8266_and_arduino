@@ -10,7 +10,7 @@
 
 #define _IS_MY_HOME 1
 // wifi
-#ifdef __IS_MY_HOME
+#ifdef _IS_MY_HOME
 #include "/usr/local/src/ap_setting.h"
 #else
 #include "ap_setting.h"
@@ -305,8 +305,9 @@ void wifi_connect() {
   Serial.println("IP address: ");
   Serial.println(WiFi.localIP());
 
-  startMills = millis();
+  //startMills = millis();
 
+  /*
   if (WiFi.status() == WL_CONNECTED) {
     if (!client.connected()) {
       if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
@@ -322,6 +323,7 @@ void wifi_connect() {
       client.publish(hellotopic, "hello again wifi from ESP8266 s03");
     }
   }
+  */
 }
 
 boolean reconnect() {
@@ -334,7 +336,7 @@ boolean reconnect() {
     Serial.print("failed, rc=");
     Serial.print(client.state());
   }
-  startMills = millis();
+  //startMills = millis();
   return client.connected();
 }
 
