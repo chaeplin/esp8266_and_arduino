@@ -292,9 +292,9 @@ void loop()
           lastReconnectAttempt = 0;
         }
       }
-    } else {
+    } /* else {
       client.loop();
-    }
+    } */
   } else {
     wifi_connect();
   }
@@ -349,6 +349,8 @@ void loop()
     getdht22tempstatus = 0;
     startMills = millis();
   }
+
+  client.loop();
 }
 
 void runTimerDoLightOff()

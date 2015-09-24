@@ -175,9 +175,9 @@ void loop()
           lastReconnectAttempt = 0;
         }
       }
-    } else {
+    } /* else {
       client.loop();
-    }
+    } */
   } else {
     wifi_connect();
   }
@@ -253,6 +253,7 @@ void loop()
     nofnotinuse++;
     o_r = r;
   }
+  client.loop();
 }
 
 

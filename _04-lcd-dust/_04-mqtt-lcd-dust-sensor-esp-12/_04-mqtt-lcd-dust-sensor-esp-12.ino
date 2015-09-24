@@ -511,9 +511,9 @@ void loop()
           lastReconnectAttempt = 0;
         }
       }
-    } else {
+    } /* else {
       client.loop();
-    }
+    } */
   } else {
     wifi_connect();
   }
@@ -528,6 +528,7 @@ void loop()
       checkDisplayValue();
     }
   }
+  client.loop();
 }
 
 void checkDisplayValue() {

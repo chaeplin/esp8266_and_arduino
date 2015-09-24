@@ -31,7 +31,7 @@ IPAddress server(192, 168, 10, 10);
 #define DOORPIN 5
 
 //#define REPORT_INTERVAL 60000 // in msec
-#define REPORT_INTERVAL 3000 // in msec
+#define REPORT_INTERVAL 2000 // in msec
 
 volatile long startMills ;
 volatile long revMills ;
@@ -215,9 +215,9 @@ void loop()
           lastReconnectAttempt = 0;
         }
       }
-    } else {
+    } /* else {
       client.loop();
-    }
+    } */
   } else {
     wifi_connect();
   }
@@ -287,6 +287,7 @@ void loop()
   }
 
   delay(100);
+  client.loop();
 
 }
 
