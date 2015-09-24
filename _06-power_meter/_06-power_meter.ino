@@ -4,6 +4,7 @@
 #include "EmonLib.h" // Include Emon Library
 #include <Average.h>
 
+#define _IS_MY_HOME 1
 // WIFI
 #ifdef __IS_MY_HOME
 #include "/usr/local/src/ap_settingii.h"
@@ -19,6 +20,10 @@ Average<float> ave(10);
 char* topic = "esp8266/arduino/s07";
 char* doortopic = "esp8266/arduino/s05" ;
 char* hellotopic = "HELLO";
+
+char* willTopic = "clients/power";
+char* willMessage = "0";
+
 IPAddress server(192, 168, 10, 10);
 
 // pin : using line tracker
@@ -95,13 +100,15 @@ void wifi_connect() {
 
   if (WiFi.status() == WL_CONNECTED) {
     if (!client.connected()) {
-      if (client.connect((char*) clientName.c_str())) {
+      if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
+        client.publish(willTopic, "1", true);
         client.publish(hellotopic, "hello again wifi and mqtt from ESP8266 s07");
         Serial.println("reconnecting wifi and mqtt");
       } else {
         Serial.println("mqtt publish fail after wifi reconnect");
       }
     } else {
+      client.publish(willTopic, "1", true);
       client.publish(hellotopic, "hello again wifi from ESP8266 s07");
     }
   }
@@ -109,9 +116,10 @@ void wifi_connect() {
 }
 
 boolean reconnect() {
-  if (client.connect((char*) clientName.c_str())) {
-    Serial.println("connected");
+  if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
+    client.publish(willTopic, "1", true);
     client.publish(hellotopic, "hello again 1 from ESP8266 s07");
+    Serial.println("connected");
   } else {
     Serial.print("failed, rc=");
     Serial.println(client.state());
@@ -144,12 +152,14 @@ void setup() {
 
   if (WiFi.status() == WL_CONNECTED) {
     if (!client.connected()) {
-      if (client.connect((char*) clientName.c_str())) {
+      if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
+        client.publish(willTopic, "1", true);
         client.publish(hellotopic, (char*) getResetInfo.c_str());
         Serial.print("Sending payload: ");
         Serial.println(getResetInfo);
       }
     } else {
+      client.publish(willTopic, "1", true);
       client.publish(hellotopic, (char*) getResetInfo.c_str());
       Serial.print("Sending payload: ");
       Serial.println(getResetInfo);
@@ -284,7 +294,8 @@ void loop()
 void sendmqttMsg(char* topictosend, String payloadtosend)
 {
   if (!client.connected()) {
-    if (client.connect((char*) clientName.c_str())) {
+    if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
+      client.publish(willTopic, "1", true);
       client.publish(hellotopic, "hello again 2 from ESP8266 s07");
     }
   }

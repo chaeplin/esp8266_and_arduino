@@ -65,8 +65,8 @@ void wifi_connect() {
   if (WiFi.status() == WL_CONNECTED) {
     if (!client.connected()) {
       if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
-        client.publish(hellotopic, "hello again wifi and mqtt from ESP8266 s20");
         client.publish(willTopic, "1", true);
+        client.publish(hellotopic, "hello again wifi and mqtt from ESP8266 s20");
         Serial.println("reconnecting wifi and mqtt");
       } else {
         Serial.println("mqtt publish fail after wifi reconnect");

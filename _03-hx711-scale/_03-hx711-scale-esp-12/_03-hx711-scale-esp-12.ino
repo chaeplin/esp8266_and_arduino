@@ -19,8 +19,10 @@ Average<float> ave(10);
 
 char* topicEvery   = "esp8266/arduino/s16";
 char* topicAverage = "esp8266/arduino/s06";
-
 char* hellotopic = "HELLO";
+
+char* willTopic = "clients/scale";
+char* willMessage = "0";
 
 String clientName;
 String payload;
@@ -73,13 +75,15 @@ void wifi_connect() {
 
   if (WiFi.status() == WL_CONNECTED) {
     if (!client.connected()) {
-      if (client.connect((char*) clientName.c_str())) {
+      if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
+        client.publish(willTopic, "1", true);
         client.publish(hellotopic, "hello again wifi and mqtt from ESP8266 s06");
         Serial.println("reconnecting wifi and mqtt");
       } else {
         Serial.println("mqtt publish fail after wifi reconnect");
       }
     } else {
+      client.publish(willTopic, "1", true);
       client.publish(hellotopic, "hello again wifi from ESP8266 s06");
     }
   }
@@ -87,9 +91,10 @@ void wifi_connect() {
 }
 
 boolean reconnect() {
-  if (client.connect((char*) clientName.c_str())) {
-    Serial.println("connected");
+  if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
+    client.publish(willTopic, "1", true);
     client.publish(hellotopic, "hello again 1 from ESP8266 s06");
+    Serial.println("connected");
   } else {
     Serial.print("failed, rc=");
     Serial.print(client.state());
@@ -138,12 +143,14 @@ void setup() {
 
   if (WiFi.status() == WL_CONNECTED) {
     if (!client.connected()) {
-      if (client.connect((char*) clientName.c_str())) {
+      if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
+        client.publish(willTopic, "1", true);
         client.publish(hellotopic, (char*) getResetInfo.c_str());
         Serial.print("Sending payload: ");
         Serial.println(getResetInfo);
       }
     } else {
+      client.publish(willTopic, "1", true);
       client.publish(hellotopic, (char*) getResetInfo.c_str());
       Serial.print("Sending payload: ");
       Serial.println(getResetInfo);
@@ -286,7 +293,8 @@ void hx711IsReady()
 void sendHx711toMqtt(String payload, char* topic, int retain)
 {
   if (!client.connected()) {
-    if (client.connect((char*) clientName.c_str())) {
+    if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
+      client.publish(willTopic, "1", true);
       client.publish(hellotopic, "hello again 2 from ESP8266 s06");
     }
   }
