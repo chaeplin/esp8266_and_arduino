@@ -4,7 +4,7 @@
 #include <pgmspace.h>
 #include <Wire.h>
 
-#define _IS_MY_HOME 1
+#define _IS_MY_HOME
 // wifi
 #ifdef _IS_MY_HOME
 #include "/usr/local/src/ap_setting.h"
@@ -14,6 +14,20 @@
 
 #define nemoisOnPin 14
 #define ledPin 13
+
+int measured = 0;
+int inuse = LOW;
+int r = LOW;
+int o_r = LOW;
+
+volatile int m = LOW;
+int o_m = LOW;
+
+int AvgMeasuredIsSent = LOW;
+int nofchecked        = 0;
+int nofnotinuse       = 0;
+int measured_poop     = 0;
+int measured_empty    = 0;
 
 Average<float> ave(10);
 
@@ -104,22 +118,18 @@ boolean reconnect() {
   return client.connected();
 }
 
-volatile int measured = 0;
-volatile int inuse = LOW;
-volatile int r = LOW;
-int o_r = LOW;
-
-int AvgMeasuredIsSent = LOW;
-int nofchecked        = 0;
-int nofnotinuse       = 0;
-int measured_poop     = 0;
-int measured_empty    = 0;
-
 void setup() {
   Serial.begin(38400);
   Wire.begin(4, 5);
   Serial.println("HX711 START");
-  Serial.println("ESP.getFlashChipSize() : ");
+  
+  Serial.print("ESP.getChipId() : ");
+  Serial.println(ESP.getChipId());
+
+  Serial.print("ESP.getFlashChipId() : ");
+  Serial.println(ESP.getFlashChipId());
+  
+  Serial.print("ESP.getFlashChipSize() : ");
   Serial.println(ESP.getFlashChipSize());
   delay(100);
 
@@ -158,7 +168,7 @@ void setup() {
     }
   }
 
-  attachInterrupt(14, hx711IsReady, RISING);
+  attachInterrupt(14, check_isr, RISING);
 }
 
 void loop()
@@ -180,6 +190,11 @@ void loop()
     } */
   } else {
     wifi_connect();
+  }
+
+  if ( m != o_m ) {
+    hx711IsReady();
+    o_m = m;
   }
 
   if ( r != o_r )
@@ -256,7 +271,10 @@ void loop()
   client.loop();
 }
 
-
+void check_isr()
+{
+  m = !m;
+}
 void hx711IsReady()
 {
 

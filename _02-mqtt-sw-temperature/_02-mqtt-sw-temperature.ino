@@ -6,7 +6,7 @@
 #include <WiFiUdp.h>
 #include <Time.h>
 
-#define _IS_MY_HOME 1
+#define _IS_MY_HOME
 // wifi
 #ifdef _IS_MY_HOME
 #include "/usr/local/src/ap_setting.h"

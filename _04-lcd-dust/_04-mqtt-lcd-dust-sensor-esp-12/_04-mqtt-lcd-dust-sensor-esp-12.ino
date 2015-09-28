@@ -8,7 +8,7 @@
 #include <WiFiUdp.h>
 #include <Time.h>
 
-#define _IS_MY_HOME 1
+#define _IS_MY_HOME
 // wifi
 #ifdef _IS_MY_HOME
 #include "/usr/local/src/ap_setting.h"
@@ -346,9 +346,18 @@ void setup() {
   startMills = millis();
   Rtc.Begin();
   Wire.pins(0, 2);
+  Serial.println();  
   Serial.println("LCD START");
-  Serial.println("ESP.getFlashChipSize() : ");
+
+  Serial.print("ESP.getChipId() : ");
+  Serial.println(ESP.getChipId());
+
+  Serial.print("ESP.getFlashChipId() : ");
+  Serial.println(ESP.getFlashChipId());
+  
+  Serial.print("ESP.getFlashChipSize() : ");
   Serial.println(ESP.getFlashChipSize());
+
   delay(20);
 
   clientName += "esp8266 - ";

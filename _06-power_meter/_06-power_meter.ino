@@ -4,10 +4,11 @@
 #include "EmonLib.h" // Include Emon Library
 #include <Average.h>
 
-#define _IS_MY_HOME 1
+#define _IS_MY_HOME
 // WIFI
 #ifdef _IS_MY_HOME
-#include "/usr/local/src/ap_settingii.h"
+//#include "/usr/local/src/ap_settingii.h"
+#include "/usr/local/src/ap_setting.h"
 #else
 #include "ap_setting.h"
 #endif
@@ -31,7 +32,7 @@ IPAddress server(192, 168, 10, 10);
 #define DOORPIN 5
 
 //#define REPORT_INTERVAL 60000 // in msec
-#define REPORT_INTERVAL 2000 // in msec
+#define REPORT_INTERVAL 3000 // in msec
 
 volatile long startMills ;
 volatile long revMills ;
@@ -61,7 +62,7 @@ String doorpayload ;
 int average = 0;
 
 WiFiClient wifiClient;
-PubSubClient client(server, 1883, callback, wifiClient);
+PubSubClient client(wifiClient);
 
 void callback(char* topic, byte* payload, unsigned int length) {
 }
@@ -119,9 +120,9 @@ boolean reconnect() {
   if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
     client.publish(willTopic, "1", true);
     client.publish(hellotopic, "hello again 1 from ESP8266 s07");
-    Serial.println("connected");
+    Serial.println("---------------> connected");
   } else {
-    Serial.print("failed, rc=");
+    Serial.print("----------------> failed, rc=");
     Serial.println(client.state());
   }
   //timemillis = millis();
@@ -132,7 +133,14 @@ void setup() {
   Serial.begin(38400);
   delay(20);
   Serial.println("power meter test!");
-  Serial.println("ESP.getFlashChipSize() : ");
+  
+  Serial.print("ESP.getChipId() : ");
+  Serial.println(ESP.getChipId());
+
+  Serial.print("ESP.getFlashChipId() : ");
+  Serial.println(ESP.getFlashChipId());
+  
+  Serial.print("ESP.getFlashChipSize() : ");
   Serial.println(ESP.getFlashChipSize());
   delay(20);
 
@@ -144,6 +152,9 @@ void setup() {
   clientName += macToStr(mac);
   clientName += "-";
   clientName += String(micros() & 0xff, 16);
+
+
+  client.setServer(server, 1883);
 
   lastReconnectAttempt = 0;
 
@@ -203,10 +214,9 @@ void IRCHECKING_START() {
 
 void loop()
 {
-
   if (WiFi.status() == WL_CONNECTED) {
     if (!client.connected()) {
-      Serial.print("failed, rc=");
+      Serial.print("------------> failed, rc=");
       Serial.print(client.state());
       long now = millis();
       if (now - lastReconnectAttempt > 5000) {
@@ -226,9 +236,8 @@ void loop()
   ave.push(VIrms);
   average = ave.mean();
 
-
   if ( revMills > 600 ) {
-    revValue = float(( 3600  * 1000 ) / ( 600 * float(revMills) ) ) * 1000;
+    revValue = (float(( 3600  * 1000 ) / ( 600 * float(revMills) ) ) * 1000);
   }
 
   if ( oldrevValue == 0 ) {
@@ -285,9 +294,8 @@ void loop()
     sendmqttMsg(topic, payload);
     sentMills = millis();
   }
-
-  delay(100);
   client.loop();
+  delay(50);
 
 }
 

@@ -22,7 +22,8 @@ extern "C"{
 extern "C" uint16_t readvdd33(void);
 */
 
-#ifdef __IS_MY_HOME
+#define _IS_MY_HOME
+#ifdef _IS_MY_HOME
   #include "/usr/local/src/ap_setting.h"
 #else
   #include "ap_setting.h"

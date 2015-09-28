@@ -18,8 +18,10 @@ OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature sensors(&oneWire);
 DeviceAddress insideThermometer, outsideThermometer;
 
+#define _IS_MY_HOME
+
 // wifi
-#ifdef __IS_MY_HOME
+#ifdef _IS_MY_HOME
 #include "/usr/local/src/ap_setting.h"
 #else
 #include "ap_setting.h"

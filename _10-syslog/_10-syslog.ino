@@ -1,8 +1,9 @@
 #include <ESP8266WiFi.h>
 #include <WiFiUdp.h>
 
+#define _IS_MY_HOME
 // wifi
-#ifdef __IS_MY_HOME
+#ifdef _IS_MY_HOME
 #include "/usr/local/src/ap_setting.h"
 #else
 #include "ap_setting.h"
