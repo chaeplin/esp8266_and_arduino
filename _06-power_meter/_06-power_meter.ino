@@ -251,11 +251,11 @@ void loop()
   payload = "{\"VIrms\":";
   payload += average;
   payload += ",\"revValue\":";
-  payload += ( revValue + oldrevValue ) / 2 ;
+  payload += revValue;
   payload += ",\"revMills\":";
-  payload += ( revMills + oldrevMills ) / 2 ;
+  payload += revMills;
   payload += ",\"powerAvg\":";
-  payload += ( average + ((revValue + oldrevValue ) / 2 )) / 2 ;
+  payload += (( average + revValue ) / 2) ;
   payload += ",\"Stddev\":";
   payload += ave.stddev();
   payload += ",\"FreeHeap\":";
