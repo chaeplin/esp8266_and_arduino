@@ -40,6 +40,9 @@ String payload;
 WiFiClient wifiClient;
 WiFiUDP udp;
 
+//PubSubClient client(server, 1883, callback, wifiClient);
+PubSubClient client(wifiClient);
+
 // volatile
 float H  ;
 float T1 ;
@@ -162,8 +165,6 @@ byte nemoicon[8] =
   B11011,
 };
 
-PubSubClient client(server, 1883, callback, wifiClient);
-
 void callback(char* intopic, byte* inpayload, unsigned int length)
 {
   String receivedtopic = intopic;
@@ -189,7 +190,7 @@ void parseMqttMsg(String receivedpayload, String receivedtopic) {
   char json[] =
     "{\"Humidity\":41.90,\"Temperature\":25.90,\"DS18B20\":26.25,\"SENSORTEMP\":29.31,\"PIRSTATUS\":0,\"FreeHeap\":40608,\"RSSI\":-47,\"CycleCount\":3831709269}";
 
-  receivedpayload.toCharArray(json, 250);
+  receivedpayload.toCharArray(json, 300);
 
   JsonObject& root = jsonBuffer.parseObject(json);
 
@@ -373,6 +374,9 @@ void setup() {
 
   wifi_connect();
 
+  client.setServer(server, 1883);
+  client.setCallback(callback);
+
   lastReconnectAttempt = 0;
 
   String getResetInfo = "hello from ESP8266 s03 ";
@@ -531,13 +535,16 @@ void loop()
     if (now() != prevDisplay) { //update the display only if time has changed
       prevDisplay = now();
       digitalClockDisplay();
-      if ( ( second() % 3 ) == 0 ) {
-        requestSharp();
-      }
+      requestSharp();
       checkDisplayValue();
+      if ( ( second() % 3 ) == 0 ) {
+        //requestSharp();
+        senddustDensity();
+      }
     }
   }
   client.loop();
+  delay(50);
 }
 
 void checkDisplayValue() {
@@ -586,8 +593,8 @@ void checkDisplayValue() {
 
   if ( dustDensity != OLD_dustDensity )
   {
-    senddustDensity();
     displaydustDensity();
+    //senddustDensity();
     OLD_dustDensity = dustDensity ;
   }
 
@@ -823,10 +830,10 @@ void senddustDensity()
   payload += ",\"millis\":";
   payload += (millis() - startMills);
   payload += "}";
-  if ( dustDensity < 0.6 )
-  {
+//  if ( dustDensity < 0.6 )
+//  {
     sendmqttMsg(payload);
-  }
+//  }
 }
 
 void sendmqttMsg(String payloadtosend)

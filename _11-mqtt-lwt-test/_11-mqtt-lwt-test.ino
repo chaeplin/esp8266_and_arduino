@@ -7,7 +7,7 @@
 #define _IS_MY_HOME
 // wifi
 #ifdef _IS_MY_HOME
-#include "/usr/local/src/ap_setting.h"
+#include "/usr/local/src/ap_settingii.h"
 #else
 #include "ap_setting.h"
 #endif
@@ -24,7 +24,8 @@ String payload;
 
 WiFiClient wifiClient;
 IPAddress server(192, 168, 10, 10);
-PubSubClient client(wifiClient);
+//PubSubClient client(wifiClient);
+PubSubClient client(server, 1883, callback, wifiClient);
 WiFiUDP udp;
 
 unsigned int localPort = 2390;  // local port to listen for UDP packets
@@ -48,7 +49,7 @@ void wifi_connect() {
   delay(200);
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
-  WiFi.config(IPAddress(192, 168, 10, 112), IPAddress(192, 168, 10, 1), IPAddress(255, 255, 255, 0));
+  //  WiFi.config(IPAddress(192, 168, 10, 112), IPAddress(192, 168, 10, 1), IPAddress(255, 255, 255, 0));
 
 
   int Attempt = 0;
@@ -71,49 +72,48 @@ void wifi_connect() {
   Serial.print("---------------------------------> IP address: ");
   Serial.println(WiFi.localIP());
 
-/*
-  //
-  //Serial.println("Starting UDP");
-  udp.begin(localPort);
-  //Serial.print("Local port: ");
-  //Serial.println(udp.localPort());
-  delay(5000);
-  setSyncProvider(getNtpTime);
+  /*
+    //
+    //Serial.println("Starting UDP");
+    udp.begin(localPort);
+    //Serial.print("Local port: ");
+    //Serial.println(udp.localPort());
+    delay(5000);
+    setSyncProvider(getNtpTime);
 
-  if (timeStatus() == timeNotSet) {
-    Serial.println("waiting for sync message");
-  }  
-
-*/  
-
-/*
-  //startMills = millis();
-
-  if (WiFi.status() == WL_CONNECTED) {
-    if (!client.connected()) {
-      if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
-        client.publish(willTopic, "1", true);
-        //client.publish(hellotopic, "hello again wifi and mqtt from ESP8266 s20");
-        Serial.println("reconnecting wifi and mqtt");
-      } else {
-        Serial.println("mqtt publish fail after wifi reconnect");
-      }
-    } else {
-      client.publish(hellotopic, "hello again wifi from ESP8266 s20");
+    if (timeStatus() == timeNotSet) {
+      Serial.println("waiting for sync message");
     }
-  }
-*/
+  */
+
+  /*
+    //startMills = millis();
+
+    if (WiFi.status() == WL_CONNECTED) {
+      if (!client.connected()) {
+        if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
+          client.publish(willTopic, "1", true);
+          //client.publish(hellotopic, "hello again wifi and mqtt from ESP8266 s20");
+          Serial.println("reconnecting wifi and mqtt");
+        } else {
+          Serial.println("mqtt publish fail after wifi reconnect");
+        }
+      } else {
+        client.publish(hellotopic, "hello again wifi from ESP8266 s20");
+      }
+    }
+  */
 }
 
 boolean reconnect() {
   client.disconnect ();
-  delay(100);  
+  delay(100);
   if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
     Serial.println("-----> mqtt connected");
     //client.publish(hellotopic, "hello again 1 from ESP8266 s20");
     client.publish(willTopic, "1", true);
   } else {
-    Serial.print("failed, rc=");
+    Serial.print("-----------------> failed, rc=");
     Serial.println(client.state());
   }
   //startMills = millis();
@@ -131,9 +131,9 @@ void setup() {
   startMills = millis();
 
   wifi_connect();
-  
-  client.setServer(server, 1883);
-  
+
+  //client.setServer(server, 1883);
+
   clientName += "esp8266-";
   uint8_t mac[6];
   WiFi.macAddress(mac);
@@ -183,12 +183,21 @@ void loop()
     wifi_connect();
   }
 
+  String payload = "{\"FreeHeap\":";
+  payload += ESP.getFreeHeap();
+  payload += ",\"RSSI\":";
+  payload += WiFi.RSSI();
+  payload += ",\"millis\":";
+  payload += (millis() - startMills);
+  payload += "}";
+
+  client.publish(topic, (char*) payload.c_str());
+  Serial.print("Sending payload: ");
+  Serial.println(payload);
+
+
   client.loop();
   delay(2000);
-  //Serial.println();
-  //Serial.println("doing reset");
-  ESP.restart();
-  delay(200);
 }
 
 
