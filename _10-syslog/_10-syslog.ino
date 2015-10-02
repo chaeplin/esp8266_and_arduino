@@ -53,7 +53,7 @@ void setup()
   udp.begin(localPort);
   delay(500);
   if (WiFi.status() == WL_CONNECTED) {
-    sendUdpSyslog("esp8266-syslog started");
+    sendUdpSyslog("esp8266-02-syslog started");
   }
 }
 
@@ -78,7 +78,7 @@ void sendUdpSyslog(String msgtosend)
   memcpy(p, (char*) msgtosend.c_str(), msg_length);
 
   udp.beginPacket(syslogServer, 514);
-  udp.write("esp8266-syslog ");
+  udp.write("esp8266-02-syslog ");
   udp.write(p, msg_length);
   udp.endPacket();
   free(p);

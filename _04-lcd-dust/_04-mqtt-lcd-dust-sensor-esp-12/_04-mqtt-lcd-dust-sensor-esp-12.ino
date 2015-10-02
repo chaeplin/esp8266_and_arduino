@@ -344,6 +344,7 @@ boolean reconnect() {
 void setup() {
   delay(50);
   Serial.begin(38400);
+  Serial.setDebugOutput(true);
   startMills = millis();
   Rtc.Begin();
   Wire.pins(0, 2);
