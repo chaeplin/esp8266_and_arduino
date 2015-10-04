@@ -387,7 +387,7 @@ void setup() {
   delay(50);
 
   if (DEBUG_PRINT) {
-    Serial.begin(38400);
+    Serial.begin(74880);
     Serial.setDebugOutput(true);
   }
 
@@ -593,6 +593,7 @@ void loop()
     wifi_connect();
   }
 
+  client.loop();
   if (timeStatus() != timeNotSet) {
     if (now() != prevDisplay) { //update the display only if time has changed
       prevDisplay = now();
@@ -612,7 +613,78 @@ void loop()
         Serial.print("-> checkDisplayValue free Heap : ");
         Serial.println(ESP.getFreeHeap());
       }
-      checkDisplayValue();
+      //checkDisplayValue();
+
+      if ( sleepmode != o_sleepmode )
+      {
+        displaysleepmode(sleepmode);
+        o_sleepmode = sleepmode;
+      }
+
+      HO = unihost + rsphost;
+      HL = unitot + rsptot;
+
+      if (( HO != OLD_HO ) || ( HL != OLD_HL))
+      {
+        displayHost(HO, HL);
+        OLD_HO = HO;
+        OLD_HL = HL;
+      }
+
+      if (( PW != OLD_PW ) && ( 0 <= PW < 10000 ))
+      {
+        displaypowerAvg(PW);
+        OLD_PW = PW;
+      }
+
+      if ( NW != OLD_NW )
+      {
+        displayNemoWeight(NW);
+        OLD_NW = NW;
+      }
+
+      if ( PIR != OLD_PIR )
+      {
+        displayPIR();
+        OLD_PIR = PIR;
+      }
+
+      if ((T1 != OLD_T1 ) || (T2 != OLD_T2 ) || (OT != OLD_OT) || ( H != OLD_H ))
+      {
+        displayTemperature();
+        OLD_T1 = T1;
+        OLD_T2 = T2;
+        OLD_OT = OT;
+        OLD_H = H;
+      }
+
+      if ( dustDensity != OLD_dustDensity )
+      {
+        displaydustDensity();
+        //senddustDensity();
+        OLD_dustDensity = dustDensity ;
+      }
+
+      if (DEBUG_PRINT) {
+        Serial.print("=====> ");
+        Serial.print(T1);
+        Serial.print(" ===> ");
+        Serial.print(T2);
+        Serial.print(" ===> ");
+        Serial.print(OT);
+        Serial.print(" ===> ");
+        Serial.print(H);
+        Serial.print(" ===> ");
+        Serial.print(dustDensity);
+        Serial.print(" ===> ");
+        Serial.print(PIR);
+        Serial.print(" ===> ");
+        Serial.print(PW);
+        Serial.print(" ===> ");
+        Serial.print(HO);
+        Serial.print(" ===> ");
+        Serial.println(NW);
+      }
 
       if ( ( second() % 3 ) == 0 ) {
         //requestSharp();
@@ -624,7 +696,6 @@ void loop()
       }
     }
   }
-  client.loop();
   delay(50);
 }
 

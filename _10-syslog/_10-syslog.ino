@@ -47,7 +47,7 @@ void wifi_connect() {
 
 void setup()
 {
-  Serial.begin(38400);
+  Serial.begin(74880);
   delay(20);
   wifi_connect();
   udp.begin(localPort);

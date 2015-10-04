@@ -183,7 +183,7 @@ void callback(char* intopic, byte* inpayload, unsigned int length)
 
 void setup()
 {
-  Serial.begin(38400);
+  Serial.begin(74880);
   Serial.println("DHTxx test!");
   Serial.println("ESP.getFlashChipSize() : ");
   Serial.println(ESP.getFlashChipSize());

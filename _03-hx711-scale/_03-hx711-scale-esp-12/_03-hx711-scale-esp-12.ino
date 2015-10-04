@@ -119,7 +119,7 @@ boolean reconnect() {
 }
 
 void setup() {
-  Serial.begin(38400);
+  Serial.begin(74880);
   Wire.begin(4, 5);
   Serial.println("HX711 START");
   

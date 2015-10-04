@@ -130,7 +130,7 @@ boolean reconnect() {
 }
 
 void setup() {
-  Serial.begin(38400);
+  Serial.begin(74880);
   delay(20);
   Serial.println("power meter test!");
   

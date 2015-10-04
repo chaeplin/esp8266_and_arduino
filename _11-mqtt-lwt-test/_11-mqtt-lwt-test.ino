@@ -121,7 +121,7 @@ boolean reconnect() {
 }
 
 void setup() {
-  Serial.begin(38400);
+  Serial.begin(74880);
   Serial.println();
   //Serial.println("lwt test");
   //Serial.print("ESP.getFlashChipSize() : ");
