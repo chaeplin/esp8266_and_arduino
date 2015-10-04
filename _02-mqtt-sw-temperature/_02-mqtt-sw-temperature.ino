@@ -14,7 +14,7 @@
 #include "ap_setting.h"
 #endif
 
-#define DEBUG_PRINT 1
+#define DEBUG_PRINT 0
 
 // pin
 #define pir 13
@@ -183,7 +183,10 @@ void callback(char* intopic, byte* inpayload, unsigned int length)
 
 void setup()
 {
-  Serial.begin(74880);
+  if (DEBUG_PRINT) {
+    Serial.begin(74880);
+  }
+  delay(20);
   Serial.println("DHTxx test!");
   Serial.println("ESP.getFlashChipSize() : ");
   Serial.println(ESP.getFlashChipSize());

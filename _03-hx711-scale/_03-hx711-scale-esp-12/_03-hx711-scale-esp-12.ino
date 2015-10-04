@@ -15,6 +15,8 @@
 #define nemoisOnPin 14
 #define ledPin 13
 
+#define DEBUG_PRINT 0
+
 int measured = 0;
 int inuse = LOW;
 int r = LOW;
@@ -119,7 +121,11 @@ boolean reconnect() {
 }
 
 void setup() {
-  Serial.begin(74880);
+  if (DEBUG_PRINT) {
+    Serial.begin(74880);
+  }
+  delay(20);
+
   Wire.begin(4, 5);
   Serial.println("HX711 START");
   
