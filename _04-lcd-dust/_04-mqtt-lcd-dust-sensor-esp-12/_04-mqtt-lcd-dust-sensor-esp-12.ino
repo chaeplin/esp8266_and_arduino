@@ -366,17 +366,19 @@ void wifi_connect() {
 }
 
 boolean reconnect() {
-  if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
-    client.publish(willTopic, "1", true);
-    client.publish(hellotopic, "hello again 1 from ESP8266 s03");
-    client.subscribe(subtopic);
-    if (DEBUG_PRINT) {
-      Serial.println("connected");
-    }
-  } else {
-    if (DEBUG_PRINT) {
-      Serial.print("failed, rc=");
-      Serial.println(client.state());
+  if (!client.connected()) {
+    if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
+      client.publish(willTopic, "1", true);
+      client.publish(hellotopic, "hello again 1 from ESP8266 s03");
+      client.subscribe(subtopic);
+      if (DEBUG_PRINT) {
+        Serial.println("connected");
+      }
+    } else {
+      if (DEBUG_PRINT) {
+        Serial.print("failed, rc=");
+        Serial.println(client.state());
+      }
     }
   }
   //startMills = millis();
@@ -572,7 +574,7 @@ time_t prevDisplay = 0; // when the digital clock was displayed
 
 void loop()
 {
-
+  client.loop();
   if (WiFi.status() == WL_CONNECTED) {
     if (!client.connected()) {
       if (DEBUG_PRINT) {
@@ -593,7 +595,6 @@ void loop()
     wifi_connect();
   }
 
-  client.loop();
   if (timeStatus() != timeNotSet) {
     if (now() != prevDisplay) { //update the display only if time has changed
       prevDisplay = now();
@@ -990,6 +991,7 @@ void senddustDensity()
 
 void sendmqttMsg(String payloadtosend)
 {
+  /*
   if (!client.connected()) {
     if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
       client.publish(willTopic, "1", true);
@@ -997,7 +999,7 @@ void sendmqttMsg(String payloadtosend)
       client.subscribe(subtopic);
     }
   }
-
+*/
   if (client.connected()) {
     if (DEBUG_PRINT) {
       Serial.print("Sending payload: ");
