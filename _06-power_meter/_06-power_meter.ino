@@ -13,6 +13,8 @@
 #include "ap_setting.h"
 #endif
 
+#define DEBUG_PRINT 0
+
 //
 EnergyMonitor emon1;                   // Create an instance
 Average<float> ave(10);
@@ -130,7 +132,9 @@ boolean reconnect() {
 }
 
 void setup() {
-  Serial.begin(38400);
+  if (DEBUG_PRINT) {
+    Serial.begin(74880);
+  }
   delay(20);
   Serial.println("power meter test!");
   

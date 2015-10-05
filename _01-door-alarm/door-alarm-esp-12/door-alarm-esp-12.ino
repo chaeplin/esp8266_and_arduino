@@ -56,7 +56,7 @@ PubSubClient client(server, 1883, callback, wifiClient);
 
 void setup()
 {
-  Serial.begin(38400);
+  Serial.begin(74880);
 
   startMills = millis();
 

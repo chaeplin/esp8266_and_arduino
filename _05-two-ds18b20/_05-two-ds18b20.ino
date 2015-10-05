@@ -48,7 +48,7 @@ void setup(void)
 {
   startMills = millis();
   // start serial port
-  Serial.begin(38400);
+  Serial.begin(74880);
   Serial.println("Dallas Temperature IC Control Library Demo");
 
   Serial.println(millis() - startMills);

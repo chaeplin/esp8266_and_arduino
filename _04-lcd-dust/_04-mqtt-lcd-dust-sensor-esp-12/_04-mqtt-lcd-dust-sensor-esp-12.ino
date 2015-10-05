@@ -18,7 +18,7 @@
 
 RtcDS3231 Rtc;
 
-#define DEBUG_PRINT 1
+#define DEBUG_PRINT 0
 
 char* topic = "esp8266/arduino/s03";
 char* subtopic = "#";
@@ -77,7 +77,6 @@ int OLD_HL  ;
 float OLD_dustDensity ;
 
 int OLD_x ;
-
 
 unsigned long startMills;
 
@@ -167,8 +166,17 @@ byte nemoicon[8] =
 
 void callback(char* intopic, byte* inpayload, unsigned int length)
 {
+
   String receivedtopic = intopic;
   String receivedpayload ;
+
+  if ( receivedtopic == "esp8266/arduino/s03" ) {
+    return;
+  }
+  if (DEBUG_PRINT) {
+    Serial.print("-> receivedpayload 1 free Heap : ");
+    Serial.println(ESP.getFreeHeap());
+  }
 
   for (int i = 0; i < length; i++) {
     receivedpayload += (char)inpayload[i];
@@ -178,14 +186,29 @@ void callback(char* intopic, byte* inpayload, unsigned int length)
     Serial.print(receivedtopic);
     Serial.print(" => ");
     Serial.println(receivedpayload);
+
+    Serial.print("-> receivedpayload 2 free Heap : ");
+    Serial.println(ESP.getFreeHeap());
   }
 
-  parseMqttMsg(receivedpayload, receivedtopic);
-}
+  /*
+    parseMqttMsg(receivedpayload, receivedtopic);
+  }
 
-void parseMqttMsg(String receivedpayload, String receivedtopic) {
+  void parseMqttMsg(String receivedpayload, String receivedtopic) {
+  */
+
+  if (DEBUG_PRINT) {
+    Serial.print("-> jsonBuffer 1 free Heap : ");
+    Serial.println(ESP.getFreeHeap());
+  }
 
   StaticJsonBuffer<300> jsonBuffer;
+
+  if (DEBUG_PRINT) {
+    Serial.print("-> jsonBuffer 2 free Heap : ");
+    Serial.println(ESP.getFreeHeap());
+  }
 
   char json[] =
     "{\"Humidity\":41.90,\"Temperature\":25.90,\"DS18B20\":26.25,\"SENSORTEMP\":29.31,\"PIRSTATUS\":0,\"FreeHeap\":40608,\"RSSI\":-47,\"CycleCount\":3831709269}";
@@ -195,7 +218,9 @@ void parseMqttMsg(String receivedpayload, String receivedtopic) {
   JsonObject& root = jsonBuffer.parseObject(json);
 
   if (!root.success()) {
-    Serial.println("parseObject() failed");
+    if (DEBUG_PRINT) {
+      Serial.println("parseObject() failed");
+    }
     return;
   }
 
@@ -207,7 +232,10 @@ void parseMqttMsg(String receivedpayload, String receivedtopic) {
   // esp8266/arduino/s02  : T, H
   // esp8266/arduino/aircon : ________
   // home/check/checkhwmny : unihost, rsphost, unitot, rsptot
-
+  if (DEBUG_PRINT) {
+    Serial.print("-> keyparse 1 free Heap : ");
+    Serial.println(ESP.getFreeHeap());
+  }
 
   if ( receivedtopic == "esp8266/arduino/s02" ) {
     if (root.containsKey("Humidity")) {
@@ -271,20 +299,27 @@ void parseMqttMsg(String receivedpayload, String receivedtopic) {
       rsptot = atoi(temprsptot);
     }
   }
+
   // display callback
   lcd.setCursor(19, 0);
   lcd.write(5);
+  if (DEBUG_PRINT) {
+    Serial.print("-> keyparse 2 free Heap : ");
+    Serial.println(ESP.getFreeHeap());
+  }
+
 }
 
 long lastReconnectAttempt = 0;
 
 void wifi_connect() {
   // WIFI
-  Serial.println();
-  Serial.println();
-  Serial.print("Connecting to ");
-  Serial.println(ssid);
-
+  if (DEBUG_PRINT) {
+    Serial.println();
+    Serial.println();
+    Serial.print("Connecting to ");
+    Serial.println(ssid);
+  }
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
 
@@ -295,17 +330,20 @@ void wifi_connect() {
     Serial.print(".");
     if (Attempt == 100)
     {
-      Serial.println();
-      Serial.println("Could not connect to WIFI");
+      if (DEBUG_PRINT) {
+        Serial.println();
+        Serial.println("Could not connect to WIFI");
+      }
       ESP.restart();
     }
   }
 
-  Serial.println("");
-  Serial.println("WiFi connected");
-  Serial.println("IP address: ");
-  Serial.println(WiFi.localIP());
-
+  if (DEBUG_PRINT) {
+    Serial.println("");
+    Serial.println("WiFi connected");
+    Serial.println("IP address: ");
+    Serial.println(WiFi.localIP());
+  }
   //startMills = millis();
 
   /*
@@ -328,14 +366,20 @@ void wifi_connect() {
 }
 
 boolean reconnect() {
-  if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
-    client.publish(willTopic, "1", true);
-    client.publish(hellotopic, "hello again 1 from ESP8266 s03");
-    client.subscribe(subtopic);
-    Serial.println("connected");
-  } else {
-    Serial.print("failed, rc=");
-    Serial.print(client.state());
+  if (!client.connected()) {
+    if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
+      client.publish(willTopic, "1", true);
+      client.publish(hellotopic, "hello again 1 from ESP8266 s03");
+      client.subscribe(subtopic);
+      if (DEBUG_PRINT) {
+        Serial.println("connected");
+      }
+    } else {
+      if (DEBUG_PRINT) {
+        Serial.print("failed, rc=");
+        Serial.println(client.state());
+      }
+    }
   }
   //startMills = millis();
   return client.connected();
@@ -343,22 +387,28 @@ boolean reconnect() {
 
 void setup() {
   delay(50);
-  Serial.begin(38400);
+
+  if (DEBUG_PRINT) {
+    Serial.begin(74880);
+    Serial.setDebugOutput(true);
+  }
+
   startMills = millis();
   Rtc.Begin();
-  Wire.pins(0, 2);
-  Serial.println();  
-  Serial.println("LCD START");
+  Wire.begin(0, 2);
+  if (DEBUG_PRINT) {
+    Serial.println();
+    Serial.println("LCD START");
 
-  Serial.print("ESP.getChipId() : ");
-  Serial.println(ESP.getChipId());
+    Serial.print("ESP.getChipId() : ");
+    Serial.println(ESP.getChipId());
 
-  Serial.print("ESP.getFlashChipId() : ");
-  Serial.println(ESP.getFlashChipId());
-  
-  Serial.print("ESP.getFlashChipSize() : ");
-  Serial.println(ESP.getFlashChipSize());
+    Serial.print("ESP.getFlashChipId() : ");
+    Serial.println(ESP.getFlashChipId());
 
+    Serial.print("ESP.getFlashChipSize() : ");
+    Serial.println(ESP.getFlashChipSize());
+  }
   delay(20);
 
   clientName += "esp8266 - ";
@@ -377,64 +427,50 @@ void setup() {
   client.setServer(server, 1883);
   client.setCallback(callback);
 
-  lastReconnectAttempt = 0;
-
-  String getResetInfo = "hello from ESP8266 s03 ";
-  getResetInfo += ESP.getResetInfo().substring(0, 30);
-
-  if (WiFi.status() == WL_CONNECTED) {
-    if (!client.connected()) {
-      if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
-        client.publish(willTopic, "1", true);
-        client.publish(hellotopic, (char*) getResetInfo.c_str());
-        client.subscribe(subtopic);
-        Serial.print("Sending payload: ");
-        Serial.println(getResetInfo);
-      }
-    } else {
-      client.publish(willTopic, "1", true);
-      client.publish(hellotopic, (char*) getResetInfo.c_str());
-      client.subscribe(subtopic);
-      Serial.print("Sending payload: ");
-      Serial.println(getResetInfo);
-    }
-  }
-
   //
-  Serial.println("Starting UDP");
+  if (DEBUG_PRINT) {
+    Serial.println("Starting UDP");
+  }
   udp.begin(localPort);
-  Serial.print("Local port: ");
-  Serial.println(udp.localPort());
+  if (DEBUG_PRINT) {
+    Serial.print("Local port: ");
+    Serial.println(udp.localPort());
+  }
   delay(500);
   setSyncProvider(getNtpTime);
 
   if (timeStatus() == timeNotSet) {
-    Serial.println("waiting for sync message");
+    if (DEBUG_PRINT) {
+      Serial.println("waiting for sync message");
+    }
   }
 
   RtcDateTime compiled = now();
-  Serial.println(compiled);
-  Serial.println();
+  if (DEBUG_PRINT) {
+    Serial.println(compiled);
+    Serial.println();
+  }
 
   if (!Rtc.IsDateTimeValid())
   {
-    Serial.println("RTC lost confidence in the DateTime!");
+    if (DEBUG_PRINT) {
+      Serial.println("RTC lost confidence in the DateTime!");
+    }
     Rtc.SetDateTime(compiled);
   }
 
   RtcDateTime now = Rtc.GetDateTime();
   if (now < compiled)
   {
-    Serial.println("RTC is older than compile time! (Updating DateTime)");
+    if (DEBUG_PRINT) {
+      Serial.println("RTC is older than compile time! (Updating DateTime)");
+    }
     Rtc.SetDateTime(compiled);
   }
 
   // never assume the Rtc was last configured by you, so
   Rtc.Enable32kHzPin(false);
   Rtc.SetSquareWavePin(DS3231SquareWavePin_ModeNone);
-
-  //
-  //client.setCallback(callback);
 
   lcd.createChar(1, termometru);
   lcd.createChar(2, picatura);
@@ -505,18 +541,46 @@ void setup() {
 
   OLD_x = 0 ;
 
+  lastReconnectAttempt = 0;
+
+  String getResetInfo = "hello from ESP8266 s03 ";
+  getResetInfo += ESP.getResetInfo().substring(0, 30);
+
+  if (WiFi.status() == WL_CONNECTED) {
+    if (!client.connected()) {
+      if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
+        client.publish(willTopic, "1", true);
+        client.publish(hellotopic, (char*) getResetInfo.c_str());
+        client.subscribe(subtopic);
+        if (DEBUG_PRINT) {
+          Serial.print("Sending payload: ");
+          Serial.println(getResetInfo);
+        }
+      }
+    } else {
+      client.publish(willTopic, "1", true);
+      client.publish(hellotopic, (char*) getResetInfo.c_str());
+      client.subscribe(subtopic);
+      if (DEBUG_PRINT) {
+        Serial.print("Sending payload: ");
+        Serial.println(getResetInfo);
+      }
+    }
+  }
+
 }
 
 time_t prevDisplay = 0; // when the digital clock was displayed
 
 void loop()
 {
-
+  client.loop();
   if (WiFi.status() == WL_CONNECTED) {
     if (!client.connected()) {
-      Serial.print("failed, rc=");
-      Serial.print(client.state());
-
+      if (DEBUG_PRINT) {
+        Serial.print("failed, rc=");
+        Serial.println(client.state());
+      }
       long now = millis();
       if (now - lastReconnectAttempt > 5000) {
         lastReconnectAttempt = now;
@@ -534,16 +598,105 @@ void loop()
   if (timeStatus() != timeNotSet) {
     if (now() != prevDisplay) { //update the display only if time has changed
       prevDisplay = now();
+      if (DEBUG_PRINT) {
+        Serial.print("-> digitalClockDisplay free Heap : ");
+        Serial.println(ESP.getFreeHeap());
+      }
       digitalClockDisplay();
+
+      if (DEBUG_PRINT) {
+        Serial.print("-> requestSharp free Heap : ");
+        Serial.println(ESP.getFreeHeap());
+      }
       requestSharp();
-      checkDisplayValue();
+
+      if (DEBUG_PRINT) {
+        Serial.print("-> checkDisplayValue free Heap : ");
+        Serial.println(ESP.getFreeHeap());
+      }
+      //checkDisplayValue();
+
+      if ( sleepmode != o_sleepmode )
+      {
+        displaysleepmode(sleepmode);
+        o_sleepmode = sleepmode;
+      }
+
+      HO = unihost + rsphost;
+      HL = unitot + rsptot;
+
+      if (( HO != OLD_HO ) || ( HL != OLD_HL))
+      {
+        displayHost(HO, HL);
+        OLD_HO = HO;
+        OLD_HL = HL;
+      }
+
+      if (( PW != OLD_PW ) && ( 0 <= PW < 10000 ))
+      {
+        displaypowerAvg(PW);
+        OLD_PW = PW;
+      }
+
+      if ( NW != OLD_NW )
+      {
+        displayNemoWeight(NW);
+        OLD_NW = NW;
+      }
+
+      if ( PIR != OLD_PIR )
+      {
+        displayPIR();
+        OLD_PIR = PIR;
+      }
+
+      if ((T1 != OLD_T1 ) || (T2 != OLD_T2 ) || (OT != OLD_OT) || ( H != OLD_H ))
+      {
+        displayTemperature();
+        OLD_T1 = T1;
+        OLD_T2 = T2;
+        OLD_OT = OT;
+        OLD_H = H;
+      }
+
+      if ( dustDensity != OLD_dustDensity )
+      {
+        displaydustDensity();
+        //senddustDensity();
+        OLD_dustDensity = dustDensity ;
+      }
+
+      if (DEBUG_PRINT) {
+        Serial.print("=====> ");
+        Serial.print(T1);
+        Serial.print(" ===> ");
+        Serial.print(T2);
+        Serial.print(" ===> ");
+        Serial.print(OT);
+        Serial.print(" ===> ");
+        Serial.print(H);
+        Serial.print(" ===> ");
+        Serial.print(dustDensity);
+        Serial.print(" ===> ");
+        Serial.print(PIR);
+        Serial.print(" ===> ");
+        Serial.print(PW);
+        Serial.print(" ===> ");
+        Serial.print(HO);
+        Serial.print(" ===> ");
+        Serial.println(NW);
+      }
+
       if ( ( second() % 3 ) == 0 ) {
         //requestSharp();
+        if (DEBUG_PRINT) {
+          Serial.print("-> senddustDensity free Heap : ");
+          Serial.println(ESP.getFreeHeap());
+        }
         senddustDensity();
       }
     }
   }
-  client.loop();
   delay(50);
 }
 
@@ -830,14 +983,15 @@ void senddustDensity()
   payload += ",\"millis\":";
   payload += (millis() - startMills);
   payload += "}";
-//  if ( dustDensity < 0.6 )
-//  {
-    sendmqttMsg(payload);
-//  }
+  //  if ( dustDensity < 0.6 )
+  //  {
+  sendmqttMsg(payload);
+  //  }
 }
 
 void sendmqttMsg(String payloadtosend)
 {
+  /*
   if (!client.connected()) {
     if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
       client.publish(willTopic, "1", true);
@@ -845,24 +999,31 @@ void sendmqttMsg(String payloadtosend)
       client.subscribe(subtopic);
     }
   }
-
+*/
   if (client.connected()) {
-    Serial.print("Sending payload: ");
-    Serial.print(payloadtosend);
-
+    if (DEBUG_PRINT) {
+      Serial.print("Sending payload: ");
+      Serial.print(payloadtosend);
+    }
     unsigned int msg_length = payloadtosend.length();
 
-    Serial.print(" length: ");
-    Serial.println(msg_length);
+    if (DEBUG_PRINT) {
+      Serial.print(" length: ");
+      Serial.println(msg_length);
+    }
 
     byte* p = (byte*)malloc(msg_length);
     memcpy(p, (char*) payloadtosend.c_str(), msg_length);
 
     if ( client.publish(topic, p, msg_length, 1)) {
-      Serial.println("Publish ok");
+      if (DEBUG_PRINT) {
+        Serial.println("Publish ok");
+      }
       free(p);
     } else {
-      Serial.println("Publish failed");
+      if (DEBUG_PRINT) {
+        Serial.println("Publish failed");
+      }
       free(p);
     }
   }
@@ -927,14 +1088,18 @@ byte packetBuffer[NTP_PACKET_SIZE]; //buffer to hold incoming & outgoing packets
 time_t getNtpTime()
 {
   while (udp.parsePacket() > 0) ; // discard any previously received packets
-  Serial.println("Transmit NTP Request called");
+  if (DEBUG_PRINT) {
+    Serial.println("Transmit NTP Request called");
+  }
   sendNTPpacket(timeServer);
   delay(1000);
   uint32_t beginWait = millis();
   while (millis() - beginWait < 1500) {
     int size = udp.parsePacket();
     if (size >= NTP_PACKET_SIZE) {
-      Serial.println("Receive NTP Response");
+      if (DEBUG_PRINT) {
+        Serial.println("Receive NTP Response");
+      }
       udp.read(packetBuffer, NTP_PACKET_SIZE);  // read packet into the buffer
       unsigned long secsSince1900;
       // convert four bytes starting at location 40 to a long integer
@@ -945,15 +1110,19 @@ time_t getNtpTime()
       return secsSince1900 - 2208988800UL + timeZone * SECS_PER_HOUR;
     }
   }
-  Serial.println(millis() - beginWait);
-  Serial.println("No NTP Response :-(");
+  if (DEBUG_PRINT) {
+    Serial.println(millis() - beginWait);
+    Serial.println("No NTP Response :-(");
+  }
   return 0; // return 0 if unable to get the time
 }
 
 // send an NTP request to the time server at the given address
 void sendNTPpacket(IPAddress & address)
 {
-  Serial.println("Transmit NTP Request");
+  if (DEBUG_PRINT) {
+    Serial.println("Transmit NTP Request");
+  }
   // set all bytes in the buffer to 0
   memset(packetBuffer, 0, NTP_PACKET_SIZE);
   // Initialize values needed to form NTP request
@@ -972,7 +1141,9 @@ void sendNTPpacket(IPAddress & address)
   udp.beginPacket(address, 123); //NTP requests are to port 123
   udp.write(packetBuffer, NTP_PACKET_SIZE);
   udp.endPacket();
-  Serial.println("Transmit NTP Sent");
+  if (DEBUG_PRINT) {
+    Serial.println("Transmit NTP Sent");
+  }
 }
 //
 
