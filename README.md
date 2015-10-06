@@ -21,6 +21,7 @@
 - https://github.com/Yveaux/arduino_vcc
 - https://github.com/PaulStoffregen/Time
 - https://github.com/z3t0/Arduino-IRremote
+- https://github.com/JChristensen/Timer
 
 
 
