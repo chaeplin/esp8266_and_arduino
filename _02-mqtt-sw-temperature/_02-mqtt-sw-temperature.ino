@@ -39,6 +39,7 @@ DeviceAddress insideThermometer, outsideThermometer;
 // mqtt
 char* topic = "esp8266/arduino/s02";
 char* subtopic = "esp8266/cmd/light";
+char* rslttopic = "esp8266/cmd/light/rlst";
 char* hellotopic = "HELLO";
 
 char* willTopic = "clients/relay";
@@ -137,14 +138,16 @@ void wifi_connect() {
 
 boolean reconnect()
 {
-  if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
-    client.publish(willTopic, "1", true);
-    client.publish(hellotopic, "hello again 1 from ESP8266 s02");
-    client.subscribe(subtopic);
-    Serial.println("connected");
-  } else {
-    Serial.print("failed, rc=");
-    Serial.println(client.state());
+  if (!client.connected()) {
+    if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
+      client.publish(willTopic, "1", true);
+      client.publish(hellotopic, "hello again 1 from ESP8266 s02");
+      client.subscribe(subtopic);
+      Serial.println("connected");
+    } else {
+      Serial.print("failed, rc=");
+      Serial.println(client.state());
+    }
   }
   //timemillis = millis();
   return client.connected();
@@ -416,11 +419,12 @@ void sendlightstatus()
   lightpayload += relaystatus;
   lightpayload += "}";
 
-  sendmqttMsg(subtopic, lightpayload);
+  sendmqttMsg(rslttopic, lightpayload);
 }
 
 void sendmqttMsg(char* topictosend, String payload)
 {
+  /*
   if (!client.connected()) {
     if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
       client.publish(willTopic, "1", true);
@@ -428,6 +432,7 @@ void sendmqttMsg(char* topictosend, String payload)
       client.subscribe(subtopic);
     }
   }
+  */
 
   if (client.connected()) {
     Serial.print("Sending payload: ");
