@@ -419,6 +419,7 @@ void sendlightstatus()
   lightpayload += relaystatus;
   lightpayload += "}";
 
+  sendmqttMsg(subtopic, lightpayload);
   sendmqttMsg(rslttopic, lightpayload);
 }
 
