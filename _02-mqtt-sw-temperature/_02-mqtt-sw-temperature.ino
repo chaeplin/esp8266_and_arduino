@@ -113,27 +113,27 @@ void wifi_connect() {
   Serial.println("IP address: ");
   Serial.println(WiFi.localIP());
 
-/*
-  timemillis = millis();
+  /*
+    timemillis = millis();
 
-  if (WiFi.status() == WL_CONNECTED) {
-    if (!client.connected()) {
-      if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
-        client.publish(willTopic, "1", true);
-        client.publish(hellotopic, "hello again wifi and mqtt from ESP8266 s02");
-        client.subscribe(subtopic);
+    if (WiFi.status() == WL_CONNECTED) {
+      if (!client.connected()) {
+        if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
+          client.publish(willTopic, "1", true);
+          client.publish(hellotopic, "hello again wifi and mqtt from ESP8266 s02");
+          client.subscribe(subtopic);
 
-        Serial.println("reconnecting wifi and mqtt");
+          Serial.println("reconnecting wifi and mqtt");
+        } else {
+          Serial.println("mqtt publish fail after wifi reconnect");
+        }
       } else {
-        Serial.println("mqtt publish fail after wifi reconnect");
+        client.publish(willTopic, "1", true);
+        client.publish(hellotopic, "hello again wifi from ESP8266 s02");
+        client.subscribe(subtopic);
       }
-    } else {
-      client.publish(willTopic, "1", true);
-      client.publish(hellotopic, "hello again wifi from ESP8266 s02");
-      client.subscribe(subtopic);
     }
-  }
-*/
+  */
 }
 
 boolean reconnect()
@@ -175,7 +175,7 @@ void callback(char* intopic, byte* inpayload, unsigned int length)
     relaystatus = 0 ;
   }
 
-  changelight();
+  //changelight();
 
   if (DEBUG_PRINT) {
     Serial.print("");
@@ -305,7 +305,11 @@ void loop()
     wifi_connect();
   }
 
-  changelight();
+  if ( relaystatus != oldrelaystatus ) {
+    changelight();
+    sendlightstatus();
+  }
+
   runTimerDoLightOff();
 
   pirValue = digitalRead(pir);
@@ -369,23 +373,23 @@ void runTimerDoLightOff()
 
 void changelight()
 {
-  if ( relaystatus != oldrelaystatus )
-  {
-    Serial.print(" => ");
-    Serial.println("checking relay status changelight");
-    delay(10);
-    digitalWrite(RELAYPIN, relaystatus);
-    delay(20);
-    digitalWrite(RELAYPIN, relaystatus);
-    delay(20);
-    digitalWrite(RELAYPIN, relaystatus);
-    delay(20);
-    oldrelaystatus = relaystatus ;
-    Serial.print(" => ");
-    Serial.println("changing relay status");
+  //  if ( relaystatus != oldrelaystatus )
+  //  {
+  Serial.print(" => ");
+  Serial.println("checking relay status changelight");
+  delay(10);
+  digitalWrite(RELAYPIN, relaystatus);
+  delay(20);
+  digitalWrite(RELAYPIN, relaystatus);
+  delay(20);
+  digitalWrite(RELAYPIN, relaystatus);
+  delay(20);
+  //oldrelaystatus = relaystatus ;
+  Serial.print(" => ");
+  Serial.println("changing relay status");
 
-    sendlightstatus();
-  }
+  //sendlightstatus();
+  //}
 }
 
 void getdht22temp()
@@ -419,8 +423,11 @@ void sendlightstatus()
   lightpayload += relaystatus;
   lightpayload += "}";
 
+  /*
   sendmqttMsg(subtopic, lightpayload);
+  */
   sendmqttMsg(rslttopic, lightpayload);
+  oldrelaystatus = relaystatus ;
 }
 
 void sendmqttMsg(char* topictosend, String payload)
