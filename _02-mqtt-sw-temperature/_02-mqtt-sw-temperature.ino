@@ -87,10 +87,12 @@ long lastReconnectAttempt = 0;
 
 void wifi_connect() {
   // WIFI
-  Serial.println();
-  Serial.println();
-  Serial.print("Connecting to ");
-  Serial.println(ssid);
+  if (DEBUG_PRINT) {
+    Serial.println();
+    Serial.println();
+    Serial.print("Connecting to ");
+    Serial.println(ssid);
+  }
 
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
@@ -99,41 +101,26 @@ void wifi_connect() {
   while (WiFi.status() != WL_CONNECTED) {
     delay(100);
     Attempt++;
-    Serial.print(".");
+    if (DEBUG_PRINT) {
+      Serial.print(".");
+    }
     if (Attempt == 200)
     {
-      Serial.println();
-      Serial.println("Could not connect to WIFI");
+      if (DEBUG_PRINT) {
+        Serial.println();
+        Serial.println("Could not connect to WIFI");
+      }
       ESP.restart();
     }
   }
 
-  Serial.println("");
-  Serial.println("WiFi connected");
-  Serial.println("IP address: ");
-  Serial.println(WiFi.localIP());
+  if (DEBUG_PRINT) {
+    Serial.println("");
+    Serial.println("WiFi connected");
+    Serial.println("IP address: ");
+    Serial.println(WiFi.localIP());
+  }
 
-  /*
-    timemillis = millis();
-
-    if (WiFi.status() == WL_CONNECTED) {
-      if (!client.connected()) {
-        if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
-          client.publish(willTopic, "1", true);
-          client.publish(hellotopic, "hello again wifi and mqtt from ESP8266 s02");
-          client.subscribe(subtopic);
-
-          Serial.println("reconnecting wifi and mqtt");
-        } else {
-          Serial.println("mqtt publish fail after wifi reconnect");
-        }
-      } else {
-        client.publish(willTopic, "1", true);
-        client.publish(hellotopic, "hello again wifi from ESP8266 s02");
-        client.subscribe(subtopic);
-      }
-    }
-  */
 }
 
 boolean reconnect()
@@ -143,10 +130,14 @@ boolean reconnect()
       client.publish(willTopic, "1", true);
       client.publish(hellotopic, "hello again 1 from ESP8266 s02");
       client.subscribe(subtopic);
-      Serial.println("connected");
+      if (DEBUG_PRINT) {
+        Serial.println("connected");
+      }
     } else {
-      Serial.print("failed, rc=");
-      Serial.println(client.state());
+      if (DEBUG_PRINT) {
+        Serial.print("failed, rc=");
+        Serial.println(client.state());
+      }
     }
   }
   //timemillis = millis();
@@ -171,7 +162,7 @@ void callback(char* intopic, byte* inpayload, unsigned int length)
   if ( receivedpayload == "{\"LIGHT\":1}") {
     relaystatus = 1 ;
   }
-  if ( receivedpayload == "{\"LIGHT\":0}") {
+  else if ( receivedpayload == "{\"LIGHT\":0}") {
     relaystatus = 0 ;
   }
 
@@ -190,9 +181,11 @@ void setup()
     Serial.begin(74880);
   }
   delay(20);
-  Serial.println("DHTxx test!");
-  Serial.println("ESP.getFlashChipSize() : ");
-  Serial.println(ESP.getFlashChipSize());
+  if (DEBUG_PRINT) {
+    Serial.println("DHTxx test!");
+    Serial.println("ESP.getFlashChipSize() : ");
+    Serial.println(ESP.getFlashChipSize());
+  }
   delay(20);
 
   startMills = millis();
@@ -228,36 +221,54 @@ void setup()
         client.publish(willTopic, "1", true);
         client.publish(hellotopic, (char*) getResetInfo.c_str());
         client.subscribe(subtopic);
-        Serial.print("Sending payload: ");
-        Serial.println(getResetInfo);
+        if (DEBUG_PRINT) {
+          Serial.print("Sending payload: ");
+          Serial.println(getResetInfo);
+        }
       }
     } else {
       client.publish(willTopic, "1", true);
       client.publish(hellotopic, (char*) getResetInfo.c_str());
       client.subscribe(subtopic);
-      Serial.print("Sending payload: ");
-      Serial.println(getResetInfo);
+      if (DEBUG_PRINT) {
+        Serial.print("Sending payload: ");
+        Serial.println(getResetInfo);
+      }
     }
   }
 
   //
-  Serial.println("Starting UDP");
+  if (DEBUG_PRINT) {
+    Serial.println("Starting UDP");
+  }
   udp.begin(localPort);
-  Serial.print("Local port: ");
-  Serial.println(udp.localPort());
+  if (DEBUG_PRINT) {
+    Serial.print("Local port: ");
+    Serial.println(udp.localPort());
+  }
   delay(1000);
   setSyncProvider(getNtpTime);
 
   if (timeStatus() == timeNotSet) {
-    Serial.println("waiting for sync message");
+    if (DEBUG_PRINT) {
+      Serial.println("waiting for sync message");
+    }
   }
 
   attachInterrupt(13, motion_detection, RISING);
   attachInterrupt(5, run_lightcmd, CHANGE);
 
   sensors.begin();
-  if (!sensors.getAddress(insideThermometer, 0)) Serial.println("Unable to find address for Device 0");
-  if (!sensors.getAddress(outsideThermometer, 1)) Serial.println("Unable to find address for Device 1");
+  if (!sensors.getAddress(insideThermometer, 0)) {
+    if (DEBUG_PRINT) {
+      Serial.println("Unable to find address for Device 0");
+    }
+  }
+  if (!sensors.getAddress(outsideThermometer, 1)) {
+    if (DEBUG_PRINT) {
+      Serial.println("Unable to find address for Device 1");
+    }
+  }
 
   // set the resolution to 9 bit
   sensors.setResolution(insideThermometer, TEMPERATURE_PRECISION);
@@ -270,7 +281,9 @@ void setup()
   f = dht.readTemperature(true);
 
   if (isnan(h) || isnan(t) || isnan(f)) {
-    Serial.println("Failed to read from DHT sensor!");
+    if (DEBUG_PRINT) {
+      Serial.println("Failed to read from DHT sensor!");
+    }
     return;
   }
 
@@ -279,7 +292,9 @@ void setup()
   tempCoutside = sensors.getTempC(insideThermometer);
 
   if ( isnan(tempCinside) || isnan(tempCoutside) ) {
-    Serial.println("Failed to read from sensor!");
+    if (DEBUG_PRINT) {
+      Serial.println("Failed to read from sensor!");
+    }
     return;
   }
 }
@@ -288,8 +303,10 @@ void loop()
 {
   if (WiFi.status() == WL_CONNECTED) {
     if (!client.connected()) {
-      Serial.print("failed, rc=");
-      Serial.print(client.state());
+      if (DEBUG_PRINT) {
+        Serial.print("failed, rc=");
+        Serial.print(client.state());
+      }
 
       long now = millis();
       if (now - lastReconnectAttempt > 5000) {
@@ -375,19 +392,22 @@ void changelight()
 {
   //  if ( relaystatus != oldrelaystatus )
   //  {
-  Serial.print(" => ");
-  Serial.println("checking relay status changelight");
-  delay(10);
+  if (DEBUG_PRINT) {
+    Serial.print(" => ");
+    Serial.println("checking relay status changelight");
+  }
+  delay(30);
   digitalWrite(RELAYPIN, relaystatus);
-  delay(20);
+  delay(30);
   digitalWrite(RELAYPIN, relaystatus);
-  delay(20);
+  delay(30);
   digitalWrite(RELAYPIN, relaystatus);
-  delay(20);
+  delay(30);
   //oldrelaystatus = relaystatus ;
-  Serial.print(" => ");
-  Serial.println("changing relay status");
-
+  if (DEBUG_PRINT) {
+    Serial.print(" => ");
+    Serial.println("changing relay status");
+  }
   //sendlightstatus();
   //}
 }
@@ -400,7 +420,9 @@ void getdht22temp()
   f = dht.readTemperature(true);
 
   if (isnan(h) || isnan(t) || isnan(f)) {
-    Serial.println("Failed to read from DHT sensor!");
+    if (DEBUG_PRINT) {
+      Serial.println("Failed to read from DHT sensor!");
+    }
   }
 
   float hi = dht.computeHeatIndex(f, h);
@@ -413,7 +435,9 @@ void getdalastemp()
   tempCoutside = sensors.getTempC(insideThermometer);
 
   if ( isnan(tempCinside) || isnan(tempCoutside) ) {
-    Serial.println("Failed to read from sensor!");
+    if (DEBUG_PRINT) {
+      Serial.println("Failed to read from sensor!");
+    }
   }
 }
 
@@ -432,33 +456,32 @@ void sendlightstatus()
 
 void sendmqttMsg(char* topictosend, String payload)
 {
-  /*
-  if (!client.connected()) {
-    if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
-      client.publish(willTopic, "1", true);
-      client.publish(hellotopic, "hello again 2 from ESP8266 s02");
-      client.subscribe(subtopic);
-    }
-  }
-  */
 
   if (client.connected()) {
-    Serial.print("Sending payload: ");
-    Serial.print(payload);
+    if (DEBUG_PRINT) {
+      Serial.print("Sending payload: ");
+      Serial.print(payload);
+    }
 
     unsigned int msg_length = payload.length();
 
-    Serial.print(" length: ");
-    Serial.println(msg_length);
+    if (DEBUG_PRINT) {
+      Serial.print(" length: ");
+      Serial.println(msg_length);
+    }
 
     byte* p = (byte*)malloc(msg_length);
     memcpy(p, (char*) payload.c_str(), msg_length);
 
     if ( client.publish(topictosend, p, msg_length, 1)) {
-      Serial.println("Publish ok");
+      if (DEBUG_PRINT) {
+        Serial.println("Publish ok");
+      }
       free(p);
     } else {
-      Serial.println("Publish failed");
+      if (DEBUG_PRINT) {
+        Serial.println("Publish failed");
+      }
       free(p);
     }
   }
@@ -494,14 +517,18 @@ byte packetBuffer[NTP_PACKET_SIZE]; //buffer to hold incoming & outgoing packets
 time_t getNtpTime()
 {
   while (udp.parsePacket() > 0) ; // discard any previously received packets
-  Serial.println("Transmit NTP Request called");
+  if (DEBUG_PRINT) {
+    Serial.println("Transmit NTP Request called");
+  }
   sendNTPpacket(timeServer);
   delay(1000);
   uint32_t beginWait = millis();
   while (millis() - beginWait < 1500) {
     int size = udp.parsePacket();
     if (size >= NTP_PACKET_SIZE) {
-      Serial.println("Receive NTP Response");
+      if (DEBUG_PRINT) {
+        Serial.println("Receive NTP Response");
+      }
       udp.read(packetBuffer, NTP_PACKET_SIZE);  // read packet into the buffer
       unsigned long secsSince1900;
       // convert four bytes starting at location 40 to a long integer
@@ -512,15 +539,19 @@ time_t getNtpTime()
       return secsSince1900 - 2208988800UL + timeZone * SECS_PER_HOUR;
     }
   }
-  Serial.println(millis() - beginWait);
-  Serial.println("No NTP Response :-(");
+  if (DEBUG_PRINT) {
+    Serial.println(millis() - beginWait);
+    Serial.println("No NTP Response :-(");
+  }
   return 0; // return 0 if unable to get the time
 }
 
 // send an NTP request to the time server at the given address
 void sendNTPpacket(IPAddress & address)
 {
-  Serial.println("Transmit NTP Request");
+  if (DEBUG_PRINT) {
+    Serial.println("Transmit NTP Request");
+  }
   // set all bytes in the buffer to 0
   memset(packetBuffer, 0, NTP_PACKET_SIZE);
   // Initialize values needed to form NTP request
@@ -539,7 +570,9 @@ void sendNTPpacket(IPAddress & address)
   udp.beginPacket(address, 123); //NTP requests are to port 123
   udp.write(packetBuffer, NTP_PACKET_SIZE);
   udp.endPacket();
-  Serial.println("Transmit NTP Sent");
+  if (DEBUG_PRINT) {
+    Serial.println("Transmit NTP Sent");
+  }
 }
 //
 //
