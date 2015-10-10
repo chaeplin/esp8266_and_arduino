@@ -108,16 +108,18 @@ void wifi_connect() {
 }
 
 boolean reconnect() {
-  if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
-    client.publish(willTopic, "1", true);
-    client.publish(hellotopic, "hello again 1 from ESP8266 s07");
-    if (DEBUG_PRINT) {
-      Serial.println("---------------> connected");
-    }
-  } else {
-    if (DEBUG_PRINT) {
-      Serial.print("----------------> failed, rc=");
-      Serial.println(client.state());
+  if (!client.connected()) {
+    if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
+      client.publish(willTopic, "1", true);
+      client.publish(hellotopic, "hello again 1 from ESP8266 s07");
+      if (DEBUG_PRINT) {
+        Serial.println("---------------> connected");
+      }
+    } else {
+      if (DEBUG_PRINT) {
+        Serial.print("----------------> failed, rc=");
+        Serial.println(client.state());
+      }
     }
   }
   //timemillis = millis();
@@ -197,9 +199,7 @@ void setup() {
   attachInterrupt(4, IRCHECKING_START, RISING);
   attachInterrupt(5, DOORCHECKING, CHANGE);
 
-
   emon1.current(A0, 75);
-
   oldirStatus = LOW ;
 
 }
@@ -230,9 +230,7 @@ void loop()
           lastReconnectAttempt = 0;
         }
       }
-    } /* else {
-      client.loop();
-    } */
+    } 
   } else {
     wifi_connect();
   }
@@ -240,6 +238,8 @@ void loop()
   VIrms = emon1.calcIrms(1480) * 220.0;
   ave.push(VIrms);
   average = ave.mean();
+
+  client.loop();
 
   if ( revMills > 600 ) {
     revValue = (float(( 3600  * 1000 ) / ( 600 * float(revMills) ) ) * 1000);
@@ -300,7 +300,7 @@ void loop()
     sentMills = millis();
   }
   client.loop();
-  delay(50);
+  //delay(50);
 
 }
 
