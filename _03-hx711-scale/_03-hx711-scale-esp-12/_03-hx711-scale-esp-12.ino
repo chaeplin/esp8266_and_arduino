@@ -57,10 +57,12 @@ long lastReconnectAttempt = 0;
 
 void wifi_connect() {
   // WIFI
-  Serial.println();
-  Serial.println();
-  Serial.print("Connecting to ");
-  Serial.println(ssid);
+  if (DEBUG_PRINT) {
+    Serial.println();
+    Serial.println();
+    Serial.print("Connecting to ");
+    Serial.println(ssid);
+  }
 
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
@@ -72,49 +74,44 @@ void wifi_connect() {
     digitalWrite(ledPin, LOW);
     delay(50);
     Attempt++;
-    Serial.print(".");
+    if (DEBUG_PRINT) {
+      Serial.print(".");
+    }
     if (Attempt == 100)
     {
-      Serial.println();
-      Serial.println("Could not connect to WIFI");
+      if (DEBUG_PRINT) {
+        Serial.println();
+        Serial.println("Could not connect to WIFI");
+      }
       ESP.restart();
       delay(2000);
     }
   }
 
-  Serial.println("");
-  Serial.println("WiFi connected");
-  Serial.println("IP address: ");
-  Serial.println(WiFi.localIP());
-
+  if (DEBUG_PRINT) {
+    Serial.println("");
+    Serial.println("WiFi connected");
+    Serial.println("IP address: ");
+    Serial.println(WiFi.localIP());
+  }
   //startMills = millis();
 
-/*
-  if (WiFi.status() == WL_CONNECTED) {
-    if (!client.connected()) {
-      if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
-        client.publish(willTopic, "1", true);
-        client.publish(hellotopic, "hello again wifi and mqtt from ESP8266 s06");
-        Serial.println("reconnecting wifi and mqtt");
-      } else {
-        Serial.println("mqtt publish fail after wifi reconnect");
-      }
-    } else {
-      client.publish(willTopic, "1", true);
-      client.publish(hellotopic, "hello again wifi from ESP8266 s06");
-    }
-  }
-*/
 }
 
 boolean reconnect() {
-  if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
-    client.publish(willTopic, "1", true);
-    client.publish(hellotopic, "hello again 1 from ESP8266 s06");
-    Serial.println("connected");
-  } else {
-    Serial.print("failed, rc=");
-    Serial.print(client.state());
+  if (!client.connected()) {
+    if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
+      client.publish(willTopic, "1", true);
+      client.publish(hellotopic, "hello again 1 from ESP8266 s06");
+      if (DEBUG_PRINT) {
+        Serial.println("connected");
+      }
+    } else {
+      if (DEBUG_PRINT) {
+        Serial.print("failed, rc=");
+        Serial.print(client.state());
+      }
+    }
   }
   //startMills = millis();
   return client.connected();
@@ -127,16 +124,18 @@ void setup() {
   delay(20);
 
   Wire.begin(4, 5);
-  Serial.println("HX711 START");
-  
-  Serial.print("ESP.getChipId() : ");
-  Serial.println(ESP.getChipId());
+  if (DEBUG_PRINT) {
+    Serial.println("HX711 START");
 
-  Serial.print("ESP.getFlashChipId() : ");
-  Serial.println(ESP.getFlashChipId());
-  
-  Serial.print("ESP.getFlashChipSize() : ");
-  Serial.println(ESP.getFlashChipSize());
+    Serial.print("ESP.getChipId() : ");
+    Serial.println(ESP.getChipId());
+
+    Serial.print("ESP.getFlashChipId() : ");
+    Serial.println(ESP.getFlashChipId());
+
+    Serial.print("ESP.getFlashChipSize() : ");
+    Serial.println(ESP.getFlashChipSize());
+  }
   delay(100);
 
   startMills = millis();
@@ -163,14 +162,18 @@ void setup() {
       if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
         client.publish(willTopic, "1", true);
         client.publish(hellotopic, (char*) getResetInfo.c_str());
-        Serial.print("Sending payload: ");
-        Serial.println(getResetInfo);
+        if (DEBUG_PRINT) {
+          Serial.print("Sending payload: ");
+          Serial.println(getResetInfo);
+        }
       }
     } else {
       client.publish(willTopic, "1", true);
       client.publish(hellotopic, (char*) getResetInfo.c_str());
-      Serial.print("Sending payload: ");
-      Serial.println(getResetInfo);
+      if (DEBUG_PRINT) {
+        Serial.print("Sending payload: ");
+        Serial.println(getResetInfo);
+      }
     }
   }
 
@@ -181,8 +184,10 @@ void loop()
 {
   if (WiFi.status() == WL_CONNECTED) {
     if (!client.connected()) {
-      Serial.print("failed, rc=");
-      Serial.print(client.state());
+      if (DEBUG_PRINT) {
+        Serial.print("failed, rc=");
+        Serial.print(client.state());
+      }
 
       long now = millis();
       if (now - lastReconnectAttempt > 5000) {
@@ -237,8 +242,10 @@ void loop()
       if ( ( ave.stddev() < 10 ) && ( nofnotinuse > 20 ) ) {
         if ( AvgMeasuredIsSent == HIGH )
         {
-          Serial.print("poop_checked : ");
-          Serial.println(int(ave.mean()));
+          if (DEBUG_PRINT) {
+            Serial.print("poop_checked : ");
+            Serial.println(int(ave.mean()));
+          }
 
           payload = "{\"WeightPoop\":";
           payload += ( int(ave.mean()) - measured_empty );
@@ -318,22 +325,26 @@ void hx711IsReady()
 
 void sendHx711toMqtt(String payload, char* topic, int retain)
 {
-  if (!client.connected()) {
-    if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
-      client.publish(willTopic, "1", true);
-      client.publish(hellotopic, "hello again 2 from ESP8266 s06");
+  /*
+    if (!client.connected()) {
+      if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
+        client.publish(willTopic, "1", true);
+        client.publish(hellotopic, "hello again 2 from ESP8266 s06");
+      }
     }
-  }
-
+  */
   if (client.connected()) {
-    Serial.print("Sending payload: ");
-    Serial.print(payload);
+    if (DEBUG_PRINT) {
+      Serial.print("Sending payload: ");
+      Serial.print(payload);
+    }
 
     unsigned int msg_length = payload.length();
 
-    Serial.print(" length: ");
-    Serial.println(msg_length);
-
+    if (DEBUG_PRINT) {
+      Serial.print(" length: ");
+      Serial.println(msg_length);
+    }
     byte* p = (byte*)malloc(msg_length);
     memcpy(p, (char*) payload.c_str(), msg_length);
 
@@ -342,10 +353,14 @@ void sendHx711toMqtt(String payload, char* topic, int retain)
         if ( topic == "esp8266/arduino/s06" ) {
           AvgMeasuredIsSent = HIGH;
         }
-        Serial.println("Publish ok");
+        if (DEBUG_PRINT) {
+          Serial.println("Publish ok");
+        }
         free(p);
       } else {
-        Serial.println("Publish failed");
+        if (DEBUG_PRINT) {
+          Serial.println("Publish failed");
+        }
         free(p);
       }
     } else {
@@ -353,10 +368,14 @@ void sendHx711toMqtt(String payload, char* topic, int retain)
         if ( topic == "esp8266/arduino/s06" ) {
           AvgMeasuredIsSent = HIGH;
         }
-        Serial.println("Publish ok");
+        if (DEBUG_PRINT) {
+          Serial.println("Publish ok");
+        }
         free(p);
       } else {
-        Serial.println("Publish failed");
+        if (DEBUG_PRINT) {
+          Serial.println("Publish failed");
+        }
         free(p);
       }
     }
