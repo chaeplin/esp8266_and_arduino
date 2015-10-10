@@ -7,8 +7,8 @@
 #define _IS_MY_HOME
 // WIFI
 #ifdef _IS_MY_HOME
-//#include "/usr/local/src/ap_settingii.h"
-#include "/usr/local/src/ap_setting.h"
+#include "/usr/local/src/ap_settingii.h"
+//#include "/usr/local/src/ap_setting.h"
 #else
 #include "ap_setting.h"
 #endif
@@ -230,7 +230,7 @@ void loop()
           lastReconnectAttempt = 0;
         }
       }
-    } 
+    }
   } else {
     wifi_connect();
   }
@@ -238,8 +238,6 @@ void loop()
   VIrms = emon1.calcIrms(1480) * 220.0;
   ave.push(VIrms);
   average = ave.mean();
-
-  client.loop();
 
   if ( revMills > 600 ) {
     revValue = (float(( 3600  * 1000 ) / ( 600 * float(revMills) ) ) * 1000);
@@ -300,7 +298,7 @@ void loop()
     sentMills = millis();
   }
   client.loop();
-  //delay(50);
+  delay(50);
 
 }
 
@@ -316,6 +314,8 @@ void sendmqttMsg(char* topictosend, String payloadtosend)
   }
   */
 
+  client.loop();
+  
   if (client.connected()) {
     if (DEBUG_PRINT) {
       Serial.print("Sending payload: ");
