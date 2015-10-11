@@ -224,7 +224,8 @@ void loop()
         Serial.print(client.state());
       }
       long now = millis();
-      if (now - lastReconnectAttempt > 5000) {
+//      if (now - lastReconnectAttempt > 5000) {
+      if (now - lastReconnectAttempt > 1000) {
         lastReconnectAttempt = now;
         if (reconnect()) {
           lastReconnectAttempt = 0;
