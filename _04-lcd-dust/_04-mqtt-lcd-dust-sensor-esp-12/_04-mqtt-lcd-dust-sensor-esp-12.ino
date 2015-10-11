@@ -18,7 +18,7 @@
 
 RtcDS3231 Rtc;
 
-#define DEBUG_PRINT 0
+#define DEBUG_PRINT 1
 
 char* topic = "esp8266/arduino/s03";
 char* subtopic = "#";
@@ -389,8 +389,9 @@ void setup() {
   delay(50);
 
   if (DEBUG_PRINT) {
-    Serial.begin(74880);
-    Serial.setDebugOutput(true);
+    Serial.begin(115200);
+    //Serial.begin(74880);
+    //Serial.setDebugOutput(true);
   }
 
   startMills = millis();
@@ -582,7 +583,7 @@ void loop()
         Serial.println(client.state());
       }
       long now = millis();
-      if (now - lastReconnectAttempt > 5000) {
+      if (now - lastReconnectAttempt > 1000) {
         lastReconnectAttempt = now;
         if (reconnect()) {
           lastReconnectAttempt = 0;
