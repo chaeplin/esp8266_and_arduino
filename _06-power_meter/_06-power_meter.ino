@@ -13,7 +13,7 @@
 #include "ap_setting.h"
 #endif
 
-#define DEBUG_PRINT 0
+#define DEBUG_PRINT 1
 
 //
 EnergyMonitor emon1;                   // Create an instance
@@ -128,7 +128,8 @@ boolean reconnect() {
 
 void setup() {
   if (DEBUG_PRINT) {
-    Serial.begin(74880);
+    //Serial.begin(74880);
+    Serial.begin(115200);
   }
   delay(20);
   if (DEBUG_PRINT) {
@@ -224,7 +225,7 @@ void loop()
         Serial.print(client.state());
       }
       long now = millis();
-//      if (now - lastReconnectAttempt > 5000) {
+      //      if (now - lastReconnectAttempt > 5000) {
       if (now - lastReconnectAttempt > 1000) {
         lastReconnectAttempt = now;
         if (reconnect()) {
@@ -315,8 +316,8 @@ void sendmqttMsg(char* topictosend, String payloadtosend)
   }
   */
 
-  client.loop();
-  
+  //client.loop();
+
   if (client.connected()) {
     if (DEBUG_PRINT) {
       Serial.print("Sending payload: ");
