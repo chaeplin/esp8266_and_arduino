@@ -15,7 +15,7 @@
 #define nemoisOnPin 14
 #define ledPin 13
 
-#define DEBUG_PRINT 0
+#define DEBUG_PRINT 1
 
 int measured = 0;
 int inuse = LOW;
@@ -119,7 +119,7 @@ boolean reconnect() {
 
 void setup() {
   if (DEBUG_PRINT) {
-    Serial.begin(74880);
+    Serial.begin(115200);
   }
   delay(20);
 
@@ -190,7 +190,7 @@ void loop()
       }
 
       long now = millis();
-      if (now - lastReconnectAttempt > 5000) {
+      if (now - lastReconnectAttempt > 1000) {
         lastReconnectAttempt = now;
         if (reconnect()) {
           lastReconnectAttempt = 0;
