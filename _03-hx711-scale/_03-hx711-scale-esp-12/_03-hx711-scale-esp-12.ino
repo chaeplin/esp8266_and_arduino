@@ -16,6 +16,7 @@
 #define ledPin 13
 
 #define DEBUG_PRINT 1
+#define EVENT_PRINT 0
 
 int measured = 0;
 int inuse = LOW;
@@ -57,7 +58,7 @@ long lastReconnectAttempt = 0;
 
 void wifi_connect() {
   // WIFI
-  if (DEBUG_PRINT) {
+  if (EVENT_PRINT) {
     Serial.println();
     Serial.println();
     Serial.print("Connecting to ");
@@ -74,12 +75,12 @@ void wifi_connect() {
     digitalWrite(ledPin, LOW);
     delay(50);
     Attempt++;
-    if (DEBUG_PRINT) {
+    if (EVENT_PRINT) {
       Serial.print(".");
     }
     if (Attempt == 100)
     {
-      if (DEBUG_PRINT) {
+      if (EVENT_PRINT) {
         Serial.println();
         Serial.println("Could not connect to WIFI");
       }
@@ -88,7 +89,7 @@ void wifi_connect() {
     }
   }
 
-  if (DEBUG_PRINT) {
+  if (EVENT_PRINT) {
     Serial.println("");
     Serial.println("WiFi connected");
     Serial.println("IP address: ");
@@ -103,11 +104,11 @@ boolean reconnect() {
     if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
       client.publish(willTopic, "1", true);
       client.publish(hellotopic, "hello again 1 from ESP8266 s06");
-      if (DEBUG_PRINT) {
+      if (EVENT_PRINT) {
         Serial.println("connected");
       }
     } else {
-      if (DEBUG_PRINT) {
+      if (EVENT_PRINT) {
         Serial.print("failed, rc=");
         Serial.print(client.state());
       }
@@ -334,14 +335,14 @@ void sendHx711toMqtt(String payload, char* topic, int retain)
     }
   */
   if (client.connected()) {
-    if (DEBUG_PRINT) {
+    if (EVENT_PRINT) {
       Serial.print("Sending payload: ");
       Serial.print(payload);
     }
 
     unsigned int msg_length = payload.length();
 
-    if (DEBUG_PRINT) {
+    if (EVENT_PRINT) {
       Serial.print(" length: ");
       Serial.println(msg_length);
     }
@@ -353,12 +354,12 @@ void sendHx711toMqtt(String payload, char* topic, int retain)
         if ( topic == "esp8266/arduino/s06" ) {
           AvgMeasuredIsSent = HIGH;
         }
-        if (DEBUG_PRINT) {
+        if (EVENT_PRINT) {
           Serial.println("Publish ok");
         }
         free(p);
       } else {
-        if (DEBUG_PRINT) {
+        if (EVENT_PRINT) {
           Serial.println("Publish failed");
         }
         free(p);
@@ -368,12 +369,12 @@ void sendHx711toMqtt(String payload, char* topic, int retain)
         if ( topic == "esp8266/arduino/s06" ) {
           AvgMeasuredIsSent = HIGH;
         }
-        if (DEBUG_PRINT) {
+        if (EVENT_PRINT) {
           Serial.println("Publish ok");
         }
         free(p);
       } else {
-        if (DEBUG_PRINT) {
+        if (EVENT_PRINT) {
           Serial.println("Publish failed");
         }
         free(p);

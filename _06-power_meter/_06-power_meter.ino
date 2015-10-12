@@ -14,6 +14,7 @@
 #endif
 
 #define DEBUG_PRINT 1
+#define EVENT_PRINT 0
 
 //
 EnergyMonitor emon1;                   // Create an instance
@@ -73,7 +74,7 @@ long lastReconnectAttempt = 0;
 
 void wifi_connect() {
   // WIFI
-  if (DEBUG_PRINT) {
+  if (EVENT_PRINT) {
     Serial.println();
     Serial.println();
     Serial.print("Connecting to ");
@@ -87,19 +88,19 @@ void wifi_connect() {
   while (WiFi.status() != WL_CONNECTED) {
     delay(100);
     Attempt++;
-    if (DEBUG_PRINT) {
+    if (EVENT_PRINT) {
       Serial.print(".");
     }
     if (Attempt == 200)
     {
-      if (DEBUG_PRINT) {
+      if (EVENT_PRINT) {
         Serial.println();
         Serial.println("Could not connect to WIFI");
       }
       ESP.restart();
     }
   }
-  if (DEBUG_PRINT) {
+  if (EVENT_PRINT) {
     Serial.println("");
     Serial.println("WiFi connected");
     Serial.println("IP address: ");
@@ -112,11 +113,11 @@ boolean reconnect() {
     if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
       client.publish(willTopic, "1", true);
       client.publish(hellotopic, "hello again 1 from ESP8266 s07");
-      if (DEBUG_PRINT) {
+      if (EVENT_PRINT) {
         Serial.println("---------------> connected");
       }
     } else {
-      if (DEBUG_PRINT) {
+      if (EVENT_PRINT) {
         Serial.print("----------------> failed, rc=");
         Serial.println(client.state());
       }
@@ -319,12 +320,12 @@ void sendmqttMsg(char* topictosend, String payloadtosend)
   //client.loop();
 
   if (client.connected()) {
-    if (DEBUG_PRINT) {
+    if (EVENT_PRINT) {
       Serial.print("Sending payload: ");
       Serial.print(payloadtosend);
     }
     unsigned int msg_length = payloadtosend.length();
-    if (DEBUG_PRINT) {
+    if (EVENT_PRINT) {
       Serial.print(" length: ");
       Serial.println(msg_length);
     }
@@ -332,12 +333,12 @@ void sendmqttMsg(char* topictosend, String payloadtosend)
     memcpy(p, (char*) payloadtosend.c_str(), msg_length);
 
     if ( client.publish(topictosend, p, msg_length, 1)) {
-      if (DEBUG_PRINT) {
+      if (EVENT_PRINT) {
         Serial.println("Publish ok");
       }
       free(p);
     } else {
-      if (DEBUG_PRINT) {
+      if (EVENT_PRINT) {
         Serial.println("Publish failed");
       }
       free(p);
