@@ -18,7 +18,7 @@
 
 RtcDS3231 Rtc;
 
-#define DEBUG_PRINT 1
+#define DEBUG_PRINT 0
 #define EVENT_PRINT 0
 
 char* topic = "esp8266/arduino/s03";
