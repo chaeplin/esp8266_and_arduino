@@ -14,7 +14,7 @@
 #include "ap_setting.h"
 #endif
 
-#define DEBUG_PRINT 1
+#define DEBUG_PRINT 0
 #define EVENT_PRINT 0
 
 // pin
