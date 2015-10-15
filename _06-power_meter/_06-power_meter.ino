@@ -301,23 +301,11 @@ void loop()
     sentMills = millis();
   }
   client.loop();
-  delay(50);
-
+  //delay(50);
 }
-
 
 void sendmqttMsg(char* topictosend, String payloadtosend)
 {
-  /*
-  if (!client.connected()) {
-    if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
-      client.publish(willTopic, "1", true);
-      client.publish(hellotopic, "hello again 2 from ESP8266 s07");
-    }
-  }
-  */
-
-  //client.loop();
 
   if (client.connected()) {
     if (EVENT_PRINT) {
