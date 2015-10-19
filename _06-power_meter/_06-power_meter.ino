@@ -62,6 +62,10 @@ String clientName ;
 String payload ;
 String doorpayload ;
 
+// send reset info
+String getResetInfo ;
+int ResetInfo = LOW;
+
 int average = 0;
 
 WiFiClient wifiClient;
@@ -112,7 +116,12 @@ boolean reconnect() {
   if (!client.connected()) {
     if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
       client.publish(willTopic, "1", true);
-      client.publish(hellotopic, "hello again 1 from ESP8266 s07");
+      if ( ResetInfo == LOW) {
+        client.publish(hellotopic, (char*) getResetInfo.c_str());
+        ResetInfo = HIGH;
+      } else {
+        client.publish(hellotopic, "hello again 1 from ESP8266 s07");
+      }
       if (EVENT_PRINT) {
         Serial.println("---------------> connected");
       }
@@ -161,9 +170,10 @@ void setup() {
 
   lastReconnectAttempt = 0;
 
-  String getResetInfo = "hello from ESP8266 s07 ";
+  getResetInfo = "hello from ESP8266 s07 ";
   getResetInfo += ESP.getResetInfo().substring(0, 30);
 
+  /*
   if (WiFi.status() == WL_CONNECTED) {
     if (!client.connected()) {
       if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
@@ -183,6 +193,7 @@ void setup() {
       }
     }
   }
+  */
 
   startMills = millis();
   sentMills = millis();
