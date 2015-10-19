@@ -7,8 +7,8 @@
 #define _IS_MY_HOME
 // WIFI
 #ifdef _IS_MY_HOME
-#include "/usr/local/src/ap_settingii.h"
-//#include "/usr/local/src/ap_setting.h"
+//#include "/usr/local/src/ap_settingii.h"
+#include "/usr/local/src/ap_setting.h"
 #else
 #include "ap_setting.h"
 #endif
@@ -70,9 +70,6 @@ int average = 0;
 
 WiFiClient wifiClient;
 PubSubClient client(wifiClient);
-
-void callback(char* topic, byte* payload, unsigned int length) {
-}
 
 long lastReconnectAttempt = 0;
 
@@ -154,8 +151,8 @@ void setup() {
     Serial.print("ESP.getFlashChipSize() : ");
     Serial.println(ESP.getFlashChipSize());
   }
-  delay(20);
 
+  delay(5000);
   wifi_connect();
 
   clientName += "esp8266-";
@@ -172,28 +169,6 @@ void setup() {
 
   getResetInfo = "hello from ESP8266 s07 ";
   getResetInfo += ESP.getResetInfo().substring(0, 30);
-
-  /*
-  if (WiFi.status() == WL_CONNECTED) {
-    if (!client.connected()) {
-      if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
-        client.publish(willTopic, "1", true);
-        client.publish(hellotopic, (char*) getResetInfo.c_str());
-        if (DEBUG_PRINT) {
-          Serial.print("Sending payload: ");
-          Serial.println(getResetInfo);
-        }
-      }
-    } else {
-      client.publish(willTopic, "1", true);
-      client.publish(hellotopic, (char*) getResetInfo.c_str());
-      if (DEBUG_PRINT) {
-        Serial.print("Sending payload: ");
-        Serial.println(getResetInfo);
-      }
-    }
-  }
-  */
 
   startMills = millis();
   sentMills = millis();
@@ -248,7 +223,7 @@ void loop()
   } else {
     wifi_connect();
   }
-
+  
   VIrms = emon1.calcIrms(1480) * 220.0;
   ave.push(VIrms);
   average = ave.mean();
@@ -312,7 +287,7 @@ void loop()
     sentMills = millis();
   }
   client.loop();
-  //delay(50);
+  delay(100);
 }
 
 void sendmqttMsg(char* topictosend, String payloadtosend)
