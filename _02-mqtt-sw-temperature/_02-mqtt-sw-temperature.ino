@@ -57,6 +57,10 @@ const int timeZone = 9;
 String clientName;
 String payload ;
 
+// send reset info
+String getResetInfo ;
+int ResetInfo = LOW;
+
 //
 float tempCinside ;
 float tempCoutside ;
@@ -129,7 +133,12 @@ boolean reconnect()
   if (!client.connected()) {
     if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
       client.publish(willTopic, "1", true);
-      client.publish(hellotopic, "hello again 1 from ESP8266 s02");
+      if ( ResetInfo == LOW) {
+        client.publish(hellotopic, (char*) getResetInfo.c_str());
+        ResetInfo = HIGH;
+      } else {
+        client.publish(hellotopic, "hello again 1 from ESP8266 s02");
+      }      
       client.subscribe(subtopic);
       if (EVENT_PRINT) {
         Serial.println("connected");
@@ -213,9 +222,10 @@ void setup()
   //
   lastReconnectAttempt = 0;
 
-  String getResetInfo = "hello from ESP8266 s02 ";
+  getResetInfo = "hello from ESP8266 s02 ";
   getResetInfo += ESP.getResetInfo().substring(0, 30);
 
+/*
   if (WiFi.status() == WL_CONNECTED) {
     if (!client.connected()) {
       if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
@@ -237,7 +247,7 @@ void setup()
       }
     }
   }
-
+*/
   //
   if (DEBUG_PRINT) {
     Serial.println("Starting UDP");
