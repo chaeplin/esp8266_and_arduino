@@ -16,8 +16,8 @@
 #define DEBUG_PRINT 0
 #define EVENT_PRINT 0
 
-//
-EnergyMonitor emon1;                   // Create an instance
+// ********** change MQTT_KEEPALIVE to 60 at PubSubClient.h *****************
+EnergyMonitor emon1;
 Average<float> ave(10);
 
 // mqtt
