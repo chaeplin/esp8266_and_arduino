@@ -7,7 +7,7 @@
 #define _IS_MY_HOME
 // wifi
 #ifdef _IS_MY_HOME
-#include "/usr/local/src/ap_settingii.h"
+#include "/usr/local/src/ap_setting.h"
 #else
 #include "ap_setting.h"
 #endif
@@ -21,6 +21,10 @@ char* willMessage = "0";
 
 String clientName;
 String payload;
+
+// send reset info
+String getResetInfo ;
+int ResetInfo = LOW;
 
 WiFiClient wifiClient;
 IPAddress server(192, 168, 10, 10);
@@ -72,37 +76,18 @@ void wifi_connect() {
   Serial.print("---------------------------------> IP address: ");
   Serial.println(WiFi.localIP());
 
-  /*
-    //
-    //Serial.println("Starting UDP");
-    udp.begin(localPort);
-    //Serial.print("Local port: ");
-    //Serial.println(udp.localPort());
-    delay(5000);
-    setSyncProvider(getNtpTime);
 
-    if (timeStatus() == timeNotSet) {
-      Serial.println("waiting for sync message");
-    }
-  */
+    
 
-  /*
-    //startMills = millis();
+//  Serial.println(WiFi.psk());
 
-    if (WiFi.status() == WL_CONNECTED) {
-      if (!client.connected()) {
-        if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
-          client.publish(willTopic, "1", true);
-          //client.publish(hellotopic, "hello again wifi and mqtt from ESP8266 s20");
-          Serial.println("reconnecting wifi and mqtt");
-        } else {
-          Serial.println("mqtt publish fail after wifi reconnect");
-        }
-      } else {
-        client.publish(hellotopic, "hello again wifi from ESP8266 s20");
-      }
-    }
-  */
+
+/*
+  byte encryption = WiFi.encryptionType();
+  Serial.print("Encryption Type:");
+  Serial.println(encryption, HEX);
+*/
+
 }
 
 boolean reconnect() {
@@ -110,8 +95,13 @@ boolean reconnect() {
   delay(100);
   if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
     Serial.println("-----> mqtt connected");
-    //client.publish(hellotopic, "hello again 1 from ESP8266 s20");
     client.publish(willTopic, "1", true);
+    if ( ResetInfo == LOW) {
+      client.publish(hellotopic, (char*) getResetInfo.c_str());
+      ResetInfo = HIGH;
+    } else {
+      client.publish(hellotopic, "hello again 1 from ESP8266 s20");
+    }
   } else {
     Serial.print("-----------------> failed, rc=");
     Serial.println(client.state());
@@ -121,7 +111,7 @@ boolean reconnect() {
 }
 
 void setup() {
-  Serial.begin(74880);
+  Serial.begin(115200);
   Serial.println();
   //Serial.println("lwt test");
   //Serial.print("ESP.getFlashChipSize() : ");
@@ -144,24 +134,8 @@ void setup() {
   lastReconnectAttempt = 0;
 
 
-  String getResetInfo = "hello from ESP8266 s20 ";
+  getResetInfo = "hello from ESP8266 s20 ";
   getResetInfo += ESP.getResetInfo().substring(0, 30);
-
-  if (WiFi.status() == WL_CONNECTED) {
-    if (!client.connected()) {
-      if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
-        //client.publish(hellotopic, (char*) getResetInfo.c_str());
-        client.publish(willTopic, "1", true);
-        //Serial.print("Sending payload: ");
-        //Serial.println(getResetInfo);
-      }
-    } else {
-      //client.publish(hellotopic, (char*) getResetInfo.c_str());
-      client.publish(willTopic, "1", true);
-      //Serial.print("Sending payload: ");
-      //Serial.println(getResetInfo);
-    }
-  }
 
 }
 
