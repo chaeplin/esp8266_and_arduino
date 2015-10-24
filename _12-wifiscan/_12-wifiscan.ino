@@ -28,22 +28,26 @@ void loop() {
   {
     Serial.print(n);
     Serial.println(" networks found");
+    Serial.println("no\tRSSI\tenc\tBSSID\t\t\tCH\th\tSSID");
     for (int i = 0; i < n; ++i)
     {
       // Print SSID and RSSI for each network found
+      if ( i < 9)
+        Serial.print("0");
       Serial.print(i + 1);
-      Serial.print(": ");
-      Serial.print(WiFi.SSID(i));
       Serial.print("\t");
       Serial.print(WiFi.RSSI(i));
       Serial.print("\t");
       Serial.print(WiFi.encryptionType(i));
+      Serial.print((WiFi.encryptionType(i) == ENC_TYPE_NONE)?" ":"*");
       Serial.print("\t");
       Serial.print(WiFi.BSSIDstr(i));
       Serial.print("\t");
       Serial.print(WiFi.channel(i));
       Serial.print("\t");
-      Serial.println(WiFi.isHidden(i));
+      Serial.print(WiFi.isHidden(i));
+      Serial.print("\t");
+      Serial.println(WiFi.SSID(i));
       delay(10);
     }
   }
