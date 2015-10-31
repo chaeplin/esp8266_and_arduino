@@ -171,7 +171,7 @@ void loop()
 
 
   client.loop();
-  delay(100);
+  delay(10);
 }
 
 
