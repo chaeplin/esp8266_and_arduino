@@ -28,6 +28,8 @@ char* hellotopic = "HELLO";
 char* willTopic = "clients/power";
 char* willMessage = "0";
 
+char* subtopic = "esp8266/check";
+
 IPAddress server(192, 168, 10, 10);
 
 // pin : using line tracker
@@ -69,7 +71,7 @@ int ResetInfo = LOW;
 int average = 0;
 
 WiFiClient wifiClient;
-PubSubClient client(wifiClient);
+PubSubClient client(server, 1883, callback, wifiClient);
 
 long lastReconnectAttempt = 0;
 
@@ -119,6 +121,7 @@ boolean reconnect() {
       } else {
         client.publish(hellotopic, "hello again 1 from ESP8266 s07");
       }
+      client.subscribe(subtopic);
       if (EVENT_PRINT) {
         Serial.println("---------------> connected");
       }
@@ -131,6 +134,36 @@ boolean reconnect() {
   }
   //timemillis = millis();
   return client.connected();
+}
+
+void callback(char* intopic, byte* inpayload, unsigned int length)
+{
+  String receivedtopic = intopic;
+  String receivedpayload ;
+
+  for (int i = 0; i < length; i++) {
+    receivedpayload += (char)inpayload[i];
+  }
+
+  if (EVENT_PRINT) {
+    Serial.print(intopic);
+    Serial.print(" => ");
+    Serial.println(receivedpayload);
+  }
+
+  if ( receivedpayload == "{\"DOOR\":\"CHECKING\"}") {
+
+    String check_doorpayload = "{\"DOOR\":";
+    if ( doorStatus == 0 ) {
+      check_doorpayload += "\"CHECK_CLOSED\"";
+    }
+    else {
+      check_doorpayload += "\"CHECK_OPEN\"";
+    }
+    check_doorpayload += "}";
+    sendmqttMsg(doortopic, check_doorpayload);
+  }
+
 }
 
 void setup() {
@@ -223,7 +256,7 @@ void loop()
   } else {
     wifi_connect();
   }
-  
+
   VIrms = emon1.calcIrms(1480) * 220.0;
   ave.push(VIrms);
   average = ave.mean();
