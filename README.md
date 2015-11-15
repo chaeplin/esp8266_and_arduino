@@ -5,7 +5,8 @@
 - db : influxdb
 - web : grafana, node-red
 - collect : mqtt2graphite
-- alert : mqttwarn 
+- alert : mqttwarn
+- control : slack + rtmbot
 
 
 ### Library ###
