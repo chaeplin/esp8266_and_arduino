@@ -1,5 +1,9 @@
 #include <IRremote.h>
 #include <Wire.h>
+#include <Average.h>
+
+Average<float> ave1(4);
+Average<float> ave2(4);
 
 /*
  Sharp Optical Dust Sensor GP2Y1010AU0F
@@ -8,6 +12,8 @@
 // ------------------------------------------
 int measurePin = A6; //Connect dust sensor to Arduino A6 pin
 int ledPower = 2;   //Connect 3 led driver pins of dust sensor to Arduino D2
+
+int moisturePin = A2;
 
 int IR_receive_recv_PIN = 6;
 int IR_receive_GND_PIN  = 7;
@@ -46,6 +52,8 @@ int deltaTime = 40;
 int sleepTime = 9680;
 
 int voMeasured = 0;
+int moMeasured = 0;
+
 float calcVoltage = 0;
 float dustDensity = 0;
 
@@ -101,7 +109,7 @@ void ac_send_code(unsigned long code)
 
   delay(100);
   irsend.sendLGAC(code, 28);
-  
+
   delay(100);
   irrecv.enableIRIn(); // Start the receiver
 }
@@ -290,7 +298,7 @@ void loop()
     dumpInfo(&results);
   }
 
-  if ((millis() - startMills) > 3000 ) {
+  if ((millis() - startMills) > 200 ) {
 
     digitalWrite(ledPower, LOW); // power on the LED
     delayMicroseconds(samplingTime);
@@ -301,9 +309,18 @@ void loop()
     digitalWrite(ledPower, HIGH); // turn the LED off
     delayMicroseconds(sleepTime);
 
+    moMeasured = analogRead(moisturePin);
+
+    ave1.push(voMeasured);
+    ave2.push(moMeasured);
+
     startMills = millis();
 
-    //Serial.println(voMeasured);
+    /*
+    Serial.println(ave1.mean());
+    Serial.println(ave2.mean());
+    */
+    
   }
 
   if ((sleepmode == HIGH) && ( ( millis() - ac_startMills) >= 1800000 )) {
@@ -316,14 +333,16 @@ void loop()
 
 void requestEvent()
 {
-  byte myArray[2];
+  byte myArray[4];
   int sleepmodetosend ;
 
   if ( sleepmode == o_sleepmode ) {
-    myArray[0] = (voMeasured >> 8 ) & 0xFF;
-    myArray[1] = voMeasured & 0xFF;
+    myArray[0] = (int(ave1.mean()) >> 8 ) & 0xFF;
+    myArray[1] = int(ave1.mean()) & 0xFF;
+    myArray[2] = (int(ave2.mean()) >> 8 ) & 0xFF;
+    myArray[3] = int(ave2.mean()) & 0xFF;
 
-    Wire.write(myArray, 2);
+    Wire.write(myArray, 4);
   }
 
   if ( sleepmode != o_sleepmode )  {
@@ -334,8 +353,10 @@ void requestEvent()
     }
     myArray[0] = (sleepmodetosend >> 8 ) & 0xFF;
     myArray[1] = sleepmodetosend & 0xFF;
+    myArray[2] = (int(ave2.mean()) >> 8 ) & 0xFF;
+    myArray[3] = int(ave2.mean()) & 0xFF;
 
-    Wire.write(myArray, 2);
+    Wire.write(myArray, 4);
 
     o_sleepmode = sleepmode;
   }
