@@ -45,8 +45,9 @@ WiFiUDP udp;
 String getResetInfo ;
 int ResetInfo = LOW;
 
-//PubSubClient client(server, 1883, callback, wifiClient);
-PubSubClient client(wifiClient);
+//StaticJsonBuffer<350> jsonBuffer;
+
+PubSubClient client(server, 1883, callback, wifiClient);
 
 // volatile
 float H  ;
@@ -54,6 +55,7 @@ float T1 ;
 float T2 ;
 float OT ;
 float PW ;
+
 int NW ;
 int PIR  ;
 int HO  ;
@@ -68,6 +70,7 @@ int sleepmode = LOW ;
 int o_sleepmode = LOW ;
 
 float dustDensity ;
+int moisture ;
 
 float OLD_H  ;
 float OLD_T1 ;
@@ -80,10 +83,12 @@ int OLD_HO  ;
 int OLD_HL  ;
 
 float OLD_dustDensity ;
-
 int OLD_x ;
 
 unsigned long startMills;
+
+long lastReconnectAttempt = 0;
+int resetCountforMqttReconnect = 0;
 
 byte termometru[8] =
 {
@@ -178,6 +183,7 @@ void callback(char* intopic, byte* inpayload, unsigned int length)
   if ( receivedtopic == "esp8266/arduino/s03" ) {
     return;
   }
+
   if (EVENT_PRINT) {
     Serial.print("-> receivedpayload 1 free Heap : ");
     Serial.println(ESP.getFreeHeap());
@@ -196,30 +202,25 @@ void callback(char* intopic, byte* inpayload, unsigned int length)
     Serial.println(ESP.getFreeHeap());
   }
 
-  /*
-    parseMqttMsg(receivedpayload, receivedtopic);
-  }
+  parseMqttMsg(receivedpayload, receivedtopic);
+}
 
-  void parseMqttMsg(String receivedpayload, String receivedtopic) {
-  */
+void parseMqttMsg(String receivedpayload, String receivedtopic) {
 
   if (EVENT_PRINT) {
     Serial.print("-> jsonBuffer 1 free Heap : ");
     Serial.println(ESP.getFreeHeap());
   }
 
-  StaticJsonBuffer<300> jsonBuffer;
-
   if (EVENT_PRINT) {
     Serial.print("-> jsonBuffer 2 free Heap : ");
     Serial.println(ESP.getFreeHeap());
   }
 
-  char json[] =
-    "{\"Humidity\":41.90,\"Temperature\":25.90,\"DS18B20\":26.25,\"SENSORTEMP\":29.31,\"PIRSTATUS\":0,\"FreeHeap\":40608,\"RSSI\":-47,\"CycleCount\":3831709269}";
+  char json[] = "{\"Humidity\":41.90,\"Temperature\":25.90,\"DS18B20\":26.25,\"SENSORTEMP\":29.31,\"PIRSTATUS\":0,\"FreeHeap\":40608,\"RSSI\":-47,\"millis\":3831709269}";
 
   receivedpayload.toCharArray(json, 300);
-
+  StaticJsonBuffer<300> jsonBuffer;
   JsonObject& root = jsonBuffer.parseObject(json);
 
   if (!root.success()) {
@@ -237,6 +238,7 @@ void callback(char* intopic, byte* inpayload, unsigned int length)
   // esp8266/arduino/s02  : T, H
   // esp8266/arduino/aircon : ________
   // home/check/checkhwmny : unihost, rsphost, unitot, rsptot
+
   if (EVENT_PRINT) {
     Serial.print("-> keyparse 1 free Heap : ");
     Serial.println(ESP.getFreeHeap());
@@ -254,11 +256,13 @@ void callback(char* intopic, byte* inpayload, unsigned int length)
     }
   }
 
+
   if ( receivedtopic == "esp8266/arduino/s04" ) {
     if (root.containsKey("OUTSIDE")) {
       OT  = root["OUTSIDE"];
     }
   }
+
 
   if ( receivedtopic == "esp8266/arduino/s07" ) {
     if (root.containsKey("powerAvg")) {
@@ -266,14 +270,13 @@ void callback(char* intopic, byte* inpayload, unsigned int length)
     }
   }
 
+
   if ( receivedtopic == "esp8266/arduino/s06" ) {
     if (root.containsKey("WeightAvg")) {
-      int temp_NW = root["WeightAvg"];
-      if ( temp_NW > 0 ) {
-        NW  = root["WeightAvg"];
-      }
+      NW  = root["WeightAvg"];
     }
   }
+
 
   if ( receivedtopic == "raspberrypi/doorpir" )
   {
@@ -305,17 +308,12 @@ void callback(char* intopic, byte* inpayload, unsigned int length)
     }
   }
 
+
   // display callback
   lcd.setCursor(19, 0);
   lcd.write(5);
-  if (EVENT_PRINT) {
-    Serial.print("-> keyparse 2 free Heap : ");
-    Serial.println(ESP.getFreeHeap());
-  }
 
 }
-
-long lastReconnectAttempt = 0;
 
 void wifi_connect() {
   // WIFI
@@ -340,6 +338,7 @@ void wifi_connect() {
         Serial.println("Could not connect to WIFI");
       }
       ESP.restart();
+      //delay(2000);
     }
   }
 
@@ -360,7 +359,7 @@ boolean reconnect() {
         ResetInfo = HIGH;
       } else {
         client.publish(hellotopic, "hello again 1 from ESP8266 s03");
-      }      
+      }
       client.subscribe(subtopic);
       if (DEBUG_PRINT) {
         Serial.println("connected");
@@ -380,7 +379,6 @@ void setup() {
 
   if (DEBUG_PRINT) {
     Serial.begin(115200);
-    //Serial.begin(74880);
     //Serial.setDebugOutput(true);
   }
 
@@ -402,6 +400,46 @@ void setup() {
   }
   delay(20);
 
+  //--
+  H  = -1000 ;
+  T1 = -1000 ;
+  T2 = -1000 ;
+  OT = -1000 ;
+  PW = -1000 ;
+  NW = -1000 ;
+  PIR = 0 ;
+  dustDensity = -1000 ;
+  HO = 0 ;
+  HL = 0;
+
+  moisture = 0;
+
+  unihost = 0;
+  rsphost = 0;
+
+  unitot = 0;
+  rsptot = 0;
+
+  OLD_H  = -1000 ;
+  OLD_T1 = -1000 ;
+  OLD_T2 = -1000 ;
+  OLD_OT = -1000 ;
+  OLD_PW = -1000 ;
+  OLD_NW = -1000 ;
+  OLD_PIR = 0 ;
+  OLD_dustDensity = -1000 ;
+  OLD_HO = 0;
+  OLD_HL = 0;
+
+  OLD_x = 0 ;
+
+  lastReconnectAttempt = 0;
+  resetCountforMqttReconnect = 0;
+
+  getResetInfo = "hello from ESP8266 s03 ";
+  getResetInfo += ESP.getResetInfo().substring(0, 30);
+  //-
+
   clientName += "esp8266 - ";
   uint8_t mac[6];
   WiFi.macAddress(mac);
@@ -414,9 +452,6 @@ void setup() {
   lcd.clear();
 
   wifi_connect();
-
-  client.setServer(server, 1883);
-  client.setCallback(callback);
 
   //
   if (DEBUG_PRINT) {
@@ -502,64 +537,9 @@ void setup() {
     lcd.write(8);
   */
 
-  H  = -1000 ;
-  T1 = -1000 ;
-  T2 = -1000 ;
-  OT = -1000 ;
-  PW = -1000 ;
-  NW = -1000 ;
-  PIR = 0 ;
-  dustDensity = -1000 ;
-  HO = 0 ;
-  HL = 0;
 
-  unihost = 0;
-  rsphost = 0;
-
-  unitot = 0;
-  rsptot = 0;
-
-  OLD_H  = -1000 ;
-  OLD_T1 = -1000 ;
-  OLD_T2 = -1000 ;
-  OLD_OT = -1000 ;
-  OLD_PW = -1000 ;
-  OLD_NW = -1000 ;
-  OLD_PIR = 0 ;
-  OLD_dustDensity = -1000 ;
-  OLD_HO = 0;
-  OLD_HL = 0;
-
-  OLD_x = 0 ;
-
-  lastReconnectAttempt = 0;
-
-  getResetInfo = "hello from ESP8266 s03 ";
-  getResetInfo += ESP.getResetInfo().substring(0, 30);
-
-/*
-  if (WiFi.status() == WL_CONNECTED) {
-    if (!client.connected()) {
-      if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
-        client.publish(willTopic, "1", true);
-        client.publish(hellotopic, (char*) getResetInfo.c_str());
-        client.subscribe(subtopic);
-        if (DEBUG_PRINT) {
-          Serial.print("Sending payload: ");
-          Serial.println(getResetInfo);
-        }
-      }
-    } else {
-      client.publish(willTopic, "1", true);
-      client.publish(hellotopic, (char*) getResetInfo.c_str());
-      client.subscribe(subtopic);
-      if (DEBUG_PRINT) {
-        Serial.print("Sending payload: ");
-        Serial.println(getResetInfo);
-      }
-    }
-  }
-*/
+  client.setServer(server, 1883);
+  client.setCallback(callback);
 
 }
 
@@ -567,27 +547,56 @@ time_t prevDisplay = 0; // when the digital clock was displayed
 
 void loop()
 {
-  
+
   if (WiFi.status() == WL_CONNECTED) {
     if (!client.connected()) {
-      if (DEBUG_PRINT) {
-        Serial.print("failed, rc=");
-        Serial.println(client.state());
-      }
       long now = millis();
       if (now - lastReconnectAttempt > 1000) {
+        if (DEBUG_PRINT) {
+          Serial.print("failed, rc=");
+          Serial.println(client.state());
+        }
         lastReconnectAttempt = now;
+        resetCountforMqttReconnect++;
+        if ( resetCountforMqttReconnect == 100 ) {
+          if (DEBUG_PRINT) {
+            Serial.println();
+            Serial.println("Could not connect to mqtt");
+          }
+          ESP.restart();
+          delay(2000);
+        }
         if (reconnect()) {
           lastReconnectAttempt = 0;
+          resetCountforMqttReconnect = 0;
         }
       }
-    } /* else {
-      client.loop();
-    } */
+    }
   } else {
     wifi_connect();
   }
 
+
+  /*
+    if (WiFi.status() == WL_CONNECTED) {
+      if (!client.connected()) {
+        if (DEBUG_PRINT) {
+          Serial.print("failed, rc=");
+          Serial.println(client.state());
+        }
+        long now = millis();
+        if (now - lastReconnectAttempt > 1000) {
+          lastReconnectAttempt = now;
+          if (reconnect()) {
+            lastReconnectAttempt = 0;
+          }
+        }
+      }
+    } else {
+      wifi_connect();
+    }
+
+  */
   if (timeStatus() != timeNotSet) {
     if (now() != prevDisplay) { //update the display only if time has changed
       prevDisplay = now();
@@ -601,13 +610,13 @@ void loop()
         Serial.print("-> requestSharp free Heap : ");
         Serial.println(ESP.getFreeHeap());
       }
+
       requestSharp();
 
       if (DEBUG_PRINT) {
         Serial.print("-> checkDisplayValue free Heap : ");
         Serial.println(ESP.getFreeHeap());
       }
-      //checkDisplayValue();
 
       if ( sleepmode != o_sleepmode )
       {
@@ -655,7 +664,6 @@ void loop()
       if ( dustDensity != OLD_dustDensity )
       {
         displaydustDensity();
-        //senddustDensity();
         OLD_dustDensity = dustDensity ;
       }
 
@@ -677,11 +685,12 @@ void loop()
         Serial.print(" ===> ");
         Serial.print(HO);
         Serial.print(" ===> ");
-        Serial.println(NW);
+        Serial.print(NW);
+        Serial.print(" ===> ");
+        Serial.println(moisture);
       }
 
       if ( ( second() % 3 ) == 0 ) {
-        //requestSharp();
         if (DEBUG_PRINT) {
           Serial.print("-> senddustDensity free Heap : ");
           Serial.println(ESP.getFreeHeap());
@@ -689,6 +698,8 @@ void loop()
 
         payload = " {\"dustDensity\":";
         payload += dustDensity;
+        payload += ",\"moisture\":";
+        payload += moisture;
         payload += ",\"FreeHeap\":";
         payload += ESP.getFreeHeap();
         payload += ",\"RSSI\":";
@@ -698,7 +709,7 @@ void loop()
         payload += "}";
 
         sendmqttMsg(payload);
-        //senddustDensity();
+
       }
     }
   }
@@ -753,7 +764,6 @@ void checkDisplayValue() {
   if ( dustDensity != OLD_dustDensity )
   {
     displaydustDensity();
-    //senddustDensity();
     OLD_dustDensity = dustDensity ;
   }
 
@@ -775,7 +785,9 @@ void checkDisplayValue() {
     Serial.print(" ===> ");
     Serial.print(HO);
     Serial.print(" ===> ");
-    Serial.println(NW);
+    Serial.print(NW);
+    Serial.print(" ===> ");
+    Serial.println(moisture);
   }
 }
 
@@ -934,16 +946,21 @@ void displaydustDensity()
 
 void requestSharp()
 {
-  Wire.requestFrom(2, 2);    // request 6 bytes from slave device #2
+  Wire.requestFrom(2, 4);    // request 6 bytes from slave device #2
 
-  int x;
-  byte a, b;
+  int x, y;
+  byte a, b, c, d;
 
   a = Wire.read();
   b = Wire.read();
+  c = Wire.read();
+  d = Wire.read();
 
   x = a;
   x = x << 8 | b;
+
+  y = c;
+  y = y << 8 | d;
 
   if (EVENT_PRINT) {
     Serial.print("X ===>  ");
@@ -958,6 +975,10 @@ void requestSharp()
     sleepmode = LOW;
   }
 
+  if (( 1 < y ) && ( y < 1024 ))
+  {
+    moisture = y;
+  }
 
   if (( 1 < x ) && ( x < 1024 ) && ( x != OLD_x ))
   {
@@ -968,6 +989,7 @@ void requestSharp()
       OLD_x = x ;
     }
   }
+
 }
 
 void sendI2cMsg(byte a, byte b)
@@ -978,6 +1000,7 @@ void sendI2cMsg(byte a, byte b)
   Wire.endTransmission();
 }
 
+/*
 void senddustDensity()
 {
   payload = " {\"dustDensity\":";
@@ -994,6 +1017,7 @@ void senddustDensity()
   sendmqttMsg(payload);
   //  }
 }
+*/
 
 void sendmqttMsg(String payloadtosend)
 {

@@ -9,6 +9,13 @@
 - control : slack + rtmbot
 
 
+
+// MQTT_MAX_PACKET_SIZE : Maximum packet size
+#define MQTT_MAX_PACKET_SIZE 250
+// MQTT_KEEPALIVE : keepAlive interval in Seconds
+#define MQTT_KEEPALIVE 15
+
+
 ### Library ###
 - https://github.com/knolleary/pubsubclient
 - https://github.com/milesburton/Arduino-Temperature-Control-Library

@@ -231,7 +231,7 @@ void loop()
         {
           payload = "{\"WeightAvg\":";
           payload += ( int(ave.mean()) - measured_empty );
-          payload += ",\"WeightAvgStddev\":";
+          payload += ",\"WeightStddev\":";
           payload += ave.stddev();
           payload += "}";
 
@@ -270,7 +270,7 @@ void loop()
         } else {
           payload = "{\"NemoEmpty\":";
           payload += int(ave.mean());
-          payload += ",\"NemoEmptyStddev\":";
+          payload += ",\"NemoStddev\":";
           payload += ave.stddev();
           payload += ",\"FreeHeap\":";
           payload += ESP.getFreeHeap();
