@@ -15,18 +15,23 @@ ADC_MODE(ADC_VCC);
 #define resetupPin  16
 #define blueLED     5
 #define greenLED    4
-#define redLED      2
+#define redLED      14
 
 char* topic = "esp8266/cmd/light";
 char* subtopic = "esp8266/cmd/light/rlst";
+char* buttontopic = "button";
 
 String clientName;
 String payload;
 
-int subMsgReceived = LOW;
-int topicMsgSent   = LOW;
-
+volatile int subMsgReceived = LOW;
+volatile int topicMsgSent   = LOW;
 volatile int relaystatus    = LOW;
+
+// send reset info
+String getResetInfo ;
+
+int vdd;
 
 IPAddress server(192, 168, 10, 10);
 WiFiClient wifiClient;
@@ -44,6 +49,7 @@ void callback(char* intopic, byte* inpayload, unsigned int length)
   }
 
   if (EVENT_PRINT) {
+    Serial.print("mqtt sub => ");
     Serial.print(intopic);
     Serial.print(" => ");
     Serial.println(receivedpayload);
@@ -57,8 +63,8 @@ void callback(char* intopic, byte* inpayload, unsigned int length)
   }
 
   if (EVENT_PRINT) {
-    Serial.print("");
-    Serial.print(" => relaystatus => ");
+    Serial.print("mqtt sub => ");
+    Serial.print("relaystatus => ");
     Serial.println(relaystatus);
   }
 
@@ -69,16 +75,21 @@ void callback(char* intopic, byte* inpayload, unsigned int length)
 boolean reconnect()
 {
   if (!client.connected()) {
+
     if (client.connect((char*) clientName.c_str())) {
+      digitalWrite(greenLED, HIGH);
       client.subscribe(subtopic);
       if (EVENT_PRINT) {
-        Serial.println("connected");
+        Serial.println("===> mqtt connected");
       }
+      digitalWrite(greenLED, LOW);
     } else {
+      digitalWrite(redLED, HIGH);
       if (EVENT_PRINT) {
-        Serial.print("failed, rc=");
+        Serial.print("---> mqtt failed, rc=");
         Serial.println(client.state());
       }
+      digitalWrite(redLED, LOW);
     }
   }
   return client.connected();
@@ -86,44 +97,53 @@ boolean reconnect()
 
 void wifi_connect()
 {
-  // WIFI
-  Serial.println();
-  Serial.print("Connecting to ");
-  Serial.println(ssid);
-
-  delay(200);
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(ssid, password);
-  WiFi.config(IPAddress(192, 168, 10, 16), IPAddress(192, 168, 10, 1), IPAddress(255, 255, 255, 0));
-
-  int Attempt = 0;
-  while (WiFi.status() != WL_CONNECTED) {
-    //
-    digitalWrite(blueLED, HIGH);
-    delay(50);
-    digitalWrite(blueLED, LOW);
-    delay(50);
-    //
-    Attempt++;
-    Serial.print(". ");
-    Serial.print(Attempt);
-    if (Attempt == 150)
-    {
+  if (WiFi.status() != WL_CONNECTED) {
+    // WIFI
+    if (EVENT_PRINT) {
       Serial.println();
-      Serial.println("------------------------------> Could not connect to WIFI");
-      ESP.restart();
-      delay(200);
+      Serial.print("===> WIFI ---> Connecting to ");
+      Serial.println(ssid);
     }
+    delay(200);
+    WiFi.mode(WIFI_STA);
+    WiFi.begin(ssid, password);
+    WiFi.config(IPAddress(192, 168, 10, 16), IPAddress(192, 168, 10, 1), IPAddress(255, 255, 255, 0));
+
+    int Attempt = 0;
+    while (WiFi.status() != WL_CONNECTED) {
+      if (EVENT_PRINT) {
+        Serial.print(". ");
+        Serial.print(Attempt);
+      }
+      //
+      digitalWrite(blueLED, HIGH);
+      delay(50);
+      digitalWrite(blueLED, LOW);
+      delay(50);
+      //
+      Attempt++;
+      if (Attempt == 150)
+      {
+        if (EVENT_PRINT) {
+          Serial.println();
+          Serial.println("-----> Could not connect to WIFI");
+        }
+        ESP.restart();
+        delay(200);
+      }
+
+    }
+
+    if (EVENT_PRINT) {
+      Serial.println();
+      Serial.print("===> WiFi connected");
+      Serial.print(" ------> IP address: ");
+      Serial.println(WiFi.localIP());
+    }
+    //wifi_set_sleep_type(LIGHT_SLEEP_T);
+    //wifi_set_sleep_type(MODEM_SLEEP_T);
+    //
   }
-
-  Serial.println();
-  Serial.println("===> WiFi connected");
-  Serial.print("---------------------------------> IP address: ");
-  Serial.println(WiFi.localIP());
-
-  //wifi_set_sleep_type(LIGHT_SLEEP_T);
-  //wifi_set_sleep_type(MODEM_SLEEP_T);
-  //
 }
 
 void setup()
@@ -135,12 +155,15 @@ void setup()
   pinMode(redLED, OUTPUT);
 
   digitalWrite(resetupPin, LOW);
+  digitalWrite(redLED, HIGH);
+
+  vdd = ESP.getVcc() ;
 
   if (DEBUG_PRINT) {
     Serial.begin(115200);
   }
 
-  wifi_connect();
+  //wifi_connect();
 
   clientName += "esp8266-";
   uint8_t mac[6];
@@ -151,23 +174,17 @@ void setup()
 
   lastReconnectAttempt = 0;
 
-  if (!client.connected()) {
-    if (client.connect((char*) clientName.c_str())) {
-      client.subscribe(subtopic);
-      if (EVENT_PRINT) {
-        Serial.println("connected");
-      }
-      digitalWrite(greenLED, HIGH);
-      delay(100);
-      digitalWrite(greenLED, LOW);
-    } else {
-      if (EVENT_PRINT) {
-        Serial.print("failed, rc=");
-        Serial.println(client.state());
-      }
-    }
-  }
+  getResetInfo = ESP.getResetInfo().substring(0, 150);
 
+  if (EVENT_PRINT) {
+    Serial.println("");
+    Serial.print("vdd ==> : ");
+    Serial.println(vdd);
+    Serial.print("ResetInfo : ");
+    Serial.println(getResetInfo);
+  }
+  delay(100);
+  digitalWrite(redLED, LOW);
 }
 
 void loop()
@@ -187,16 +204,13 @@ void loop()
   }
 
   if ( subMsgReceived == HIGH ) {
-    digitalWrite(greenLED, HIGH);
-    delay(200);
-    digitalWrite(greenLED, LOW);
     sendlightcmd();
   }
 
   if ( topicMsgSent == HIGH ) {
-    digitalWrite(greenLED, HIGH);
-    delay(300);
-    digitalWrite(greenLED, LOW);
+    if (EVENT_PRINT) {
+      Serial.println("going to sleep");
+    }
     goingToSleep();
   }
 
@@ -209,10 +223,19 @@ void sendlightcmd()
   lightpayload += ! relaystatus;
   lightpayload += "}";
 
-  if (sendmqttMsg(topic, lightpayload)) {
-    topicMsgSent = HIGH;
-    client.disconnect();
+  String buttonpayload = "{\"VDD\":";
+  buttonpayload += vdd;
+  buttonpayload += "}";
+
+  digitalWrite(greenLED, HIGH);
+
+  if (sendmqttMsg(buttontopic, buttonpayload)) {
+    if (sendmqttMsg(topic, lightpayload)) {
+      topicMsgSent = HIGH;
+      digitalWrite(greenLED, LOW);
+    }
   }
+  digitalWrite(greenLED, LOW);
 }
 
 boolean sendmqttMsg(char* topictosend, String payload)
@@ -252,8 +275,16 @@ boolean sendmqttMsg(char* topictosend, String payload)
 
 void goingToSleep()
 {
-  Serial.println("Going to sleep");
-  delay(250);
+  client.disconnect();
+  delay(30);
+  WiFi.disconnect();
+  delay(30);
+  digitalWrite(greenLED, HIGH);
+  delay(300);
+  digitalWrite(greenLED, LOW);
+  digitalWrite(blueLED, LOW);
+  digitalWrite(redLED, LOW);
+
   ESP.deepSleep(0);
   delay(250);
 }
