@@ -1,5 +1,6 @@
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
+#include "/usr/local/src/ap_setting.h"
 
 extern "C" {
 #include "user_interface.h"
@@ -9,8 +10,6 @@ ADC_MODE(ADC_VCC);
 
 #define DEBUG_PRINT 1
 #define EVENT_PRINT 1
-
-#include "/usr/local/src/ap_setting.h"
 
 #define resetupPin  16
 #define blueLED     5
@@ -104,7 +103,7 @@ void wifi_connect()
       Serial.print("===> WIFI ---> Connecting to ");
       Serial.println(ssid);
     }
-    delay(200);
+    delay(10);
     WiFi.mode(WIFI_STA);
     WiFi.begin(ssid, password);
     WiFi.config(IPAddress(192, 168, 10, 16), IPAddress(192, 168, 10, 1), IPAddress(255, 255, 255, 0));
@@ -163,7 +162,7 @@ void setup()
     Serial.begin(115200);
   }
 
-  //wifi_connect();
+  wifi_connect();
 
   clientName += "esp8266-";
   uint8_t mac[6];
@@ -174,7 +173,7 @@ void setup()
 
   lastReconnectAttempt = 0;
 
-  getResetInfo = ESP.getResetInfo().substring(0, 150);
+  getResetInfo = ESP.getResetInfo().substring(0, 35);
 
   if (EVENT_PRINT) {
     Serial.println("");
@@ -183,7 +182,7 @@ void setup()
     Serial.print("ResetInfo : ");
     Serial.println(getResetInfo);
   }
-  delay(100);
+  delay(50);
   digitalWrite(redLED, LOW);
 }
 
@@ -192,7 +191,7 @@ void loop()
   if (WiFi.status() == WL_CONNECTED) {
     if (!client.connected()) {
       long now = millis();
-      if (now - lastReconnectAttempt > 1000) {
+      if (now - lastReconnectAttempt > 200) {
         lastReconnectAttempt = now;
         if (reconnect()) {
           lastReconnectAttempt = 0;
@@ -276,11 +275,9 @@ boolean sendmqttMsg(char* topictosend, String payload)
 void goingToSleep()
 {
   client.disconnect();
-  delay(30);
   WiFi.disconnect();
-  delay(30);
   digitalWrite(greenLED, HIGH);
-  delay(300);
+  delay(100);
   digitalWrite(greenLED, LOW);
   digitalWrite(blueLED, LOW);
   digitalWrite(redLED, LOW);
