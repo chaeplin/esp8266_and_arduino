@@ -6,6 +6,6 @@
 - 22K R is changed to 330K
 
 
-![1](https://raw.githubusercontent.com/chaeplin/esp8266_and_arduino/master/_15-esp8266-dash-deepsleep-reset/pics/FullSizeRender.jpg)
+![1](https://raw.githubusercontent.com/chaeplin/esp8266_and_arduino/master/_15-esp8266-dash-deepsleep-reset/pics/npntr.png)
 
 ![2](https://raw.githubusercontent.com/chaeplin/esp8266_and_arduino/master/_15-esp8266-dash-deepsleep-reset/pics/FullSizeRender%205.jpg)
