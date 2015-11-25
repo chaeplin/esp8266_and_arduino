@@ -5,7 +5,7 @@
 - Use static ip for fast WIFI connection
 - 22K R is changed to 330K
 - WiFi.disconnect() is used for consistent operation( under 5sec)
---> when device is wake up, sometimes it takes more than 10 sec to connect wifi without WiFi.disconnect()
+--> when device wake up, sometimes it takes more than 10 sec to connect wifi without WiFi.disconnect()
 
 
 ![1](https://raw.githubusercontent.com/chaeplin/esp8266_and_arduino/master/_15-esp8266-dash-deepsleep-reset/pics/npntr.png)
