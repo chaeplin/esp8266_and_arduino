@@ -15,17 +15,19 @@ void loop()
   long now = millis();
   double Irms = emon1.calcIrms(1480);  // Calculate Irms only
   timemillis = millis();
+
   
-  Serial.print("Irms -> :  ");
+  Serial.print("Irms -> : ");
   Serial.print(Irms);
-  Serial.print(" VIrms --> : ");
+  Serial.print(" --> VIrms --> : ");
   Serial.print(Irms*230.0);
-  Serial.print(" now --> : ");
+  Serial.print(" --> now --> : ");
   Serial.print(now);
-  Serial.print(" timemillis ---> : ");
+  Serial.print(" --> timemillis -> : ");
   Serial.print(timemillis);
-  Serial.print(" diff ---> : ");
+  Serial.print(" --> diff --> : ");
   Serial.println(timemillis - now);
+ 
   
   delay (1000);
 }
