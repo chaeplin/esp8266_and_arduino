@@ -8,8 +8,8 @@ extern "C" {
 
 ADC_MODE(ADC_VCC);
 
-#define DEBUG_PRINT 1
-#define EVENT_PRINT 1
+#define DEBUG_PRINT 0
+#define EVENT_PRINT 0
 
 #define resetupPin  16
 #define blueLED     5
@@ -40,6 +40,8 @@ long lastReconnectAttempt = 0;
 
 void callback(char* intopic, byte* inpayload, unsigned int length)
 {
+  digitalWrite(greenLED, HIGH);
+
   String receivedtopic = intopic;
   String receivedpayload ;
 
@@ -68,6 +70,8 @@ void callback(char* intopic, byte* inpayload, unsigned int length)
   }
 
   subMsgReceived = HIGH;
+  digitalWrite(greenLED, LOW);
+
 
 }
 
@@ -162,6 +166,10 @@ void setup()
     Serial.begin(115200);
   }
 
+  system_deep_sleep_set_option(2);
+  wifi_set_phy_mode(PHY_MODE_11N);
+
+  digitalWrite(redLED, LOW);
   wifi_connect();
 
   clientName += "esp8266-";
@@ -182,12 +190,11 @@ void setup()
     Serial.print("ResetInfo : ");
     Serial.println(getResetInfo);
   }
-  delay(50);
-  digitalWrite(redLED, LOW);
 }
 
 void loop()
 {
+  digitalWrite(greenLED, HIGH);
   if (WiFi.status() == WL_CONNECTED) {
     if (!client.connected()) {
       long now = millis();
@@ -226,15 +233,16 @@ void sendlightcmd()
   buttonpayload += vdd;
   buttonpayload += "}";
 
-  digitalWrite(greenLED, HIGH);
+  digitalWrite(greenLED, LOW);
 
   if (sendmqttMsg(buttontopic, buttonpayload)) {
+    digitalWrite(greenLED, HIGH);
     if (sendmqttMsg(topic, lightpayload)) {
       topicMsgSent = HIGH;
       digitalWrite(greenLED, LOW);
     }
   }
-  digitalWrite(greenLED, LOW);
+  digitalWrite(greenLED, HIGH);
 }
 
 boolean sendmqttMsg(char* topictosend, String payload)
@@ -275,9 +283,7 @@ boolean sendmqttMsg(char* topictosend, String payload)
 void goingToSleep()
 {
   client.disconnect();
-  WiFi.disconnect();
-  digitalWrite(greenLED, HIGH);
-  delay(100);
+  //WiFi.disconnect();
   digitalWrite(greenLED, LOW);
   digitalWrite(blueLED, LOW);
   digitalWrite(redLED, LOW);
