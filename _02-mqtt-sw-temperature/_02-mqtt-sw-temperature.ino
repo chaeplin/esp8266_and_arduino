@@ -35,7 +35,7 @@ DHT dht(DHTPIN, DHTTYPE, 15);
 #define TEMPERATURE_PRECISION 12
 OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature sensors(&oneWire);
-DeviceAddress insideThermometer, outsideThermometer;
+DeviceAddress outsideThermometer;
 
 // mqtt
 char* topic = "esp8266/arduino/s02";
@@ -62,7 +62,6 @@ String getResetInfo ;
 int ResetInfo = LOW;
 
 //
-float tempCinside ;
 float tempCoutside ;
 
 float h ;
@@ -188,7 +187,7 @@ void callback(char* intopic, byte* inpayload, unsigned int length)
 void setup()
 {
   if (DEBUG_PRINT) {
-    Serial.begin(74880);
+    Serial.begin(115200);
   }
   delay(20);
   if (DEBUG_PRINT) {
@@ -270,19 +269,13 @@ void setup()
   attachInterrupt(5, run_lightcmd, CHANGE);
 
   sensors.begin();
-  if (!sensors.getAddress(insideThermometer, 0)) {
+  if (!sensors.getAddress(outsideThermometer, 0)) {
     if (DEBUG_PRINT) {
       Serial.println("Unable to find address for Device 0");
     }
   }
-  if (!sensors.getAddress(outsideThermometer, 1)) {
-    if (DEBUG_PRINT) {
-      Serial.println("Unable to find address for Device 1");
-    }
-  }
 
   // set the resolution to 9 bit
-  sensors.setResolution(insideThermometer, TEMPERATURE_PRECISION);
   sensors.setResolution(outsideThermometer, TEMPERATURE_PRECISION);
 
   dht.begin();
@@ -299,10 +292,9 @@ void setup()
   }
 
   sensors.requestTemperatures();
-  tempCinside  = sensors.getTempC(outsideThermometer);
-  tempCoutside = sensors.getTempC(insideThermometer);
+  tempCoutside  = sensors.getTempC(outsideThermometer);
 
-  if ( isnan(tempCinside) || isnan(tempCoutside) ) {
+  if ( isnan(tempCoutside) ) {
     if (DEBUG_PRINT) {
       Serial.println("Failed to read from sensor!");
     }
@@ -320,7 +312,7 @@ void loop()
       }
 
       long now = millis();
-      if (now - lastReconnectAttempt > 5000) {
+      if (now - lastReconnectAttempt > 1000) {
         lastReconnectAttempt = now;
         if (reconnect()) {
           lastReconnectAttempt = 0;
@@ -347,8 +339,6 @@ void loop()
   payload += ",\"Temperature\":";
   payload += t;
   payload += ",\"DS18B20\":";
-  payload += tempCinside;
-  payload += ",\"SENSORTEMP\":";
   payload += tempCoutside;
   payload += ",\"PIRSTATUS\":";
   payload += pirValue;
@@ -407,6 +397,7 @@ void changelight()
     Serial.print(" => ");
     Serial.println("checking relay status changelight");
   }
+  /*
   delay(30);
   digitalWrite(RELAYPIN, relaystatus);
   delay(30);
@@ -414,6 +405,8 @@ void changelight()
   delay(30);
   digitalWrite(RELAYPIN, relaystatus);
   delay(30);
+  */
+  digitalWrite(RELAYPIN, relaystatus);
   //oldrelaystatus = relaystatus ;
   if (EVENT_PRINT) {
     Serial.print(" => ");
@@ -442,10 +435,9 @@ void getdht22temp()
 void getdalastemp()
 {
   sensors.requestTemperatures();
-  tempCinside  = sensors.getTempC(outsideThermometer);
-  tempCoutside = sensors.getTempC(insideThermometer);
+  tempCoutside  = sensors.getTempC(outsideThermometer);
 
-  if ( isnan(tempCinside) || isnan(tempCoutside) ) {
+  if ( isnan(tempCoutside)  ) {
     if (EVENT_PRINT) {
       Serial.println("Failed to read from sensor!");
     }
