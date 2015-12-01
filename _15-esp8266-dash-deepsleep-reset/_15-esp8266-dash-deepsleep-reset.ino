@@ -32,6 +32,9 @@ String getResetInfo ;
 
 int vdd;
 
+//
+unsigned long startMills;
+
 IPAddress server(192, 168, 10, 10);
 WiFiClient wifiClient;
 PubSubClient client(server, 1883, callback, wifiClient);
@@ -71,7 +74,6 @@ void callback(char* intopic, byte* inpayload, unsigned int length)
 
   subMsgReceived = HIGH;
   digitalWrite(greenLED, LOW);
-
 
 }
 
@@ -131,10 +133,12 @@ void wifi_connect()
           Serial.println();
           Serial.println("-----> Could not connect to WIFI");
         }
+        /*
         ESP.restart();
         delay(200);
+        */
+        goingToSleepWithFail();
       }
-
     }
 
     if (EVENT_PRINT) {
@@ -151,12 +155,16 @@ void wifi_connect()
 
 void setup()
 {
+  //
+  startMills = millis();
+
   // pinmode setup
   pinMode(resetupPin, OUTPUT);
   pinMode(blueLED, OUTPUT);
   pinMode(greenLED, OUTPUT);
   pinMode(redLED, OUTPUT);
 
+  //`
   digitalWrite(resetupPin, LOW);
   digitalWrite(redLED, HIGH);
 
@@ -219,6 +227,14 @@ void loop()
     }
     goingToSleep();
   }
+
+  if ((millis() - startMills) > 15000) {
+    if (EVENT_PRINT) {
+      Serial.println("going to sleep with fail");
+    }
+    goingToSleepWithFail();
+  }
+
 
   client.loop();
 }
@@ -292,6 +308,26 @@ void goingToSleep()
   delay(250);
 }
 
+
+void goingToSleepWithFail()
+{
+  digitalWrite(greenLED, LOW);
+  digitalWrite(blueLED, LOW);
+  digitalWrite(redLED, LOW);
+
+  digitalWrite(redLED, HIGH);
+  delay(300);
+  digitalWrite(redLED, LOW);
+  delay(300);
+  digitalWrite(redLED, HIGH);
+  delay(300);
+  digitalWrite(redLED, LOW);
+  
+  ESP.deepSleep(0);
+  delay(250);
+}
+
+
 String macToStr(const uint8_t* mac)
 {
   String result;
@@ -302,3 +338,5 @@ String macToStr(const uint8_t* mac)
   }
   return result;
 }
+
+//-----
