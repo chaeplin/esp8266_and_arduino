@@ -137,7 +137,7 @@ boolean reconnect()
         ResetInfo = HIGH;
       } else {
         client.publish(hellotopic, "hello again 1 from ESP8266 s02");
-      }      
+      }
       client.subscribe(subtopic);
       if (EVENT_PRINT) {
         Serial.println("connected");
@@ -224,10 +224,19 @@ void setup()
   getResetInfo = "hello from ESP8266 s02 ";
   getResetInfo += ESP.getResetInfo().substring(0, 30);
 
-/*
-  if (WiFi.status() == WL_CONNECTED) {
-    if (!client.connected()) {
-      if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
+  /*
+    if (WiFi.status() == WL_CONNECTED) {
+      if (!client.connected()) {
+        if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
+          client.publish(willTopic, "1", true);
+          client.publish(hellotopic, (char*) getResetInfo.c_str());
+          client.subscribe(subtopic);
+          if (DEBUG_PRINT) {
+            Serial.print("Sending payload: ");
+            Serial.println(getResetInfo);
+          }
+        }
+      } else {
         client.publish(willTopic, "1", true);
         client.publish(hellotopic, (char*) getResetInfo.c_str());
         client.subscribe(subtopic);
@@ -236,17 +245,8 @@ void setup()
           Serial.println(getResetInfo);
         }
       }
-    } else {
-      client.publish(willTopic, "1", true);
-      client.publish(hellotopic, (char*) getResetInfo.c_str());
-      client.subscribe(subtopic);
-      if (DEBUG_PRINT) {
-        Serial.print("Sending payload: ");
-        Serial.println(getResetInfo);
-      }
     }
-  }
-*/
+  */
   //
   if (DEBUG_PRINT) {
     Serial.println("Starting UDP");
@@ -327,7 +327,16 @@ void loop()
 
   if ( relaystatus != oldrelaystatus ) {
     changelight();
+    /*
     sendlightstatus();
+    */
+
+    String lightpayload = "{\"LIGHT\":";
+    lightpayload += relaystatus;
+    lightpayload += "}";
+
+    sendmqttMsg(rslttopic, lightpayload);
+
   }
 
   runTimerDoLightOff();
@@ -407,7 +416,10 @@ void changelight()
   delay(30);
   */
   digitalWrite(RELAYPIN, relaystatus);
-  //oldrelaystatus = relaystatus ;
+  delay(50);
+
+  oldrelaystatus = relaystatus ;
+
   if (EVENT_PRINT) {
     Serial.print(" => ");
     Serial.println("changing relay status");
