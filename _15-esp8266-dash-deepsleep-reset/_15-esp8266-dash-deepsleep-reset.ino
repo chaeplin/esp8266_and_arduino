@@ -135,8 +135,8 @@ void wifi_connect()
       }
     }
 
+    wifiMills = millis() - startMills;
     if (DEBUG_PRINT) {
-      wifiMills = millis() - startMills;
       Serial.println();
       Serial.print("===> WiFi connected : ");
       Serial.println(wifiMills);
@@ -172,7 +172,7 @@ void setup()
   }
 
   system_deep_sleep_set_option(2);
-  //wifi_set_phy_mode(PHY_MODE_11N);
+  wifi_set_phy_mode(PHY_MODE_11N);
 
   digitalWrite(redLED, LOW);
   wifi_connect();
@@ -207,7 +207,7 @@ void loop()
   }
 
   if ( subMsgReceived == HIGH ) {
-    subMills = millis() - startMills;
+    subMills = (millis() - startMills) - wifiMills ;
     if (DEBUG_PRINT) {
       Serial.print("sub received ---> ");
       Serial.println(subMills);
@@ -254,6 +254,7 @@ void sendlightcmd()
     buttonpayload += ",\"subMills\":";
     buttonpayload += subMills ;
     buttonpayload += "}";
+    
     if (DEBUG_PRINT) {
       Serial.print("status pub ---> ");
       Serial.println(millis() - startMills);
