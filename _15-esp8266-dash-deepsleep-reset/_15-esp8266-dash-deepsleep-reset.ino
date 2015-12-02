@@ -9,12 +9,13 @@ extern "C" {
 ADC_MODE(ADC_VCC);
 
 #define DEBUG_PRINT 0
-#define EVENT_PRINT 0
 
 #define resetupPin  16
 #define blueLED     5
 #define greenLED    4
 #define redLED      14
+
+// #define MQTT_KEEPALIVE 3 in PubSubClient.h
 
 char* topic = "esp8266/cmd/light";
 char* subtopic = "esp8266/cmd/light/rlst";
@@ -27,13 +28,12 @@ volatile int subMsgReceived = LOW;
 volatile int topicMsgSent   = LOW;
 volatile int relaystatus    = LOW;
 
-// send reset info
-String getResetInfo ;
-
 int vdd;
 
 //
-unsigned long startMills;
+unsigned long startMills = 0;
+unsigned long wifiMills = 0;
+unsigned long subMills = 0;
 
 IPAddress server(192, 168, 10, 10);
 WiFiClient wifiClient;
@@ -52,7 +52,7 @@ void callback(char* intopic, byte* inpayload, unsigned int length)
     receivedpayload += (char)inpayload[i];
   }
 
-  if (EVENT_PRINT) {
+  if (DEBUG_PRINT) {
     Serial.print("mqtt sub => ");
     Serial.print(intopic);
     Serial.print(" => ");
@@ -66,36 +66,33 @@ void callback(char* intopic, byte* inpayload, unsigned int length)
     relaystatus = 0 ;
   }
 
-  if (EVENT_PRINT) {
+  if (DEBUG_PRINT) {
     Serial.print("mqtt sub => ");
     Serial.print("relaystatus => ");
     Serial.println(relaystatus);
   }
-
   subMsgReceived = HIGH;
-  digitalWrite(greenLED, LOW);
-
 }
 
 boolean reconnect()
 {
-  if (!client.connected()) {
-
-    if (client.connect((char*) clientName.c_str())) {
-      digitalWrite(greenLED, HIGH);
-      client.subscribe(subtopic);
-      if (EVENT_PRINT) {
-        Serial.println("===> mqtt connected");
-      }
-      digitalWrite(greenLED, LOW);
-    } else {
-      digitalWrite(redLED, HIGH);
-      if (EVENT_PRINT) {
-        Serial.print("---> mqtt failed, rc=");
-        Serial.println(client.state());
-      }
-      digitalWrite(redLED, LOW);
+  digitalWrite(greenLED, HIGH);
+  if (client.connect((char*) clientName.c_str())) {
+    client.subscribe(subtopic);
+    if (DEBUG_PRINT) {
+      Serial.print("===> mqtt connected : ");
+      Serial.println(millis() - startMills);
     }
+    digitalWrite(greenLED, LOW);
+  } else {
+    digitalWrite(redLED, HIGH);
+    if (DEBUG_PRINT) {
+      Serial.print("---> mqtt failed, rc=");
+      Serial.print(client.state());
+      Serial.print(" ---> ");
+      Serial.println(millis() - startMills);
+    }
+    digitalWrite(redLED, LOW);
   }
   return client.connected();
 }
@@ -104,9 +101,10 @@ void wifi_connect()
 {
   if (WiFi.status() != WL_CONNECTED) {
     // WIFI
-    if (EVENT_PRINT) {
-      Serial.println();
+    if (DEBUG_PRINT) {
       Serial.print("===> WIFI ---> Connecting to ");
+      Serial.print(millis() - startMills);
+      Serial.print(" ");
       Serial.println(ssid);
     }
     delay(10);
@@ -116,7 +114,7 @@ void wifi_connect()
 
     int Attempt = 0;
     while (WiFi.status() != WL_CONNECTED) {
-      if (EVENT_PRINT) {
+      if (DEBUG_PRINT) {
         Serial.print(". ");
         Serial.print(Attempt);
       }
@@ -129,24 +127,23 @@ void wifi_connect()
       Attempt++;
       if (Attempt == 150)
       {
-        if (EVENT_PRINT) {
+        if (DEBUG_PRINT) {
           Serial.println();
           Serial.println("-----> Could not connect to WIFI");
         }
-        /*
-        ESP.restart();
-        delay(200);
-        */
         goingToSleepWithFail();
       }
     }
 
-    if (EVENT_PRINT) {
+    if (DEBUG_PRINT) {
+      wifiMills = millis() - startMills;
       Serial.println();
-      Serial.print("===> WiFi connected");
-      Serial.print(" ------> IP address: ");
+      Serial.print("===> WiFi connected : ");
+      Serial.println(wifiMills);
+      Serial.print("---> IP address: ");
       Serial.println(WiFi.localIP());
     }
+
     //wifi_set_sleep_type(LIGHT_SLEEP_T);
     //wifi_set_sleep_type(MODEM_SLEEP_T);
     //
@@ -175,7 +172,7 @@ void setup()
   }
 
   system_deep_sleep_set_option(2);
-  wifi_set_phy_mode(PHY_MODE_11N);
+  //wifi_set_phy_mode(PHY_MODE_11N);
 
   digitalWrite(redLED, LOW);
   wifi_connect();
@@ -188,16 +185,6 @@ void setup()
   clientName += String(micros() & 0xff, 16);
 
   lastReconnectAttempt = 0;
-
-  getResetInfo = ESP.getResetInfo().substring(0, 35);
-
-  if (EVENT_PRINT) {
-    Serial.println("");
-    Serial.print("vdd ==> : ");
-    Serial.println(vdd);
-    Serial.print("ResetInfo : ");
-    Serial.println(getResetInfo);
-  }
 }
 
 void loop()
@@ -212,31 +199,36 @@ void loop()
           lastReconnectAttempt = 0;
         }
       }
+    } else {
+      client.loop();
     }
   } else {
     wifi_connect();
   }
 
   if ( subMsgReceived == HIGH ) {
+    subMills = millis() - startMills;
+    if (DEBUG_PRINT) {
+      Serial.print("sub received ---> ");
+      Serial.println(subMills);
+    }
     sendlightcmd();
   }
 
   if ( topicMsgSent == HIGH ) {
-    if (EVENT_PRINT) {
+    if (DEBUG_PRINT) {
       Serial.println("going to sleep");
     }
     goingToSleep();
   }
 
   if ((millis() - startMills) > 15000) {
-    if (EVENT_PRINT) {
+    if (DEBUG_PRINT) {
       Serial.println("going to sleep with fail");
     }
     goingToSleepWithFail();
   }
-
-
-  client.loop();
+  yield();
 }
 
 void sendlightcmd()
@@ -245,34 +237,55 @@ void sendlightcmd()
   lightpayload += ! relaystatus;
   lightpayload += "}";
 
-  String buttonpayload = "{\"VDD\":";
-  buttonpayload += vdd;
-  buttonpayload += "}";
-
   digitalWrite(greenLED, LOW);
+  digitalWrite(blueLED, HIGH);
+  if (DEBUG_PRINT) {
+    Serial.print("pub start --> ");
+    Serial.println(millis() - startMills);
+  }
+  if (sendmqttMsg(topic, lightpayload)) {
 
-  if (sendmqttMsg(buttontopic, buttonpayload)) {
-    digitalWrite(greenLED, HIGH);
-    if (sendmqttMsg(topic, lightpayload)) {
+    String buttonpayload = "{\"VDD\":";
+    buttonpayload += vdd;
+    buttonpayload += ",\"buttonmillis\":";
+    buttonpayload += (millis() - startMills) ;
+    buttonpayload += ",\"wifiMills\":";
+    buttonpayload += wifiMills ;
+    buttonpayload += ",\"subMills\":";
+    buttonpayload += subMills ;
+    buttonpayload += "}";
+    if (DEBUG_PRINT) {
+      Serial.print("status pub ---> ");
+      Serial.println(millis() - startMills);
+
+    }
+
+    delay(20);
+    if (sendmqttMsg(buttontopic, buttonpayload)) {
       topicMsgSent = HIGH;
-      digitalWrite(greenLED, LOW);
+      digitalWrite(blueLED, LOW);
+      if (DEBUG_PRINT) {
+        Serial.print("button pub  ----> ");
+        Serial.println(millis() - startMills);
+
+      }
     }
   }
-  digitalWrite(greenLED, HIGH);
+  digitalWrite(blueLED, HIGH);
 }
 
 boolean sendmqttMsg(char* topictosend, String payload)
 {
 
   if (client.connected()) {
-    if (EVENT_PRINT) {
+    if (DEBUG_PRINT) {
       Serial.print("Sending payload: ");
       Serial.print(payload);
     }
 
     unsigned int msg_length = payload.length();
 
-    if (EVENT_PRINT) {
+    if (DEBUG_PRINT) {
       Serial.print(" length: ");
       Serial.println(msg_length);
     }
@@ -281,14 +294,16 @@ boolean sendmqttMsg(char* topictosend, String payload)
     memcpy(p, (char*) payload.c_str(), msg_length);
 
     if ( client.publish(topictosend, p, msg_length, 1)) {
-      if (EVENT_PRINT) {
-        Serial.println("Publish ok");
+      if (DEBUG_PRINT) {
+        Serial.print("Publish ok  --> ");
+        Serial.println(millis() - startMills);
       }
       free(p);
       return 1;
     } else {
-      if (EVENT_PRINT) {
-        Serial.println("Publish failed");
+      if (DEBUG_PRINT) {
+        Serial.print("Publish failed --> ");
+        Serial.println(millis() - startMills);
       }
       free(p);
       return 0;
@@ -299,6 +314,7 @@ boolean sendmqttMsg(char* topictosend, String payload)
 void goingToSleep()
 {
   client.disconnect();
+  yield();
   //WiFi.disconnect();
   digitalWrite(greenLED, LOW);
   digitalWrite(blueLED, LOW);
@@ -322,7 +338,7 @@ void goingToSleepWithFail()
   digitalWrite(redLED, HIGH);
   delay(300);
   digitalWrite(redLED, LOW);
-  
+
   ESP.deepSleep(0);
   delay(250);
 }

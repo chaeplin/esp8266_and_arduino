@@ -1,11 +1,69 @@
+#include <ESP8266WiFi.h>
+#include <PubSubClient.h>
+#include "/usr/local/src/ap_setting.h"
+
+#define DEBUG_PRINT 1
+#define EVENT_PRINT 1
+
 #include "EmonLib.h"                   // Include Emon Library
 EnergyMonitor emon1;                   // Create an instance
 
 long timemillis;
 
+WiFiClient wifiClient;
+
+
 void setup()
 {  
   Serial.begin(115200);
+
+  if (WiFi.status() != WL_CONNECTED) {
+    // WIFI
+    if (EVENT_PRINT) {
+      Serial.println();
+      Serial.print("===> WIFI ---> Connecting to ");
+      Serial.println(ssid);
+    }
+    delay(10);
+    WiFi.mode(WIFI_STA);
+    WiFi.begin(ssid, password);
+    WiFi.config(IPAddress(192, 168, 10, 17), IPAddress(192, 168, 10, 1), IPAddress(255, 255, 255, 0));
+
+    int Attempt = 0;
+    while (WiFi.status() != WL_CONNECTED) {
+      if (EVENT_PRINT) {
+        Serial.print(". ");
+        Serial.print(Attempt);
+      }
+      delay(100);
+      Attempt++;
+      if (Attempt == 150)
+      {
+        if (EVENT_PRINT) {
+          Serial.println();
+          Serial.println("-----> Could not connect to WIFI");
+        }
+        /*
+        ESP.restart();
+        delay(200);
+        */
+      }
+    }
+
+    if (EVENT_PRINT) {
+      Serial.println();
+      Serial.print("===> WiFi connected");
+      Serial.print(" ------> IP address: ");
+      Serial.println(WiFi.localIP());
+    }
+    //wifi_set_sleep_type(LIGHT_SLEEP_T);
+    //wifi_set_sleep_type(MODEM_SLEEP_T);
+    //
+    
+  }
+
+  delay(500);
+  
   timemillis = millis();
   emon1.current(A0, 111.1);             // Current: input pin, calibration.
 }
@@ -29,7 +87,7 @@ void loop()
   Serial.println(timemillis - now);
  
   
-  delay (1000);
+  delay(400);
 }
 
 /* result of esp8266 
