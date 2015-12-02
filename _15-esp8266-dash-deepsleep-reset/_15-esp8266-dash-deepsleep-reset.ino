@@ -1,6 +1,13 @@
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
+
+#define _IS_MY_HOME
+// wifi
+#ifdef _IS_MY_HOME
 #include "/usr/local/src/ap_setting.h"
+#else
+#include "ap_setting.h"
+#endif
 
 extern "C" {
 #include "user_interface.h"
@@ -16,6 +23,17 @@ ADC_MODE(ADC_VCC);
 #define redLED      14
 
 // #define MQTT_KEEPALIVE 3 in PubSubClient.h
+
+// ****************
+const char* ssid = WIFI_SSID;
+const char* password = WIFI_PASSWORD;
+int32_t channel = WIFI_CHANNEL;
+byte bssid[] = WIFI_BSSID;
+byte mqtt_server[] = MQTT_SERVER;
+byte ip_static[] = IP_STATIC;
+byte ip_gateway[] = IP_GATEWAY;
+byte ip_subnet[] = IP_SUBNET;
+// ****************
 
 char* topic = "esp8266/cmd/light";
 char* subtopic = "esp8266/cmd/light/rlst";
@@ -35,9 +53,8 @@ unsigned long startMills = 0;
 unsigned long wifiMills = 0;
 unsigned long subMills = 0;
 
-IPAddress server(192, 168, 10, 10);
 WiFiClient wifiClient;
-PubSubClient client(server, 1883, callback, wifiClient);
+PubSubClient client(mqtt_server, 1883, callback, wifiClient);
 
 long lastReconnectAttempt = 0;
 
@@ -109,8 +126,11 @@ void wifi_connect()
     }
     delay(10);
     WiFi.mode(WIFI_STA);
-    WiFi.begin(ssid, password);
-    WiFi.config(IPAddress(192, 168, 10, 16), IPAddress(192, 168, 10, 1), IPAddress(255, 255, 255, 0));
+    // ****************
+    //WiFi.begin(ssid, password);
+    WiFi.begin(ssid, password, channel, bssid);
+    WiFi.config(IPAddress(ip_static), IPAddress(ip_gateway), IPAddress(ip_subnet));
+    // ****************
 
     int Attempt = 0;
     while (WiFi.status() != WL_CONNECTED) {
@@ -142,11 +162,21 @@ void wifi_connect()
       Serial.println(wifiMills);
       Serial.print("---> IP address: ");
       Serial.println(WiFi.localIP());
+
+      Serial.print("===>  Current WIFI : ");
+      Serial.print(WiFi.RSSI());
+      Serial.print("\t");
+      Serial.print(WiFi.BSSIDstr());
+      Serial.print("\t");
+      Serial.print(WiFi.channel());
+      Serial.print("\t");
+      Serial.println(WiFi.SSID());
+
     }
 
     //wifi_set_sleep_type(LIGHT_SLEEP_T);
     //wifi_set_sleep_type(MODEM_SLEEP_T);
-    //
+
   }
 }
 
@@ -166,13 +196,22 @@ void setup()
   digitalWrite(redLED, HIGH);
 
   vdd = ESP.getVcc() ;
+  WiFiClient::setLocalPortStart(10000 + vdd);
 
   if (DEBUG_PRINT) {
     Serial.begin(115200);
   }
 
+  // ****************
   system_deep_sleep_set_option(2);
+  //wifi_set_phy_mode(PHY_MODE_11B);
+  //wifi_set_phy_mode(PHY_MODE_11G);
   wifi_set_phy_mode(PHY_MODE_11N);
+
+  /*
+  wifi_set_channel(10);
+  */
+  // ****************
 
   digitalWrite(redLED, LOW);
   wifi_connect();
@@ -185,6 +224,7 @@ void setup()
   clientName += String(micros() & 0xff, 16);
 
   lastReconnectAttempt = 0;
+  reconnect();
 }
 
 void loop()
@@ -199,12 +239,16 @@ void loop()
           lastReconnectAttempt = 0;
         }
       }
-    } else {
+    }
+    /*
+     else {
       client.loop();
     }
+    */
   } else {
     wifi_connect();
   }
+
 
   if ( subMsgReceived == HIGH ) {
     subMills = (millis() - startMills) - wifiMills ;
@@ -228,7 +272,9 @@ void loop()
     }
     goingToSleepWithFail();
   }
-  yield();
+  client.loop();
+
+
 }
 
 void sendlightcmd()
@@ -254,7 +300,7 @@ void sendlightcmd()
     buttonpayload += ",\"subMills\":";
     buttonpayload += subMills ;
     buttonpayload += "}";
-    
+
     if (DEBUG_PRINT) {
       Serial.print("status pub ---> ");
       Serial.println(millis() - startMills);
@@ -268,7 +314,6 @@ void sendlightcmd()
       if (DEBUG_PRINT) {
         Serial.print("button pub  ----> ");
         Serial.println(millis() - startMills);
-
       }
     }
   }
