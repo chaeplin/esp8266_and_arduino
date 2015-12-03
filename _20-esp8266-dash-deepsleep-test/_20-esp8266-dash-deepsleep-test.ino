@@ -129,7 +129,7 @@ void wifi_connect()
     // ****************
     WiFi.begin(ssid, password);
     //WiFi.begin(ssid, password, channel, bssid);
-    WiFi.config(IPAddress(ip_static), IPAddress(ip_gateway), IPAddress(ip_subnet));
+    //WiFi.config(IPAddress(ip_static), IPAddress(ip_gateway), IPAddress(ip_subnet));
     // ****************
 
     int Attempt = 0;

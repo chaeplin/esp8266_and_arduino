@@ -1,0 +1,11 @@
+http://bbs.espressif.com/viewtopic.php?f=57&t=1440
+
+Tool: Reduce more power consumption in DeepSleep
+Postby ESP_Alfred » Thu Nov 26, 2015 8:38 pm
+
+If your project include the deep-sleep mode to reduce power consumption, there is a script to reduce more power consumption.
+You could use "add_low-power_deepsleep_cmd.py" to change your bin file("eagle.flash.bin" or "user1.1024.new.2.bin"). 
+If you successfully run the script, the new bin file("eagle.flash_low_power.bin" or "user1.1024.new.2_low_power.bin") will be generated.
+More details in documentation "2C-ESP8266__SDK__Programming Guide" Appendix "Low-power solution"
+中文文档链接http://bbs.espressif.com/viewtopic.php?f=51&t=1023，详见附录“低功耗开发指南”
+
