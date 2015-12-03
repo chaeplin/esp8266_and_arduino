@@ -27,8 +27,8 @@ ADC_MODE(ADC_VCC);
 // ****************
 const char* ssid = WIFI_SSID;
 const char* password = WIFI_PASSWORD;
-int32_t channel = WIFI_CHANNEL;
-byte bssid[] = WIFI_BSSID;
+//int32_t channel = WIFI_CHANNEL;
+//byte bssid[] = WIFI_BSSID;
 byte mqtt_server[] = MQTT_SERVER;
 byte ip_static[] = IP_STATIC;
 byte ip_gateway[] = IP_GATEWAY;
@@ -127,8 +127,8 @@ void wifi_connect()
     delay(10);
     WiFi.mode(WIFI_STA);
     // ****************
-    //WiFi.begin(ssid, password);
-    WiFi.begin(ssid, password, channel, bssid);
+    WiFi.begin(ssid, password);
+    //WiFi.begin(ssid, password, channel, bssid);
     WiFi.config(IPAddress(ip_static), IPAddress(ip_gateway), IPAddress(ip_subnet));
     // ****************
 
@@ -196,7 +196,10 @@ void setup()
   digitalWrite(redLED, HIGH);
 
   vdd = ESP.getVcc() ;
-  WiFiClient::setLocalPortStart(10000 + vdd);
+  //WiFiClient::setLocalPortStart(10000 + vdd);
+  //WiFiClient::setLocalPortStart(millis() + vdd);
+  WiFiClient::setLocalPortStart(micros() + vdd);
+
 
   if (DEBUG_PRINT) {
     Serial.begin(115200);
@@ -206,7 +209,7 @@ void setup()
   system_deep_sleep_set_option(2);
   //wifi_set_phy_mode(PHY_MODE_11B);
   //wifi_set_phy_mode(PHY_MODE_11G);
-  wifi_set_phy_mode(PHY_MODE_11N);
+  //wifi_set_phy_mode(PHY_MODE_11N);
 
   /*
   wifi_set_channel(10);
