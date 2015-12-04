@@ -1,5 +1,6 @@
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
+#include <ArduinoJson.h>
 
 #define _IS_MY_HOME
 // wifi
@@ -45,6 +46,7 @@ String payload;
 volatile int subMsgReceived = LOW;
 volatile int topicMsgSent   = LOW;
 volatile int relaystatus    = LOW;
+volatile int relayReady     = LOW;
 
 int vdd;
 
@@ -76,19 +78,47 @@ void callback(char* intopic, byte* inpayload, unsigned int length)
     Serial.println(receivedpayload);
   }
 
-  if ( receivedpayload == "{\"LIGHT\":1}") {
-    relaystatus = 1 ;
+  char json[] = "{\"LIGHT\":1,\"READY\":1}";
+  receivedpayload.toCharArray(json, 100);
+  StaticJsonBuffer<100> jsonBuffer;
+  JsonObject& root = jsonBuffer.parseObject(json);
+
+  if (!root.success()) {
+    if (DEBUG_PRINT) {
+      Serial.println("parseObject() failed");
+    }
+    subMsgReceived = HIGH;
+    relayReady = LOW ;
+    return;
   }
-  else if ( receivedpayload == "{\"LIGHT\":0}") {
-    relaystatus = 0 ;
+
+  int LIGHT = root["LIGHT"];
+  int READY = root["READY"];
+
+  if ( READY == 1 ) {
+    if ( LIGHT == 1 ) {
+      relaystatus = 1;
+    }
+    if ( LIGHT == 0) {
+      relaystatus = 0;
+    }
+    subMsgReceived = HIGH;
+    relayReady = HIGH ;
+  }
+
+  if ( READY == 0 ) {
+    subMsgReceived = HIGH;
+    relayReady = LOW ;
   }
 
   if (DEBUG_PRINT) {
     Serial.print("mqtt sub => ");
-    Serial.print("relaystatus => ");
-    Serial.println(relaystatus);
+    Serial.print("ready ==> ");
+    Serial.print(READY);
+    Serial.print(" relaystatus => ");
+    Serial.println(LIGHT);
   }
-  subMsgReceived = HIGH;
+
 }
 
 boolean reconnect()
@@ -252,14 +282,22 @@ void loop()
     wifi_connect();
   }
 
-
-  if ( subMsgReceived == HIGH ) {
+  if (( subMsgReceived == HIGH ) && ( relayReady == HIGH )) {
     subMills = (millis() - startMills) - wifiMills ;
     if (DEBUG_PRINT) {
-      Serial.print("sub received ---> ");
+      Serial.print("sub received : ready ---> ");
       Serial.println(subMills);
     }
     sendlightcmd();
+  }
+
+  if (( subMsgReceived == HIGH ) && ( relayReady == LOW )) {
+    subMills = (millis() - startMills) - wifiMills ;
+    if (DEBUG_PRINT) {
+      Serial.print("sub received : not ready ---> ");
+      Serial.println(subMills);
+    }
+    goingToSleepWithFail();
   }
 
   if ( topicMsgSent == HIGH ) {
