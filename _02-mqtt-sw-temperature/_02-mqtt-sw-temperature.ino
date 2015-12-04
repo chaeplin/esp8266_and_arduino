@@ -15,11 +15,16 @@
 #endif
 
 #define DEBUG_PRINT 0
-#define EVENT_PRINT 0
+
+// ****************
+const char* ssid = WIFI_SSID;
+const char* password = WIFI_PASSWORD;
+IPAddress mqtt_server = MQTT_SERVER;
+IPAddress time_server = MQTT_SERVER;
 
 // pin
 #define pir 13
-#define DHTPIN 14     // what pin we're connected to
+#define DHTPIN 14
 #define RELAYPIN 4
 #define TOPBUTTONPIN 5
 
@@ -33,6 +38,7 @@ DHT dht(DHTPIN, DHTTYPE, 15);
 // DS18B20
 #define ONE_WIRE_BUS 12
 #define TEMPERATURE_PRECISION 12
+
 OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature sensors(&oneWire);
 DeviceAddress outsideThermometer;
@@ -46,11 +52,8 @@ char* hellotopic = "HELLO";
 char* willTopic = "clients/relay";
 char* willMessage = "0";
 
-IPAddress server(192, 168, 10, 10);
-
 //
-unsigned int localPort = 2390;  // local port to listen for UDP packets
-IPAddress timeServer(192, 168, 10, 10); // time.nist.gov NTP server
+unsigned int localPort = 2390;
 const int timeZone = 9;
 
 //
@@ -79,19 +82,23 @@ int getdalastempstatus = 0;
 int getdht22tempstatus = 0;
 
 //
-long startMills;
+unsigned long startMills;
 unsigned long timemillis;
+unsigned long lastRelayActionmillis;
 
+//
+int relayIsReady = HIGH;
 
 WiFiClient wifiClient;
-PubSubClient client(server, 1883, callback, wifiClient);
+PubSubClient client(mqtt_server, 1883, callback, wifiClient);
 WiFiUDP udp;
 
 long lastReconnectAttempt = 0;
 
-void wifi_connect() {
+void wifi_connect()
+{
   // WIFI
-  if (EVENT_PRINT) {
+  if (DEBUG_PRINT) {
     Serial.println();
     Serial.println();
     Serial.print("Connecting to ");
@@ -105,12 +112,12 @@ void wifi_connect() {
   while (WiFi.status() != WL_CONNECTED) {
     delay(100);
     Attempt++;
-    if (EVENT_PRINT) {
+    if (DEBUG_PRINT) {
       Serial.print(".");
     }
     if (Attempt == 200)
     {
-      if (EVENT_PRINT) {
+      if (DEBUG_PRINT) {
         Serial.println();
         Serial.println("Could not connect to WIFI");
       }
@@ -118,7 +125,7 @@ void wifi_connect() {
     }
   }
 
-  if (EVENT_PRINT) {
+  if (DEBUG_PRINT) {
     Serial.println("");
     Serial.println("WiFi connected");
     Serial.println("IP address: ");
@@ -139,17 +146,16 @@ boolean reconnect()
         client.publish(hellotopic, "hello again 1 from ESP8266 s02");
       }
       client.subscribe(subtopic);
-      if (EVENT_PRINT) {
+      if (DEBUG_PRINT) {
         Serial.println("connected");
       }
     } else {
-      if (EVENT_PRINT) {
+      if (DEBUG_PRINT) {
         Serial.print("failed, rc=");
         Serial.println(client.state());
       }
     }
   }
-  //timemillis = millis();
   return client.connected();
 }
 
@@ -162,22 +168,24 @@ void callback(char* intopic, byte* inpayload, unsigned int length)
     receivedpayload += (char)inpayload[i];
   }
 
-  if (EVENT_PRINT) {
+  if (DEBUG_PRINT) {
     Serial.print(intopic);
     Serial.print(" => ");
     Serial.println(receivedpayload);
   }
 
-  if ( receivedpayload == "{\"LIGHT\":1}") {
-    relaystatus = 1 ;
-  }
-  else if ( receivedpayload == "{\"LIGHT\":0}") {
-    relaystatus = 0 ;
+  unsigned long now = millis();
+
+  if ((now - lastRelayActionmillis) >= 30000) {
+    if ( receivedpayload == "{\"LIGHT\":1}") {
+      relaystatus = 1 ;
+    }
+    else if ( receivedpayload == "{\"LIGHT\":0}") {
+      relaystatus = 0 ;
+    }
   }
 
-  //changelight();
-
-  if (EVENT_PRINT) {
+  if (DEBUG_PRINT) {
     Serial.print("");
     Serial.print(" => relaystatus => ");
     Serial.println(relaystatus);
@@ -191,14 +199,14 @@ void setup()
   }
   delay(20);
   if (DEBUG_PRINT) {
-    Serial.println("DHTxx test!");
+    Serial.println("Sensor and Relay");
     Serial.println("ESP.getFlashChipSize() : ");
     Serial.println(ESP.getFlashChipSize());
   }
   delay(20);
 
-  startMills = millis();
-  timemillis = millis();
+  startMills = timemillis = lastRelayActionmillis = millis();
+  lastRelayActionmillis += 30000;
 
   pinMode(pir, INPUT);
   pinMode(RELAYPIN, OUTPUT);
@@ -216,38 +224,11 @@ void setup()
   clientName += String(micros() & 0xff, 16);
 
   //
-  //client.setCallback(callback);
-
-  //
   lastReconnectAttempt = 0;
 
   getResetInfo = "hello from ESP8266 s02 ";
   getResetInfo += ESP.getResetInfo().substring(0, 30);
 
-  /*
-    if (WiFi.status() == WL_CONNECTED) {
-      if (!client.connected()) {
-        if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
-          client.publish(willTopic, "1", true);
-          client.publish(hellotopic, (char*) getResetInfo.c_str());
-          client.subscribe(subtopic);
-          if (DEBUG_PRINT) {
-            Serial.print("Sending payload: ");
-            Serial.println(getResetInfo);
-          }
-        }
-      } else {
-        client.publish(willTopic, "1", true);
-        client.publish(hellotopic, (char*) getResetInfo.c_str());
-        client.subscribe(subtopic);
-        if (DEBUG_PRINT) {
-          Serial.print("Sending payload: ");
-          Serial.println(getResetInfo);
-        }
-      }
-    }
-  */
-  //
   if (DEBUG_PRINT) {
     Serial.println("Starting UDP");
   }
@@ -275,7 +256,6 @@ void setup()
     }
   }
 
-  // set the resolution to 9 bit
   sensors.setResolution(outsideThermometer, TEMPERATURE_PRECISION);
 
   dht.begin();
@@ -296,7 +276,7 @@ void setup()
 
   if ( isnan(tempCoutside) ) {
     if (DEBUG_PRINT) {
-      Serial.println("Failed to read from sensor!");
+      Serial.println("Failed to read from DS18B20 sensor!");
     }
     return;
   }
@@ -318,25 +298,35 @@ void loop()
           lastReconnectAttempt = 0;
         }
       }
-    } /* else {
-      client.loop();
-    } */
+    }
   } else {
     wifi_connect();
   }
 
   if ( relaystatus != oldrelaystatus ) {
+
     changelight();
-    /*
-    sendlightstatus();
-    */
 
     String lightpayload = "{\"LIGHT\":";
     lightpayload += relaystatus;
+    lightpayload += ",\"READY\":0";
     lightpayload += "}";
 
     sendmqttMsg(rslttopic, lightpayload);
 
+  }
+
+  if ((( millis() - lastRelayActionmillis) > 30000 ) && ( relayIsReady == LOW ) && ( relaystatus == oldrelaystatus ))
+  {
+
+    String lightpayload = "{\"LIGHT\":";
+    lightpayload += relaystatus;
+    lightpayload += ",\"READY\":1";
+    lightpayload += "}";
+
+    sendmqttMsg(rslttopic, lightpayload);
+    relayIsReady = HIGH;
+    
   }
 
   runTimerDoLightOff();
@@ -359,8 +349,7 @@ void loop()
   payload += (millis() - timemillis);
   payload += "}";
 
-
-  if ( pirSent == HIGH && pirValue == HIGH )
+  if (( pirSent == HIGH ) && ( pirValue == HIGH ))
   {
     sendmqttMsg(topic, payload);
     pirSent = LOW ;
@@ -382,12 +371,12 @@ void loop()
   if ((millis() - startMills) > REPORT_INTERVAL )
   {
     sendmqttMsg(topic, payload);
-    getdalastempstatus = 0;
-    getdht22tempstatus = 0;
+    getdalastempstatus = getdht22tempstatus = 0;
     startMills = millis();
   }
 
   client.loop();
+
 }
 
 void runTimerDoLightOff()
@@ -400,32 +389,24 @@ void runTimerDoLightOff()
 
 void changelight()
 {
-  //  if ( relaystatus != oldrelaystatus )
-  //  {
-  if (EVENT_PRINT) {
+
+  if (DEBUG_PRINT) {
     Serial.print(" => ");
     Serial.println("checking relay status changelight");
   }
-  /*
-  delay(30);
-  digitalWrite(RELAYPIN, relaystatus);
-  delay(30);
-  digitalWrite(RELAYPIN, relaystatus);
-  delay(30);
-  digitalWrite(RELAYPIN, relaystatus);
-  delay(30);
-  */
+
   digitalWrite(RELAYPIN, relaystatus);
   delay(50);
 
   oldrelaystatus = relaystatus ;
+  relayIsReady = LOW;
 
-  if (EVENT_PRINT) {
+  if (DEBUG_PRINT) {
     Serial.print(" => ");
     Serial.println("changing relay status");
   }
-  //sendlightstatus();
-  //}
+
+  lastRelayActionmillis = millis();
 }
 
 void getdht22temp()
@@ -436,7 +417,7 @@ void getdht22temp()
   f = dht.readTemperature(true);
 
   if (isnan(h) || isnan(t) || isnan(f)) {
-    if (EVENT_PRINT) {
+    if (DEBUG_PRINT) {
       Serial.println("Failed to read from DHT sensor!");
     }
   }
@@ -450,37 +431,24 @@ void getdalastemp()
   tempCoutside  = sensors.getTempC(outsideThermometer);
 
   if ( isnan(tempCoutside)  ) {
-    if (EVENT_PRINT) {
+    if (DEBUG_PRINT) {
       Serial.println("Failed to read from sensor!");
     }
   }
-}
-
-void sendlightstatus()
-{
-  String lightpayload = "{\"LIGHT\":";
-  lightpayload += relaystatus;
-  lightpayload += "}";
-
-  /*
-  sendmqttMsg(subtopic, lightpayload);
-  */
-  sendmqttMsg(rslttopic, lightpayload);
-  oldrelaystatus = relaystatus ;
 }
 
 void sendmqttMsg(char* topictosend, String payload)
 {
 
   if (client.connected()) {
-    if (EVENT_PRINT) {
+    if (DEBUG_PRINT) {
       Serial.print("Sending payload: ");
       Serial.print(payload);
     }
 
     unsigned int msg_length = payload.length();
 
-    if (EVENT_PRINT) {
+    if (DEBUG_PRINT) {
       Serial.print(" length: ");
       Serial.println(msg_length);
     }
@@ -489,12 +457,12 @@ void sendmqttMsg(char* topictosend, String payload)
     memcpy(p, (char*) payload.c_str(), msg_length);
 
     if ( client.publish(topictosend, p, msg_length, 1)) {
-      if (EVENT_PRINT) {
+      if (DEBUG_PRINT) {
         Serial.println("Publish ok");
       }
       free(p);
     } else {
-      if (EVENT_PRINT) {
+      if (DEBUG_PRINT) {
         Serial.println("Publish failed");
       }
       free(p);
@@ -510,8 +478,7 @@ void run_lightcmd()
 
 void motion_detection()
 {
-  pirValue = HIGH ;
-  pirSent  = HIGH ;
+  pirValue = pirSent = HIGH ;
 }
 
 String macToStr(const uint8_t* mac)
@@ -526,27 +493,26 @@ String macToStr(const uint8_t* mac)
 }
 
 /*-------- NTP code ----------*/
-const int NTP_PACKET_SIZE = 48; // NTP time is in the first 48 bytes of message
-byte packetBuffer[NTP_PACKET_SIZE]; //buffer to hold incoming & outgoing packets
+const int NTP_PACKET_SIZE = 48;
+byte packetBuffer[NTP_PACKET_SIZE];
 
 time_t getNtpTime()
 {
-  while (udp.parsePacket() > 0) ; // discard any previously received packets
-  if (EVENT_PRINT) {
+  while (udp.parsePacket() > 0) ;
+  if (DEBUG_PRINT) {
     Serial.println("Transmit NTP Request called");
   }
-  sendNTPpacket(timeServer);
+  sendNTPpacket(time_server);
   delay(1000);
   uint32_t beginWait = millis();
   while (millis() - beginWait < 1500) {
     int size = udp.parsePacket();
     if (size >= NTP_PACKET_SIZE) {
-      if (EVENT_PRINT) {
+      if (DEBUG_PRINT) {
         Serial.println("Receive NTP Response");
       }
-      udp.read(packetBuffer, NTP_PACKET_SIZE);  // read packet into the buffer
+      udp.read(packetBuffer, NTP_PACKET_SIZE);
       unsigned long secsSince1900;
-      // convert four bytes starting at location 40 to a long integer
       secsSince1900 =  (unsigned long)packetBuffer[40] << 24;
       secsSince1900 |= (unsigned long)packetBuffer[41] << 16;
       secsSince1900 |= (unsigned long)packetBuffer[42] << 8;
@@ -554,40 +520,32 @@ time_t getNtpTime()
       return secsSince1900 - 2208988800UL + timeZone * SECS_PER_HOUR;
     }
   }
-  if (EVENT_PRINT) {
+  if (DEBUG_PRINT) {
     Serial.println(millis() - beginWait);
     Serial.println("No NTP Response :-(");
   }
-  return 0; // return 0 if unable to get the time
+  return 0;
 }
 
-// send an NTP request to the time server at the given address
 void sendNTPpacket(IPAddress & address)
 {
-  if (EVENT_PRINT) {
+  if (DEBUG_PRINT) {
     Serial.println("Transmit NTP Request");
   }
-  // set all bytes in the buffer to 0
   memset(packetBuffer, 0, NTP_PACKET_SIZE);
-  // Initialize values needed to form NTP request
-  // (see URL above for details on the packets)
-  packetBuffer[0] = 0b11100011;   // LI, Version, Mode
-  packetBuffer[1] = 0;     // Stratum, or type of clock
-  packetBuffer[2] = 6;     // Polling Interval
-  packetBuffer[3] = 0xEC;  // Peer Clock Precision
-  // 8 bytes of zero for Root Delay & Root Dispersion
+  packetBuffer[0] = 0b11100011;
+  packetBuffer[1] = 0;
+  packetBuffer[2] = 6;
+  packetBuffer[3] = 0xEC;
   packetBuffer[12]  = 49;
   packetBuffer[13]  = 0x4E;
   packetBuffer[14]  = 49;
   packetBuffer[15]  = 52;
-  // all NTP fields have been given values, now
-  // you can send a packet requesting a timestamp:
-  udp.beginPacket(address, 123); //NTP requests are to port 123
+  udp.beginPacket(address, 123);
   udp.write(packetBuffer, NTP_PACKET_SIZE);
   udp.endPacket();
-  if (EVENT_PRINT) {
+  if (DEBUG_PRINT) {
     Serial.println("Transmit NTP Sent");
   }
 }
-//
 //

@@ -16,7 +16,10 @@ const char* ssid = WIFI_SSID;
 const char* password = WIFI_PASSWORD;
 //int32_t channel = WIFI_CHANNEL;
 //byte bssid[] = WIFI_BSSID;
+IPAddress mqtt_server = MQTT_SERVER;
+/*
 byte mqtt_server[] = MQTT_SERVER;
+*/
 byte ip_static[] = IP_STATIC;
 byte ip_gateway[] = IP_GATEWAY;
 byte ip_subnet[] = IP_SUBNET;
