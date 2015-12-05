@@ -35,6 +35,8 @@ DHT dht(DHTPIN, DHTTYPE, 15);
 // OTHER
 #define REPORT_INTERVAL 9500 // in msec
 
+#define BETWEEN_RELAY_ACTIVE 5000
+
 // DS18B20
 #define ONE_WIRE_BUS 12
 #define TEMPERATURE_PRECISION 12
@@ -176,12 +178,12 @@ void callback(char* intopic, byte* inpayload, unsigned int length)
 
   unsigned long now = millis();
 
-  if ((now - lastRelayActionmillis) >= 30000) {
+  if ((now - lastRelayActionmillis) >= BETWEEN_RELAY_ACTIVE ) {
     if ( receivedpayload == "{\"LIGHT\":1}") {
-      relaystatus = 1 ;
+      relaystatus = HIGH ;
     }
-    else if ( receivedpayload == "{\"LIGHT\":0}") {
-      relaystatus = 0 ;
+    if ( receivedpayload == "{\"LIGHT\":0}") {
+      relaystatus = LOW ;
     }
   }
 
@@ -206,7 +208,7 @@ void setup()
   delay(20);
 
   startMills = timemillis = lastRelayActionmillis = millis();
-  lastRelayActionmillis += 30000;
+  lastRelayActionmillis += BETWEEN_RELAY_ACTIVE;
 
   pinMode(pir, INPUT);
   pinMode(RELAYPIN, OUTPUT);
@@ -292,7 +294,7 @@ void loop()
       }
 
       long now = millis();
-      if (now - lastReconnectAttempt > 1000) {
+      if (now - lastReconnectAttempt > 500) {
         lastReconnectAttempt = now;
         if (reconnect()) {
           lastReconnectAttempt = 0;
@@ -305,7 +307,17 @@ void loop()
 
   if ( relaystatus != oldrelaystatus ) {
 
+    if (DEBUG_PRINT) {
+      Serial.print("call changelight  => relaystatus => ");
+      Serial.println(relaystatus);
+    }
+
     changelight();
+
+    if (DEBUG_PRINT) {
+      Serial.print("after changelight  => relaystatus => ");
+      Serial.println(relaystatus);
+    }
 
     String lightpayload = "{\"LIGHT\":";
     lightpayload += relaystatus;
@@ -316,8 +328,13 @@ void loop()
 
   }
 
-  if ((( millis() - lastRelayActionmillis) > 30000 ) && ( relayIsReady == LOW ) && ( relaystatus == oldrelaystatus ))
+  if ((( millis() - lastRelayActionmillis) > BETWEEN_RELAY_ACTIVE ) && ( relayIsReady == LOW ) && ( relaystatus == oldrelaystatus ))
   {
+
+    if (DEBUG_PRINT) {
+      Serial.print("after BETWEEN_RELAY_ACTIVE => relaystatus => ");
+      Serial.println(relaystatus);
+    }
 
     String lightpayload = "{\"LIGHT\":";
     lightpayload += relaystatus;
@@ -326,7 +343,7 @@ void loop()
 
     sendmqttMsg(rslttopic, lightpayload);
     relayIsReady = HIGH;
-    
+
   }
 
   runTimerDoLightOff();
@@ -376,14 +393,20 @@ void loop()
   }
 
   client.loop();
+  yield();
 
 }
 
 void runTimerDoLightOff()
 {
-  if (( relaystatus == 1 ) && ( hour() == 6 ) && ( minute() == 00 ) && ( second() < 5 ))
+  if (( relaystatus == HIGH ) && ( hour() == 6 ) && ( minute() == 00 ) && ( second() < 5 ))
   {
-    relaystatus = 0;
+    if (DEBUG_PRINT) {
+      Serial.print(" => ");
+      Serial.print("checking relay status runTimerDoLightOff --> ");
+      Serial.println(relaystatus);
+    }
+    relaystatus = LOW;
   }
 }
 
@@ -392,21 +415,22 @@ void changelight()
 
   if (DEBUG_PRINT) {
     Serial.print(" => ");
-    Serial.println("checking relay status changelight");
+    Serial.print("checking relay status changelight --> ");
+    Serial.println(relaystatus);
   }
 
   digitalWrite(RELAYPIN, relaystatus);
   delay(50);
 
-  oldrelaystatus = relaystatus ;
-  relayIsReady = LOW;
-
   if (DEBUG_PRINT) {
     Serial.print(" => ");
-    Serial.println("changing relay status");
+    Serial.print("changing relay status --> ");
+    Serial.println(relaystatus);
   }
 
   lastRelayActionmillis = millis();
+  oldrelaystatus = relaystatus ;
+  relayIsReady = LOW;
 }
 
 void getdht22temp()
@@ -503,7 +527,7 @@ time_t getNtpTime()
     Serial.println("Transmit NTP Request called");
   }
   sendNTPpacket(time_server);
-  delay(1000);
+  delay(2000);
   uint32_t beginWait = millis();
   while (millis() - beginWait < 1500) {
     int size = udp.parsePacket();
