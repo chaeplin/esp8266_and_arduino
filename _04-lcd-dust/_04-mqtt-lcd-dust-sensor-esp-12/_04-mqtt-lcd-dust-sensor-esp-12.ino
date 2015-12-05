@@ -46,26 +46,12 @@ WiFiUDP udp;
 String getResetInfo ;
 int ResetInfo = LOW;
 
-//StaticJsonBuffer<350> jsonBuffer;
-
 PubSubClient client(mqtt_server, 1883, callback, wifiClient);
 
-// volatile
-float H  ;
-float T1 ;
-float T2 ;
-float OT ;
-float PW ;
+float H  , T1 , T2 , OT , PW ;
+int NW , PIR  , HO  , HL;
 
-int NW ;
-int PIR  ;
-int HO  ;
-int HL;
-
-int unihost;
-int rsphost;
-int unitot;
-int rsptot;
+int unihost, rsphost, unitot, rsptot;
 
 int sleepmode = LOW ;
 int o_sleepmode = LOW ;
@@ -73,15 +59,8 @@ int o_sleepmode = LOW ;
 float dustDensity ;
 int moisture ;
 
-float OLD_H  ;
-float OLD_T1 ;
-float OLD_T2 ;
-float OLD_OT ;
-float OLD_PW ;
-int OLD_NW ;
-int OLD_PIR  ;
-int OLD_HO  ;
-int OLD_HL  ;
+float OLD_H  , OLD_T1 , OLD_T2 , OLD_OT , OLD_PW ;
+int OLD_NW , OLD_PIR  , OLD_HO  , OLD_HL  ;
 
 float OLD_dustDensity ;
 int OLD_x ;
@@ -402,40 +381,13 @@ void setup() {
   delay(20);
 
   //--
-  H  = -1000 ;
-  T1 = -1000 ;
-  T2 = -1000 ;
-  OT = -1000 ;
-  PW = -1000 ;
-  NW = -1000 ;
-  PIR = 0 ;
-  dustDensity = -1000 ;
-  HO = 0 ;
-  HL = 0;
+  H = T1 =  T2 =  OT = PW = NW =  dustDensity = -1000 ;
+  PIR = HO = HL = moisture = unihost = rsphost = unitot = rsptot = 0;
+  
+  OLD_H  = OLD_T1 = OLD_T2 = OLD_OT = OLD_PW = OLD_NW = OLD_dustDensity = -1000 ;
+  OLD_PIR = OLD_HO = OLD_HL = OLD_x = 0 ;
 
-  moisture = 0;
-
-  unihost = 0;
-  rsphost = 0;
-
-  unitot = 0;
-  rsptot = 0;
-
-  OLD_H  = -1000 ;
-  OLD_T1 = -1000 ;
-  OLD_T2 = -1000 ;
-  OLD_OT = -1000 ;
-  OLD_PW = -1000 ;
-  OLD_NW = -1000 ;
-  OLD_PIR = 0 ;
-  OLD_dustDensity = -1000 ;
-  OLD_HO = 0;
-  OLD_HL = 0;
-
-  OLD_x = 0 ;
-
-  lastReconnectAttempt = 0;
-  resetCountforMqttReconnect = 0;
+  lastReconnectAttempt = resetCountforMqttReconnect = 0;
 
   getResetInfo = "hello from ESP8266 s03 ";
   getResetInfo += ESP.getResetInfo().substring(0, 30);
@@ -452,6 +404,7 @@ void setup() {
   lcd.backlight();
   lcd.clear();
 
+  WiFiClient::setLocalPortStart(analogRead(A0));
   wifi_connect();
 
   //
@@ -533,15 +486,6 @@ void setup() {
   lcd.setCursor(6, 2);
   lcd.print("%");
 
-  /*
-    lcd.setCursor(14, 2);
-    lcd.write(8);
-  */
-
-
-//  client.setServer(server, 1883);
-//  client.setCallback(callback);
-
 }
 
 time_t prevDisplay = 0; // when the digital clock was displayed
@@ -565,7 +509,7 @@ void loop()
             Serial.println("Could not connect to mqtt");
           }
           ESP.restart();
-          delay(2000);
+          delay(500);
         }
         if (reconnect()) {
           lastReconnectAttempt = 0;
@@ -577,27 +521,6 @@ void loop()
     wifi_connect();
   }
 
-
-  /*
-    if (WiFi.status() == WL_CONNECTED) {
-      if (!client.connected()) {
-        if (DEBUG_PRINT) {
-          Serial.print("failed, rc=");
-          Serial.println(client.state());
-        }
-        long now = millis();
-        if (now - lastReconnectAttempt > 1000) {
-          lastReconnectAttempt = now;
-          if (reconnect()) {
-            lastReconnectAttempt = 0;
-          }
-        }
-      }
-    } else {
-      wifi_connect();
-    }
-
-  */
   if (timeStatus() != timeNotSet) {
     if (now() != prevDisplay) { //update the display only if time has changed
       prevDisplay = now();
@@ -715,6 +638,7 @@ void loop()
     }
   }
   client.loop();
+  yield();
   //delay(50);
 }
 
@@ -1001,25 +925,6 @@ void sendI2cMsg(byte a, byte b)
   Wire.endTransmission();
 }
 
-/*
-void senddustDensity()
-{
-  payload = " {\"dustDensity\":";
-  payload += dustDensity;
-  payload += ",\"FreeHeap\":";
-  payload += ESP.getFreeHeap();
-  payload += ",\"RSSI\":";
-  payload += WiFi.RSSI();
-  payload += ",\"millis\":";
-  payload += (millis() - startMills);
-  payload += "}";
-  //  if ( dustDensity < 0.6 )
-  //  {
-  sendmqttMsg(payload);
-  //  }
-}
-*/
-
 void sendmqttMsg(String payloadtosend)
 {
   if (client.connected()) {
@@ -1114,7 +1019,7 @@ time_t getNtpTime()
     Serial.println("Transmit NTP Request called");
   }
   sendNTPpacket(time_server);
-  delay(3000);
+  delay(2000);
   uint32_t beginWait = millis();
   while (millis() - beginWait < 1500) {
     int size = udp.parsePacket();
