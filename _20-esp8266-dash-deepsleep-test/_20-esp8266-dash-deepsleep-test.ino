@@ -13,7 +13,7 @@ extern "C" {
 #include "user_interface.h"
 }
 
-ADC_MODE(ADC_VCC);
+//ADC_MODE(ADC_VCC);
 
 #define DEBUG_PRINT 1
 
@@ -46,7 +46,7 @@ volatile int subMsgReceived = LOW;
 volatile int topicMsgSent   = LOW;
 volatile int relaystatus    = LOW;
 
-int vdd;
+int vdd = 0 ;
 
 //
 unsigned long startMills = 0;
@@ -76,10 +76,10 @@ void callback(char* intopic, byte* inpayload, unsigned int length)
     Serial.println(receivedpayload);
   }
 
-  if ( receivedpayload == "{\"LIGHT\":1}") {
+  if ( receivedpayload == "{\"LIGHT\":1,\"READY\":1}") {
     relaystatus = 1 ;
   }
-  else if ( receivedpayload == "{\"LIGHT\":0}") {
+  else if ( receivedpayload == "{\"LIGHT\":0,\"READY\":1}") {
     relaystatus = 0 ;
   }
 
@@ -118,60 +118,96 @@ void wifi_connect()
 {
   if (WiFi.status() != WL_CONNECTED) {
     // WIFI
+    delay(10);
     if (DEBUG_PRINT) {
-      Serial.print("===> WIFI ---> Connecting to ");
+      Serial.print("===> WIFI 1 ---> Connecting to ");
       Serial.print(millis() - startMills);
       Serial.print(" ");
       Serial.println(ssid);
     }
     delay(10);
-    WiFi.mode(WIFI_STA);
-    // ****************
-    WiFi.begin(ssid, password);
-    //WiFi.begin(ssid, password, channel, bssid);
-    //WiFi.config(IPAddress(ip_static), IPAddress(ip_gateway), IPAddress(ip_subnet));
-    // ****************
 
-    int Attempt = 0;
-    while (WiFi.status() != WL_CONNECTED) {
+    if ( wifi_get_opmode() != 1 ) {
       if (DEBUG_PRINT) {
-        Serial.print(". ");
-        Serial.print(Attempt);
+        Serial.println("===> opmode to STA");
       }
-      //
-      digitalWrite(blueLED, HIGH);
-      delay(50);
-      digitalWrite(blueLED, LOW);
-      delay(50);
-      //
-      Attempt++;
-      if (Attempt == 150)
-      {
-        if (DEBUG_PRINT) {
-          Serial.println();
-          Serial.println("-----> Could not connect to WIFI");
-        }
-        goingToSleepWithFail();
+      WiFi.mode(WIFI_STA);
+    }
+
+    static struct station_config conf;
+    wifi_station_get_config(&conf);
+    const char* ssidinconf = reinterpret_cast<const char*>(conf.ssid);
+    const char* passphraseinconf = reinterpret_cast<const char*>(conf.password);
+
+    if ( (strcmp(ssidinconf, ssid) != 0) || (strcmp(passphraseinconf, password) != 0) ) {
+      if (DEBUG_PRINT) {
+        Serial.println("===> setup ssid / password");
+      }
+      WiFi.begin(ssid, password);
+    }
+    //system_deep_sleep_set_option(0);
+    system_phy_set_rfoption(1);
+    wifi_set_channel(10);
+    wifi_station_set_hostname("TEST");
+    WiFi.config(IPAddress(ip_static), IPAddress(ip_gateway), IPAddress(ip_subnet), IPAddress(ip_gateway));
+
+    /*
+    Prototype:
+    bool wifi_set_ip_info(
+    uint8 if_index,
+    struct ip_info *info  )
+    Prototype:
+    uint8 if_index : set station IP or soft-AP IP
+    #define STATION_IF 0x00
+    #define SOFTAP_IF 0x01
+    struct ip_info *info : IP information
+    Example:
+    wifi_set_opmode(STATIONAP_MODE); //Set softAP + station mode
+      struct ip_info info;
+      wifi_station_dhcpc_stop();
+      wifi_softap_dhcps_stop();
+
+    IP4_ADDR(&info.ip, 192, 168, 3, 200);  IP4_ADDR(&info.gw, 192, 168, 3, 1);  IP4_ADDR(&info.netmask, 255, 255, 255, 0);  wifi_set_ip_info(STATION_IF, &info);
+
+    IP4_ADDR(&info.ip, 10, 10, 10, 1);  IP4_ADDR(&info.gw, 10, 10, 10, 1);  IP4_ADDR(&info.netmask, 255, 255, 255, 0);  wifi_set_ip_info(SOFTAP_IF, &info);
+      wifi_softap_dhcps_start();
+
+    */
+
+    int timeout = millis() + 10000;
+    while ((WiFi.status() != WL_CONNECTED) && (timeout > millis())) {
+      delay(10);
+      if (DEBUG_PRINT) {
+        Serial.print(millis() - startMills);
+        Serial.print(". ");
+        yield();
       }
     }
 
-    wifiMills = millis() - startMills;
-    if (DEBUG_PRINT) {
-      Serial.println();
-      Serial.print("===> WiFi connected : ");
-      Serial.println(wifiMills);
-      Serial.print("---> IP address: ");
-      Serial.println(WiFi.localIP());
+    if ((WiFi.status() != WL_CONNECTED)) {
+      if (DEBUG_PRINT) {
+        Serial.println();
+        Serial.println("-----> Could not connect to WIFI");
+      }
+      goingToSleepWithFail();
+    } else {
+      wifiMills = millis() - startMills;
+      if (DEBUG_PRINT) {
+        Serial.println();
+        Serial.print("===> WiFi connected : ");
+        Serial.println(wifiMills);
+        Serial.print("---> IP address: ");
+        Serial.println(WiFi.localIP());
 
-      Serial.print("===>  Current WIFI : ");
-      Serial.print(WiFi.RSSI());
-      Serial.print("\t");
-      Serial.print(WiFi.BSSIDstr());
-      Serial.print("\t");
-      Serial.print(WiFi.channel());
-      Serial.print("\t");
-      Serial.println(WiFi.SSID());
-
+        Serial.print("===>  Current WIFI : ");
+        Serial.print(WiFi.RSSI());
+        Serial.print("\t");
+        Serial.print(WiFi.BSSIDstr());
+        Serial.print("\t");
+        Serial.print(WiFi.channel());
+        Serial.print("\t");
+        Serial.println(WiFi.SSID());
+      }
     }
 
     //wifi_set_sleep_type(LIGHT_SLEEP_T);
@@ -195,16 +231,18 @@ void setup()
   //digitalWrite(resetupPin, LOW);
   digitalWrite(redLED, HIGH);
 
-  vdd = ESP.getVcc() ;
+  //vdd = ESP.getVcc() ;
   WiFiClient::setLocalPortStart(millis() + vdd);
 
   if (DEBUG_PRINT) {
     Serial.begin(115200);
+    Serial.println("");
   }
 
   // ****************
-  system_deep_sleep_set_option(2);
-  //
+  //system_deep_sleep_set_option(0);
+  //WiFi.config(IPAddress(ip_static), IPAddress(ip_gateway), IPAddress(ip_subnet));
+  //wifi_set_phy_mode(PHY_MODE_11B);
   //wifi_set_phy_mode(PHY_MODE_11B);
   //wifi_set_phy_mode(PHY_MODE_11G);
   //wifi_set_phy_mode(PHY_MODE_11N);
@@ -250,7 +288,6 @@ void loop()
     wifi_connect();
   }
 
-
   if ( subMsgReceived == HIGH ) {
     subMills = (millis() - startMills) - wifiMills ;
     if (DEBUG_PRINT) {
@@ -274,7 +311,7 @@ void loop()
     goingToSleepWithFail();
   }
   client.loop();
-
+  yield();
 
 }
 
