@@ -15,11 +15,15 @@
 #else
 #include "ap_setting.h"
 #endif
-
+//
+const char* ssid = WIFI_SSID;
+const char* password = WIFI_PASSWORD;
+IPAddress mqtt_server = MQTT_SERVER;
+IPAddress time_server = MQTT_SERVER;
+//
 RtcDS3231 Rtc;
 
 #define DEBUG_PRINT 0
-#define EVENT_PRINT 0
 
 char* topic = "esp8266/arduino/s03";
 char* subtopic = "#";
@@ -30,10 +34,7 @@ char* willMessage = "0";
 
 LiquidCrystal_I2C lcd(0x27, 20, 4);
 
-IPAddress server(192, 168, 10, 10);
-
 unsigned int localPort = 2390;  // local port to listen for UDP packets
-IPAddress timeServer(192, 168, 10, 10); // time.nist.gov NTP server
 const int timeZone = 9;
 
 String clientName;
@@ -47,7 +48,7 @@ int ResetInfo = LOW;
 
 //StaticJsonBuffer<350> jsonBuffer;
 
-PubSubClient client(server, 1883, callback, wifiClient);
+PubSubClient client(mqtt_server, 1883, callback, wifiClient);
 
 // volatile
 float H  ;
@@ -184,7 +185,7 @@ void callback(char* intopic, byte* inpayload, unsigned int length)
     return;
   }
 
-  if (EVENT_PRINT) {
+  if (DEBUG_PRINT) {
     Serial.print("-> receivedpayload 1 free Heap : ");
     Serial.println(ESP.getFreeHeap());
   }
@@ -193,7 +194,7 @@ void callback(char* intopic, byte* inpayload, unsigned int length)
     receivedpayload += (char)inpayload[i];
   }
 
-  if (EVENT_PRINT) {
+  if (DEBUG_PRINT) {
     Serial.print(receivedtopic);
     Serial.print(" => ");
     Serial.println(receivedpayload);
@@ -207,12 +208,12 @@ void callback(char* intopic, byte* inpayload, unsigned int length)
 
 void parseMqttMsg(String receivedpayload, String receivedtopic) {
 
-  if (EVENT_PRINT) {
+  if (DEBUG_PRINT) {
     Serial.print("-> jsonBuffer 1 free Heap : ");
     Serial.println(ESP.getFreeHeap());
   }
 
-  if (EVENT_PRINT) {
+  if (DEBUG_PRINT) {
     Serial.print("-> jsonBuffer 2 free Heap : ");
     Serial.println(ESP.getFreeHeap());
   }
@@ -224,7 +225,7 @@ void parseMqttMsg(String receivedpayload, String receivedtopic) {
   JsonObject& root = jsonBuffer.parseObject(json);
 
   if (!root.success()) {
-    if (EVENT_PRINT) {
+    if (DEBUG_PRINT) {
       Serial.println("parseObject() failed");
     }
     return;
@@ -239,7 +240,7 @@ void parseMqttMsg(String receivedpayload, String receivedtopic) {
   // esp8266/arduino/aircon : ________
   // home/check/checkhwmny : unihost, rsphost, unitot, rsptot
 
-  if (EVENT_PRINT) {
+  if (DEBUG_PRINT) {
     Serial.print("-> keyparse 1 free Heap : ");
     Serial.println(ESP.getFreeHeap());
   }
@@ -538,8 +539,8 @@ void setup() {
   */
 
 
-  client.setServer(server, 1883);
-  client.setCallback(callback);
+//  client.setServer(server, 1883);
+//  client.setCallback(callback);
 
 }
 
@@ -767,7 +768,7 @@ void checkDisplayValue() {
     OLD_dustDensity = dustDensity ;
   }
 
-  if (EVENT_PRINT) {
+  if (DEBUG_PRINT) {
     Serial.print("=====> ");
     Serial.print(T1);
     Serial.print(" ===> ");
@@ -921,7 +922,7 @@ void displaydustDensity()
     n = 9 ;
   }
 
-  if (EVENT_PRINT) {
+  if (DEBUG_PRINT) {
     Serial.print(" ===> dustDensity ");
     Serial.print(dustDensity);
     Serial.print(" ===>  ");
@@ -962,7 +963,7 @@ void requestSharp()
   y = c;
   y = y << 8 | d;
 
-  if (EVENT_PRINT) {
+  if (DEBUG_PRINT) {
     Serial.print("X ===>  ");
     Serial.println(x);
   }
@@ -1022,13 +1023,13 @@ void senddustDensity()
 void sendmqttMsg(String payloadtosend)
 {
   if (client.connected()) {
-    if (EVENT_PRINT) {
+    if (DEBUG_PRINT) {
       Serial.print("Sending payload: ");
       Serial.print(payloadtosend);
     }
     unsigned int msg_length = payloadtosend.length();
 
-    if (EVENT_PRINT) {
+    if (DEBUG_PRINT) {
       Serial.print(" length: ");
       Serial.println(msg_length);
     }
@@ -1037,12 +1038,12 @@ void sendmqttMsg(String payloadtosend)
     memcpy(p, (char*) payloadtosend.c_str(), msg_length);
 
     if ( client.publish(topic, p, msg_length, 1)) {
-      if (EVENT_PRINT) {
+      if (DEBUG_PRINT) {
         Serial.println("Publish ok");
       }
       free(p);
     } else {
-      if (EVENT_PRINT) {
+      if (DEBUG_PRINT) {
         Serial.println("Publish failed");
       }
       free(p);
@@ -1109,16 +1110,16 @@ byte packetBuffer[NTP_PACKET_SIZE]; //buffer to hold incoming & outgoing packets
 time_t getNtpTime()
 {
   while (udp.parsePacket() > 0) ; // discard any previously received packets
-  if (EVENT_PRINT) {
+  if (DEBUG_PRINT) {
     Serial.println("Transmit NTP Request called");
   }
-  sendNTPpacket(timeServer);
-  delay(1000);
+  sendNTPpacket(time_server);
+  delay(3000);
   uint32_t beginWait = millis();
   while (millis() - beginWait < 1500) {
     int size = udp.parsePacket();
     if (size >= NTP_PACKET_SIZE) {
-      if (EVENT_PRINT) {
+      if (DEBUG_PRINT) {
         Serial.println("Receive NTP Response");
       }
       udp.read(packetBuffer, NTP_PACKET_SIZE);  // read packet into the buffer
@@ -1131,7 +1132,7 @@ time_t getNtpTime()
       return secsSince1900 - 2208988800UL + timeZone * SECS_PER_HOUR;
     }
   }
-  if (EVENT_PRINT) {
+  if (DEBUG_PRINT) {
     Serial.println(millis() - beginWait);
     Serial.println("No NTP Response :-(");
   }
@@ -1141,7 +1142,7 @@ time_t getNtpTime()
 // send an NTP request to the time server at the given address
 void sendNTPpacket(IPAddress & address)
 {
-  if (EVENT_PRINT) {
+  if (DEBUG_PRINT) {
     Serial.println("Transmit NTP Request");
   }
   // set all bytes in the buffer to 0
@@ -1162,7 +1163,7 @@ void sendNTPpacket(IPAddress & address)
   udp.beginPacket(address, 123); //NTP requests are to port 123
   udp.write(packetBuffer, NTP_PACKET_SIZE);
   udp.endPacket();
-  if (EVENT_PRINT) {
+  if (DEBUG_PRINT) {
     Serial.println("Transmit NTP Sent");
   }
 }
