@@ -1,12 +1,18 @@
 #include <pgmspace.h>
 #include <Wire.h>
-#include <RtcDS3231.h>
+//#include <RtcDS3231.h>
 #include <PubSubClient.h>
 #include <ESP8266WiFi.h>
 #include <LiquidCrystal_I2C.h>
 #include <ArduinoJson.h>
 #include <WiFiUdp.h>
 #include <Time.h>
+
+#define REPORT_INTERVAL 3000 // in msec
+
+extern "C" {
+#include "user_interface.h"
+}
 
 #define _IS_MY_HOME
 // wifi
@@ -18,10 +24,13 @@
 //
 const char* ssid = WIFI_SSID;
 const char* password = WIFI_PASSWORD;
+int32_t channel = WIFI_CHANNEL;
+
+//
 IPAddress mqtt_server = MQTT_SERVER;
 IPAddress time_server = MQTT_SERVER;
 //
-RtcDS3231 Rtc;
+//RtcDS3231 Rtc;
 
 #define DEBUG_PRINT 0
 
@@ -66,9 +75,9 @@ float OLD_dustDensity ;
 int OLD_x ;
 
 unsigned long startMills;
+unsigned long sentMills ;
 
 long lastReconnectAttempt = 0;
-int resetCountforMqttReconnect = 0;
 
 byte termometru[8] =
 {
@@ -236,13 +245,11 @@ void parseMqttMsg(String receivedpayload, String receivedtopic) {
     }
   }
 
-
   if ( receivedtopic == "esp8266/arduino/s04" ) {
     if (root.containsKey("OUTSIDE")) {
       OT  = root["OUTSIDE"];
     }
   }
-
 
   if ( receivedtopic == "esp8266/arduino/s07" ) {
     if (root.containsKey("powerAvg")) {
@@ -250,13 +257,11 @@ void parseMqttMsg(String receivedpayload, String receivedtopic) {
     }
   }
 
-
   if ( receivedtopic == "esp8266/arduino/s06" ) {
     if (root.containsKey("WeightAvg")) {
       NW  = root["WeightAvg"];
     }
   }
-
 
   if ( receivedtopic == "raspberrypi/doorpir" )
   {
@@ -288,7 +293,6 @@ void parseMqttMsg(String receivedpayload, String receivedtopic) {
     }
   }
 
-
   // display callback
   lcd.setCursor(19, 0);
   lcd.write(5);
@@ -303,6 +307,11 @@ void wifi_connect() {
     Serial.print("Connecting to ");
     Serial.println(ssid);
   }
+
+  wifi_set_phy_mode(PHY_MODE_11N);
+  //wifi_set_channel(channel);
+  system_phy_set_max_tpw(5);
+
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
 
@@ -311,7 +320,7 @@ void wifi_connect() {
     delay(100);
     Attempt++;
     Serial.print(".");
-    if (Attempt == 100)
+    if (Attempt == 300)
     {
       if (DEBUG_PRINT) {
         Serial.println();
@@ -362,11 +371,11 @@ void setup() {
     //Serial.setDebugOutput(true);
   }
 
-  startMills = millis();
-  Rtc.Begin();
+  startMills = sentMills = millis();
+  //Rtc.Begin();
   Wire.begin(0, 2);
   if (DEBUG_PRINT) {
-    Serial.println();
+    Serial.println("");
     Serial.println("LCD START");
 
     Serial.print("ESP.getChipId() : ");
@@ -383,11 +392,11 @@ void setup() {
   //--
   H = T1 =  T2 =  OT = PW = NW =  dustDensity = -1000 ;
   PIR = HO = HL = moisture = unihost = rsphost = unitot = rsptot = 0;
-  
+
   OLD_H  = OLD_T1 = OLD_T2 = OLD_OT = OLD_PW = OLD_NW = OLD_dustDensity = -1000 ;
   OLD_PIR = OLD_HO = OLD_HL = OLD_x = 0 ;
 
-  lastReconnectAttempt = resetCountforMqttReconnect = 0;
+  lastReconnectAttempt = 0;
 
   getResetInfo = "hello from ESP8266 s03 ";
   getResetInfo += ESP.getResetInfo().substring(0, 30);
@@ -400,12 +409,13 @@ void setup() {
   clientName += " - ";
   clientName += String(micros() & 0xff, 16);
 
-  lcd.init();
-  lcd.backlight();
-  lcd.clear();
 
   WiFiClient::setLocalPortStart(analogRead(A0));
   wifi_connect();
+
+  lcd.init();
+  lcd.backlight();
+  lcd.clear();
 
   //
   if (DEBUG_PRINT) {
@@ -425,32 +435,34 @@ void setup() {
     }
   }
 
-  RtcDateTime compiled = now();
-  if (DEBUG_PRINT) {
-    Serial.println(compiled);
-    Serial.println();
-  }
-
-  if (!Rtc.IsDateTimeValid())
-  {
+  /*
+    RtcDateTime compiled = now();
     if (DEBUG_PRINT) {
-      Serial.println("RTC lost confidence in the DateTime!");
+      Serial.println(compiled);
+      Serial.println();
     }
-    Rtc.SetDateTime(compiled);
-  }
 
-  RtcDateTime now = Rtc.GetDateTime();
-  if (now < compiled)
-  {
-    if (DEBUG_PRINT) {
-      Serial.println("RTC is older than compile time! (Updating DateTime)");
+    if (!Rtc.IsDateTimeValid())
+    {
+      if (DEBUG_PRINT) {
+        Serial.println("RTC lost confidence in the DateTime!");
+      }
+      Rtc.SetDateTime(compiled);
     }
-    Rtc.SetDateTime(compiled);
-  }
 
-  // never assume the Rtc was last configured by you, so
-  Rtc.Enable32kHzPin(false);
-  Rtc.SetSquareWavePin(DS3231SquareWavePin_ModeNone);
+    RtcDateTime now = Rtc.GetDateTime();
+    if (now < compiled)
+    {
+      if (DEBUG_PRINT) {
+        Serial.println("RTC is older than compile time! (Updating DateTime)");
+      }
+      Rtc.SetDateTime(compiled);
+    }
+
+    // never assume the Rtc was last configured by you, so
+    Rtc.Enable32kHzPin(false);
+    Rtc.SetSquareWavePin(DS3231SquareWavePin_ModeNone);
+  */
 
   lcd.createChar(1, termometru);
   lcd.createChar(2, picatura);
@@ -492,7 +504,7 @@ time_t prevDisplay = 0; // when the digital clock was displayed
 
 void loop()
 {
-
+  /*
   if (WiFi.status() == WL_CONNECTED) {
     if (!client.connected()) {
       long now = millis();
@@ -520,6 +532,25 @@ void loop()
   } else {
     wifi_connect();
   }
+  */
+
+  if (WiFi.status() == WL_CONNECTED) {
+    if (!client.connected()) {
+      long now = millis();
+      if (now - lastReconnectAttempt > 500) {
+        if (DEBUG_PRINT) {
+          Serial.print("failed, rc=");
+          Serial.print(client.state());
+        }
+        lastReconnectAttempt = now;
+        if (reconnect()) {
+          lastReconnectAttempt = 0;
+        }
+      }
+    }
+  } else {
+    wifi_connect();
+  }
 
   if (timeStatus() != timeNotSet) {
     if (now() != prevDisplay) { //update the display only if time has changed
@@ -529,117 +560,107 @@ void loop()
         Serial.println(ESP.getFreeHeap());
       }
       digitalClockDisplay();
-
-      if (DEBUG_PRINT) {
-        Serial.print("-> requestSharp free Heap : ");
-        Serial.println(ESP.getFreeHeap());
-      }
-
       requestSharp();
-
-      if (DEBUG_PRINT) {
-        Serial.print("-> checkDisplayValue free Heap : ");
-        Serial.println(ESP.getFreeHeap());
-      }
-
-      if ( sleepmode != o_sleepmode )
-      {
-        displaysleepmode(sleepmode);
-        o_sleepmode = sleepmode;
-      }
-
       HO = unihost + rsphost;
       HL = unitot + rsptot;
-
-      if (( HO != OLD_HO ) || ( HL != OLD_HL))
-      {
-        displayHost(HO, HL);
-        OLD_HO = HO;
-        OLD_HL = HL;
-      }
-
-      if (( PW != OLD_PW ) && ( 0 <= PW < 10000 ))
-      {
-        displaypowerAvg(PW);
-        OLD_PW = PW;
-      }
-
-      if ( NW != OLD_NW )
-      {
-        displayNemoWeight(NW);
-        OLD_NW = NW;
-      }
-
-      if ( PIR != OLD_PIR )
-      {
-        displayPIR();
-        OLD_PIR = PIR;
-      }
-
-      if ((T1 != OLD_T1 ) || (T2 != OLD_T2 ) || (OT != OLD_OT) || ( H != OLD_H ))
-      {
-        displayTemperature();
-        OLD_T1 = T1;
-        OLD_T2 = T2;
-        OLD_OT = OT;
-        OLD_H = H;
-      }
-
-      if ( dustDensity != OLD_dustDensity )
-      {
-        displaydustDensity();
-        OLD_dustDensity = dustDensity ;
-      }
-
-      if (DEBUG_PRINT) {
-        Serial.print("=====> ");
-        Serial.print(T1);
-        Serial.print(" ===> ");
-        Serial.print(T2);
-        Serial.print(" ===> ");
-        Serial.print(OT);
-        Serial.print(" ===> ");
-        Serial.print(H);
-        Serial.print(" ===> ");
-        Serial.print(dustDensity);
-        Serial.print(" ===> ");
-        Serial.print(PIR);
-        Serial.print(" ===> ");
-        Serial.print(PW);
-        Serial.print(" ===> ");
-        Serial.print(HO);
-        Serial.print(" ===> ");
-        Serial.print(NW);
-        Serial.print(" ===> ");
-        Serial.println(moisture);
-      }
-
-      if ( ( second() % 3 ) == 0 ) {
-        if (DEBUG_PRINT) {
-          Serial.print("-> senddustDensity free Heap : ");
-          Serial.println(ESP.getFreeHeap());
-        }
-
-        payload = " {\"dustDensity\":";
-        payload += dustDensity;
-        payload += ",\"moisture\":";
-        payload += moisture;
-        payload += ",\"FreeHeap\":";
-        payload += ESP.getFreeHeap();
-        payload += ",\"RSSI\":";
-        payload += WiFi.RSSI();
-        payload += ",\"millis\":";
-        payload += (millis() - startMills);
-        payload += "}";
-
-        sendmqttMsg(payload);
-
-      }
     }
   }
+
+  if ( sleepmode != o_sleepmode )
+  {
+    displaysleepmode(sleepmode);
+    o_sleepmode = sleepmode;
+  }
+
+  if (( HO != OLD_HO ) || ( HL != OLD_HL))
+  {
+    displayHost(HO, HL);
+    OLD_HO = HO;
+    OLD_HL = HL;
+  }
+
+  if (( PW != OLD_PW ) && ( 0 <= PW < 10000 ))
+  {
+    displaypowerAvg(PW);
+    OLD_PW = PW;
+  }
+
+  if ( NW != OLD_NW )
+  {
+    displayNemoWeight(NW);
+    OLD_NW = NW;
+  }
+
+  if ( PIR != OLD_PIR )
+  {
+    displayPIR();
+    OLD_PIR = PIR;
+  }
+
+  if ((T1 != OLD_T1 ) || (T2 != OLD_T2 ) || (OT != OLD_OT) || ( H != OLD_H ))
+  {
+    displayTemperature();
+    OLD_T1 = T1;
+    OLD_T2 = T2;
+    OLD_OT = OT;
+    OLD_H = H;
+  }
+
+  if ( dustDensity != OLD_dustDensity )
+  {
+    displaydustDensity();
+    OLD_dustDensity = dustDensity ;
+  }
+
+  if (DEBUG_PRINT) {
+    Serial.print("=====> ");
+    Serial.print(T1);
+    Serial.print(" ===> ");
+    Serial.print(T2);
+    Serial.print(" ===> ");
+    Serial.print(OT);
+    Serial.print(" ===> ");
+    Serial.print(H);
+    Serial.print(" ===> ");
+    Serial.print(dustDensity);
+    Serial.print(" ===> ");
+    Serial.print(PIR);
+    Serial.print(" ===> ");
+    Serial.print(PW);
+    Serial.print(" ===> ");
+    Serial.print(HO);
+    Serial.print(" ===> ");
+    Serial.print(NW);
+    Serial.print(" ===> ");
+    Serial.println(moisture);
+  }
+
+  /*
+    if ( ( second() % 3 ) == 0 ) {
+  */
+  if ((millis() - sentMills) > REPORT_INTERVAL ) {
+    if (DEBUG_PRINT) {
+      Serial.print("-> senddustDensity free Heap : ");
+      Serial.println(ESP.getFreeHeap());
+    }
+
+    payload = " {\"dustDensity\":";
+    payload += dustDensity;
+    payload += ",\"moisture\":";
+    payload += moisture;
+    payload += ",\"FreeHeap\":";
+    payload += ESP.getFreeHeap();
+    payload += ",\"RSSI\":";
+    payload += WiFi.RSSI();
+    payload += ",\"millis\":";
+    payload += (millis() - startMills);
+    payload += "}";
+
+    sendmqttMsg(payload);
+    sentMills = millis();
+  }
+
   client.loop();
-  yield();
-  //delay(50);
 }
 
 void checkDisplayValue() {
@@ -871,7 +892,7 @@ void displaydustDensity()
 
 void requestSharp()
 {
-  Wire.requestFrom(2, 4);    // request 6 bytes from slave device #2
+  Wire.requestFrom(2, 4);
 
   int x, y;
   byte a, b, c, d;
@@ -1019,9 +1040,8 @@ time_t getNtpTime()
     Serial.println("Transmit NTP Request called");
   }
   sendNTPpacket(time_server);
-  delay(2000);
   uint32_t beginWait = millis();
-  while (millis() - beginWait < 1500) {
+  while (millis() - beginWait < 2500) {
     int size = udp.parsePacket();
     if (size >= NTP_PACKET_SIZE) {
       if (DEBUG_PRINT) {
