@@ -6,6 +6,10 @@
 #include <WiFiUdp.h>
 #include <Time.h>
 
+extern "C" {
+#include "user_interface.h"
+}
+
 #define _IS_MY_HOME
 // wifi
 #ifdef _IS_MY_HOME
@@ -19,6 +23,9 @@
 // ****************
 const char* ssid = WIFI_SSID;
 const char* password = WIFI_PASSWORD;
+int32_t channel = WIFI_CHANNEL;
+
+//
 IPAddress mqtt_server = MQTT_SERVER;
 IPAddress time_server = MQTT_SERVER;
 
@@ -77,8 +84,12 @@ float f ;
 volatile int pirValue = LOW;
 volatile int pirSent  = LOW;
 
+/*
 volatile int relaystatus    = LOW;
 volatile int oldrelaystatus = LOW;
+*/
+volatile int relaystatus    = LOW;
+int oldrelaystatus = LOW;
 
 int getdalastempstatus = 0;
 int getdht22tempstatus = 0;
@@ -107,6 +118,9 @@ void wifi_connect()
     Serial.println(ssid);
   }
 
+  wifi_set_phy_mode(PHY_MODE_11N);
+  wifi_set_channel(channel);
+
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
 
@@ -117,7 +131,7 @@ void wifi_connect()
     if (DEBUG_PRINT) {
       Serial.print(".");
     }
-    if (Attempt == 200)
+    if (Attempt == 300)
     {
       if (DEBUG_PRINT) {
         Serial.println();
@@ -213,7 +227,6 @@ void setup()
   pinMode(pir, INPUT);
   pinMode(RELAYPIN, OUTPUT);
   pinMode(TOPBUTTONPIN, INPUT_PULLUP);
-
   digitalWrite(RELAYPIN, relaystatus);
 
   wifi_connect();
@@ -248,6 +261,7 @@ void setup()
     }
   }
 
+  //
   attachInterrupt(13, motion_detection, RISING);
   attachInterrupt(5, run_lightcmd, CHANGE);
 
@@ -393,7 +407,6 @@ void loop()
   }
 
   client.loop();
-  yield();
 
 }
 
@@ -419,8 +432,9 @@ void changelight()
     Serial.println(relaystatus);
   }
 
+  relayIsReady = LOW;
   digitalWrite(RELAYPIN, relaystatus);
-  delay(50);
+  //delay(50);
 
   if (DEBUG_PRINT) {
     Serial.print(" => ");
@@ -430,7 +444,7 @@ void changelight()
 
   lastRelayActionmillis = millis();
   oldrelaystatus = relaystatus ;
-  relayIsReady = LOW;
+  //relayIsReady = LOW;    
 }
 
 void getdht22temp()
@@ -497,7 +511,15 @@ void sendmqttMsg(char* topictosend, String payload)
 void run_lightcmd()
 {
   int topbuttonstatus =  ! digitalRead(TOPBUTTONPIN);
-  relaystatus = topbuttonstatus ;
+  if ( relayIsReady == HIGH  ) {
+    relaystatus = topbuttonstatus ;
+  }
+  if (DEBUG_PRINT && ( relayIsReady == HIGH  )) {
+    Serial.print("run_lightcmd  => topbuttonstatus => ");
+    Serial.print(topbuttonstatus);
+    Serial.print(" => relaystatus => ");
+    Serial.println(relaystatus);
+  }
 }
 
 void motion_detection()
@@ -527,7 +549,7 @@ time_t getNtpTime()
     Serial.println("Transmit NTP Request called");
   }
   sendNTPpacket(time_server);
-  delay(2000);
+  delay(3000);
   uint32_t beginWait = millis();
   while (millis() - beginWait < 1500) {
     int size = udp.parsePacket();
