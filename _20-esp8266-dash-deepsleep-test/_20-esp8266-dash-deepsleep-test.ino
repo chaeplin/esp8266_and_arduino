@@ -13,7 +13,7 @@ extern "C" {
 #include "user_interface.h"
 }
 
-//ADC_MODE(ADC_VCC);
+ADC_MODE(ADC_VCC);
 
 #define DEBUG_PRINT 1
 
@@ -22,17 +22,27 @@ extern "C" {
 #define greenLED    4
 #define redLED      14
 
+
+#define IPSET_STATIC { 192, 168, 10, 18 }
+#define IPSET_GATEWAY { 192, 168, 10, 1 }
+#define IPSET_SUBNET { 255, 255, 255, 0 }
+#define IPSET_DNS { 192, 168, 10, 10 }
+
 // #define MQTT_KEEPALIVE 3 in PubSubClient.h
 
 // ****************
 const char* ssid = WIFI_SSID;
 const char* password = WIFI_PASSWORD;
-//int32_t channel = WIFI_CHANNEL;
-//byte bssid[] = WIFI_BSSID;
+int32_t channel = WIFI_CHANNEL;
+byte bssid[] = WIFI_BSSID;
+//
 byte mqtt_server[] = MQTT_SERVER;
-byte ip_static[] = IP_STATIC;
-byte ip_gateway[] = IP_GATEWAY;
-byte ip_subnet[] = IP_SUBNET;
+//
+byte ip_static[] = IPSET_STATIC;
+byte ip_gateway[] = IPSET_GATEWAY;
+byte ip_subnet[] = IPSET_SUBNET;
+byte ip_dns[] = IPSET_DNS;
+
 // ****************
 
 char* topic = "esp8266/cmd/light";
@@ -46,7 +56,7 @@ volatile int subMsgReceived = LOW;
 volatile int topicMsgSent   = LOW;
 volatile int relaystatus    = LOW;
 
-int vdd = 0 ;
+int vdd  ;
 
 //
 unsigned long startMills = 0;
@@ -116,6 +126,28 @@ boolean reconnect()
 
 void wifi_connect()
 {
+  delay(10);
+  if (DEBUG_PRINT) {
+    Serial.println("wifi status ---> ");
+    WiFi.printDiag(Serial);
+  }
+
+  WiFiClient::setLocalPortStart(millis() + vdd);
+
+  // ****************
+  //system_deep_sleep_set_option(0);
+  wifi_set_phy_mode(PHY_MODE_11N);
+  //wifi_set_phy_mode(PHY_MODE_11B);
+  //wifi_set_phy_mode(PHY_MODE_11G);
+  //wifi_set_phy_mode(PHY_MODE_11N);
+  // ****************
+
+  //system_deep_sleep_set_option(0);
+  system_phy_set_rfoption(1);
+  wifi_set_channel(channel);
+  wifi_station_set_hostname("TEST");
+  WiFi.config(IPAddress(ip_static), IPAddress(ip_gateway), IPAddress(ip_subnet), IPAddress(ip_dns));
+
   if (WiFi.status() != WL_CONNECTED) {
     // WIFI
     delay(10);
@@ -134,6 +166,11 @@ void wifi_connect()
       WiFi.mode(WIFI_STA);
     }
 
+    if (DEBUG_PRINT) {
+      Serial.println("wifi status ---> ");
+      WiFi.printDiag(Serial);
+    }
+
     static struct station_config conf;
     wifi_station_get_config(&conf);
     const char* ssidinconf = reinterpret_cast<const char*>(conf.ssid);
@@ -145,39 +182,19 @@ void wifi_connect()
       }
       WiFi.begin(ssid, password);
     }
-    //system_deep_sleep_set_option(0);
-    system_phy_set_rfoption(1);
-    wifi_set_channel(10);
-    wifi_station_set_hostname("TEST");
-    WiFi.config(IPAddress(ip_static), IPAddress(ip_gateway), IPAddress(ip_subnet), IPAddress(ip_gateway));
 
-    /*
-    Prototype:
-    bool wifi_set_ip_info(
-    uint8 if_index,
-    struct ip_info *info  )
-    Prototype:
-    uint8 if_index : set station IP or soft-AP IP
-    #define STATION_IF 0x00
-    #define SOFTAP_IF 0x01
-    struct ip_info *info : IP information
-    Example:
-    wifi_set_opmode(STATIONAP_MODE); //Set softAP + station mode
-      struct ip_info info;
-      wifi_station_dhcpc_stop();
-      wifi_softap_dhcps_stop();
-
-    IP4_ADDR(&info.ip, 192, 168, 3, 200);  IP4_ADDR(&info.gw, 192, 168, 3, 1);  IP4_ADDR(&info.netmask, 255, 255, 255, 0);  wifi_set_ip_info(STATION_IF, &info);
-
-    IP4_ADDR(&info.ip, 10, 10, 10, 1);  IP4_ADDR(&info.gw, 10, 10, 10, 1);  IP4_ADDR(&info.netmask, 255, 255, 255, 0);  wifi_set_ip_info(SOFTAP_IF, &info);
-      wifi_softap_dhcps_start();
-
-    */
+    if (DEBUG_PRINT) {
+      Serial.println("wifi status ---> ");
+      WiFi.printDiag(Serial);
+    }
 
     int timeout = millis() + 10000;
     while ((WiFi.status() != WL_CONNECTED) && (timeout > millis())) {
       delay(10);
       if (DEBUG_PRINT) {
+        Serial.println("wifi status ---> ");
+        WiFi.printDiag(Serial);
+
         Serial.print(millis() - startMills);
         Serial.print(". ");
         yield();
@@ -231,26 +248,12 @@ void setup()
   //digitalWrite(resetupPin, LOW);
   digitalWrite(redLED, HIGH);
 
-  //vdd = ESP.getVcc() ;
-  WiFiClient::setLocalPortStart(millis() + vdd);
+  vdd = ESP.getVcc() ;
 
   if (DEBUG_PRINT) {
     Serial.begin(115200);
     Serial.println("");
   }
-
-  // ****************
-  //system_deep_sleep_set_option(0);
-  //WiFi.config(IPAddress(ip_static), IPAddress(ip_gateway), IPAddress(ip_subnet));
-  //wifi_set_phy_mode(PHY_MODE_11B);
-  //wifi_set_phy_mode(PHY_MODE_11B);
-  //wifi_set_phy_mode(PHY_MODE_11G);
-  //wifi_set_phy_mode(PHY_MODE_11N);
-
-  /*
-  wifi_set_channel(10);
-  */
-  // ****************
 
   digitalWrite(redLED, LOW);
   wifi_connect();
@@ -279,11 +282,6 @@ void loop()
         }
       }
     }
-    /*
-     else {
-      client.loop();
-    }
-    */
   } else {
     wifi_connect();
   }
