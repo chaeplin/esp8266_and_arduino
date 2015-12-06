@@ -1,6 +1,5 @@
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
-#include <ArduinoJson.h>
 
 #define _IS_MY_HOME
 // wifi
@@ -23,17 +22,25 @@ ADC_MODE(ADC_VCC);
 #define greenLED    4
 #define redLED      14
 
+
+#define IPSET_STATIC { 192, 168, 10, 16 }
+#define IPSET_GATEWAY { 192, 168, 10, 1 }
+#define IPSET_SUBNET { 255, 255, 255, 0 }
+#define IPSET_DNS { 192, 168, 10, 10 }
+
 // #define MQTT_KEEPALIVE 3 in PubSubClient.h
 
 // ****************
 const char* ssid = WIFI_SSID;
 const char* password = WIFI_PASSWORD;
-//int32_t channel = WIFI_CHANNEL;
+int32_t channel = WIFI_CHANNEL;
 //byte bssid[] = WIFI_BSSID;
 byte mqtt_server[] = MQTT_SERVER;
-byte ip_static[] = IP_STATIC;
-byte ip_gateway[] = IP_GATEWAY;
-byte ip_subnet[] = IP_SUBNET;
+//
+byte ip_static[] = IPSET_STATIC;
+byte ip_gateway[] = IPSET_GATEWAY;
+byte ip_subnet[] = IPSET_SUBNET;
+byte ip_dns[] = IPSET_DNS;
 // ****************
 
 char* topic = "esp8266/cmd/light";
@@ -78,6 +85,21 @@ void callback(char* intopic, byte* inpayload, unsigned int length)
     Serial.println(receivedpayload);
   }
 
+  if ( receivedpayload == "{\"LIGHT\":1,\"READY\":1}") {
+    relaystatus = HIGH ;
+    relayReady = HIGH ;
+  } else if ( receivedpayload == "{\"LIGHT\":0,\"READY\":1}") {
+    relaystatus = LOW ;
+    relayReady = HIGH ;
+  } else if ( receivedpayload == "{\"LIGHT\":1,\"READY\":0}") {
+    relayReady = LOW ;
+  } else if ( receivedpayload == "{\"LIGHT\":0,\"READY\":0}") {
+    relayReady = LOW ;
+  }
+
+  subMsgReceived = HIGH;
+
+  /*
   char json[] = "{\"LIGHT\":1,\"READY\":1}";
   receivedpayload.toCharArray(json, 100);
   StaticJsonBuffer<100> jsonBuffer;
@@ -118,7 +140,7 @@ void callback(char* intopic, byte* inpayload, unsigned int length)
     Serial.print(" relaystatus => ");
     Serial.println(LIGHT);
   }
-
+  */
 }
 
 boolean reconnect()
@@ -146,6 +168,11 @@ boolean reconnect()
 
 void wifi_connect()
 {
+  WiFiClient::setLocalPortStart(micros() + vdd);
+  wifi_set_phy_mode(PHY_MODE_11N);
+  system_phy_set_rfoption(1);
+  wifi_set_channel(channel);
+
   if (WiFi.status() != WL_CONNECTED) {
     // WIFI
     if (DEBUG_PRINT) {
@@ -159,7 +186,7 @@ void wifi_connect()
     // ****************
     WiFi.begin(ssid, password);
     //WiFi.begin(ssid, password, channel, bssid);
-    WiFi.config(IPAddress(ip_static), IPAddress(ip_gateway), IPAddress(ip_subnet));
+    WiFi.config(IPAddress(ip_static), IPAddress(ip_gateway), IPAddress(ip_subnet), IPAddress(ip_dns));
     // ****************
 
     int Attempt = 0;
@@ -226,25 +253,10 @@ void setup()
   digitalWrite(redLED, HIGH);
 
   vdd = ESP.getVcc() ;
-  //WiFiClient::setLocalPortStart(10000 + vdd);
-  //WiFiClient::setLocalPortStart(millis() + vdd);
-  WiFiClient::setLocalPortStart(micros() + vdd);
-
 
   if (DEBUG_PRINT) {
     Serial.begin(115200);
   }
-
-  // ****************
-  system_deep_sleep_set_option(2);
-  //wifi_set_phy_mode(PHY_MODE_11B);
-  //wifi_set_phy_mode(PHY_MODE_11G);
-  //wifi_set_phy_mode(PHY_MODE_11N);
-
-  /*
-  wifi_set_channel(10);
-  */
-  // ****************
 
   digitalWrite(redLED, LOW);
   wifi_connect();

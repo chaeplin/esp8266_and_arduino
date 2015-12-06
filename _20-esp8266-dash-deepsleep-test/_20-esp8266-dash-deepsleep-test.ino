@@ -87,10 +87,10 @@ void callback(char* intopic, byte* inpayload, unsigned int length)
   }
 
   if ( receivedpayload == "{\"LIGHT\":1,\"READY\":1}") {
-    relaystatus = 1 ;
+    relaystatus = HIGH ;
   }
   else if ( receivedpayload == "{\"LIGHT\":0,\"READY\":1}") {
-    relaystatus = 0 ;
+    relaystatus = LOW ;
   }
 
   if (DEBUG_PRINT) {
