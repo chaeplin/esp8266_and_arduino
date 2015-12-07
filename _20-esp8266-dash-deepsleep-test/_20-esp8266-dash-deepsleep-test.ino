@@ -126,110 +126,66 @@ boolean reconnect()
 
 void wifi_connect()
 {
-  delay(10);
-  if (DEBUG_PRINT) {
-    Serial.println("wifi status ---> ");
-    WiFi.printDiag(Serial);
-  }
-
   WiFiClient::setLocalPortStart(millis() + vdd);
-
   // ****************
-  //system_deep_sleep_set_option(0);
   wifi_set_phy_mode(PHY_MODE_11N);
   //wifi_set_phy_mode(PHY_MODE_11B);
   //wifi_set_phy_mode(PHY_MODE_11G);
   //wifi_set_phy_mode(PHY_MODE_11N);
   // ****************
-
   //system_deep_sleep_set_option(0);
+  //wifi_set_sleep_type(LIGHT_SLEEP_T);
+  //wifi_set_sleep_type(MODEM_SLEEP_T);
+
+  system_deep_sleep_set_option(0);
   system_phy_set_rfoption(1);
   wifi_set_channel(channel);
   wifi_station_set_hostname("TEST");
   WiFi.config(IPAddress(ip_static), IPAddress(ip_gateway), IPAddress(ip_subnet), IPAddress(ip_dns));
 
-  if (WiFi.status() != WL_CONNECTED) {
-    // WIFI
+  if (DEBUG_PRINT) {
+    Serial.print("===> WIFI 1 ---> Connecting to ");
+    Serial.print(millis() - startMills);
+    Serial.print(" ");
+    Serial.println(ssid);
+  }
+
+  WiFi.begin(ssid, password);
+  //WiFi.begin(ssid, password, channel, bssid);
+
+  int timeout = millis() + 10000;
+  while ((WiFi.status() != WL_CONNECTED) && (timeout > millis())) {
     delay(10);
     if (DEBUG_PRINT) {
-      Serial.print("===> WIFI 1 ---> Connecting to ");
       Serial.print(millis() - startMills);
-      Serial.print(" ");
-      Serial.println(ssid);
+      Serial.print(". ");
     }
-    delay(10);
+  }
 
-    if ( wifi_get_opmode() != 1 ) {
-      if (DEBUG_PRINT) {
-        Serial.println("===> opmode to STA");
-      }
-      WiFi.mode(WIFI_STA);
-    }
-
+  if ((WiFi.status() != WL_CONNECTED)) {
     if (DEBUG_PRINT) {
-      Serial.println("wifi status ---> ");
-      WiFi.printDiag(Serial);
+      Serial.println();
+      Serial.println("-----> Could not connect to WIFI");
     }
-
-    static struct station_config conf;
-    wifi_station_get_config(&conf);
-    const char* ssidinconf = reinterpret_cast<const char*>(conf.ssid);
-    const char* passphraseinconf = reinterpret_cast<const char*>(conf.password);
-
-    if ( (strcmp(ssidinconf, ssid) != 0) || (strcmp(passphraseinconf, password) != 0) ) {
-      if (DEBUG_PRINT) {
-        Serial.println("===> setup ssid / password");
-      }
-      WiFi.begin(ssid, password);
-    }
-
+    goingToSleepWithFail();
+  } else {
+    wifiMills = millis() - startMills;
     if (DEBUG_PRINT) {
-      Serial.println("wifi status ---> ");
-      WiFi.printDiag(Serial);
+      Serial.println();
+      Serial.print("===> WiFi connected : ");
+      Serial.println(wifiMills);
+      Serial.print("---> IP address: ");
+      Serial.println(WiFi.localIP());
+
+      Serial.print("===>  Current WIFI : ");
+      Serial.print(WiFi.RSSI());
+      Serial.print("\t");
+      Serial.print(WiFi.BSSIDstr());
+      Serial.print("\t");
+      Serial.print(WiFi.channel());
+      Serial.print("\t");
+      Serial.println(WiFi.SSID());
     }
-
-    int timeout = millis() + 10000;
-    while ((WiFi.status() != WL_CONNECTED) && (timeout > millis())) {
-      delay(10);
-      if (DEBUG_PRINT) {
-        Serial.println("wifi status ---> ");
-        WiFi.printDiag(Serial);
-
-        Serial.print(millis() - startMills);
-        Serial.print(". ");
-        yield();
-      }
-    }
-
-    if ((WiFi.status() != WL_CONNECTED)) {
-      if (DEBUG_PRINT) {
-        Serial.println();
-        Serial.println("-----> Could not connect to WIFI");
-      }
-      goingToSleepWithFail();
-    } else {
-      wifiMills = millis() - startMills;
-      if (DEBUG_PRINT) {
-        Serial.println();
-        Serial.print("===> WiFi connected : ");
-        Serial.println(wifiMills);
-        Serial.print("---> IP address: ");
-        Serial.println(WiFi.localIP());
-
-        Serial.print("===>  Current WIFI : ");
-        Serial.print(WiFi.RSSI());
-        Serial.print("\t");
-        Serial.print(WiFi.BSSIDstr());
-        Serial.print("\t");
-        Serial.print(WiFi.channel());
-        Serial.print("\t");
-        Serial.println(WiFi.SSID());
-      }
-    }
-
-    //wifi_set_sleep_type(LIGHT_SLEEP_T);
-    //wifi_set_sleep_type(MODEM_SLEEP_T);
-
   }
 }
 
