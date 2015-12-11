@@ -6,6 +6,14 @@
 #include <WiFiUdp.h>
 #include <Time.h>
 
+// radio
+#include <SPI.h>
+#include <nRF24L01.h>
+#include <RF24.h>
+// radio
+#define DEVICE_ID 2
+#define CHANNEL 1 //MAX 127
+
 extern "C" {
 #include "user_interface.h"
 }
@@ -55,11 +63,25 @@ OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature sensors(&oneWire);
 DeviceAddress outsideThermometer;
 
+
+// radio
+RF24 radio(3, 15);
+
+// Topology
+const uint64_t pipes[2] = { 0xFFFFFFFFFFLL, 0xCCCCCCCCCCLL };
+
+struct dataStruct{
+  unsigned long _salt;
+  float temp;
+  int volt;
+}sensor_data;
+
 // mqtt
 char* topic = "esp8266/arduino/s02";
 char* subtopic = "esp8266/cmd/light";
 char* rslttopic = "esp8266/cmd/light/rlst";
 char* hellotopic = "HELLO";
+char* radiotopic = "radio/test";
 
 char* willTopic = "clients/relay";
 char* willMessage = "0";
@@ -214,6 +236,7 @@ void callback(char* intopic, byte* inpayload, unsigned int length)
 
 void setup()
 {
+  yield();
   if (DEBUG_PRINT) {
     Serial.begin(115200);
   }
@@ -303,6 +326,17 @@ void setup()
     }
     return;
   }
+
+  // radio
+  yield();
+  radio.begin(); // Start up the radio
+  radio.setPALevel(RF24_PA_HIGH);
+  radio.setDataRate(RF24_250KBPS);  
+  radio.openReadingPipe(1,pipes[0]);
+  radio.openWritingPipe(pipes[1]);  
+  radio.stopListening();
+  radio.startListening();
+
 }
 
 void loop()
@@ -416,6 +450,25 @@ void loop()
     sendmqttMsg(topic, payload);
     getdalastempstatus = getdht22tempstatus = 0;
     startMills = millis();
+  }
+
+// radio 
+  if (radio.available()) {
+    while (radio.available()) {
+      yield();
+      radio.read(&sensor_data, sizeof(sensor_data));
+
+      String radiopayload = "{\"_salt\":";
+      radiopayload += sensor_data._salt;
+      radiopayload += ",\"volt\":";
+      radiopayload += sensor_data.volt;
+      radiopayload += ",\"temp\":";
+      radiopayload += sensor_data.temp;
+      radiopayload += "}";
+
+      sendmqttMsg(radiotopic, radiopayload);
+
+    }
   }
 
   client.loop();
