@@ -30,14 +30,16 @@ IPAddress mqtt_server = MQTT_SERVER;
 IPAddress time_server = MQTT_SERVER;
 
 // pin
-#define pir 13
-#define DHTPIN 14
+//#define pir 13
+//#define DHTPIN 14
+#define pir 16
+#define DHTPIN 2
 #define RELAYPIN 4
 #define TOPBUTTONPIN 5
 
 // DHT22
 #define DHTTYPE DHT22   // DHT 22  (AM2302)
-DHT dht(DHTPIN, DHTTYPE, 15);
+DHT dht(DHTPIN, DHTTYPE);
 
 // OTHER
 #define REPORT_INTERVAL 9500 // in msec
@@ -45,7 +47,8 @@ DHT dht(DHTPIN, DHTTYPE, 15);
 #define BETWEEN_RELAY_ACTIVE 5000
 
 // DS18B20
-#define ONE_WIRE_BUS 12
+//#define ONE_WIRE_BUS 12
+#define ONE_WIRE_BUS 0
 #define TEMPERATURE_PRECISION 12
 
 OneWire oneWire(ONE_WIRE_BUS);
@@ -81,8 +84,9 @@ float t ;
 float f ;
 
 //
-volatile int pirValue = LOW;
-volatile int pirSent  = LOW;
+int pirValue ;
+int pirSent  ;
+int oldpirValue ;
 
 /*
 volatile int relaystatus    = LOW;
@@ -262,8 +266,11 @@ void setup()
   }
 
   //
-  attachInterrupt(13, motion_detection, RISING);
+  //attachInterrupt(16, motion_detection, RISING);
   attachInterrupt(5, run_lightcmd, CHANGE);
+
+  pirSent = LOW ;
+  pirValue = oldpirValue = digitalRead(pir);
 
   sensors.begin();
   if (!sensors.getAddress(outsideThermometer, 0)) {
@@ -363,6 +370,10 @@ void loop()
   runTimerDoLightOff();
 
   pirValue = digitalRead(pir);
+  if ( oldpirValue != pirValue ) {
+    pirSent = HIGH;
+    oldpirValue = pirValue;
+  }
 
   payload = "{\"Humidity\":";
   payload += h;
@@ -380,10 +391,11 @@ void loop()
   payload += (millis() - timemillis);
   payload += "}";
 
-  if (( pirSent == HIGH ) && ( pirValue == HIGH ))
+  //if (( pirSent == HIGH ) && ( pirValue == HIGH ))
+  if ( pirSent == HIGH )
   {
     sendmqttMsg(topic, payload);
-    pirSent = LOW ;
+    pirSent = LOW;
     startMills = millis();
   }
 
@@ -444,7 +456,7 @@ void changelight()
 
   lastRelayActionmillis = millis();
   oldrelaystatus = relaystatus ;
-  //relayIsReady = LOW;    
+  //relayIsReady = LOW;
 }
 
 void getdht22temp()
@@ -522,10 +534,18 @@ void run_lightcmd()
   }
 }
 
+// pin 16 can't be used for Interrupts
+/*
 void motion_detection()
 {
-  pirValue = pirSent = HIGH ;
+  if (DEBUG_PRINT) {
+    Serial.println("motion_detection called");
+  }
+  //pirValue =
+  pirValue = digitalRead(pir);
+  pirSent = HIGH ;
 }
+*/
 
 String macToStr(const uint8_t* mac)
 {
