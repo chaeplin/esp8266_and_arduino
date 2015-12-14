@@ -51,6 +51,8 @@ OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature sensors(&oneWire);
 DeviceAddress outsideThermometer;
 
+float tempCoutside;
+
 void setup() {
   adc_disable();
   sensors.begin();
@@ -59,9 +61,9 @@ void setup() {
   }
   sensors.setResolution(outsideThermometer, TEMPERATURE_PRECISION);
   sensors.requestTemperatures();
-  payload.temp = sensors.getTempC(outsideThermometer);
+  tempCoutside = sensors.getTempC(outsideThermometer);
 
-  if (isnan(payload.temp) || payload.temp < -50 ) {
+  if (isnan(tempCoutside) || tempCoutside < -50 ) {
     sleep();
   }
 
@@ -73,12 +75,12 @@ void setup() {
 void loop() {
   payload.volt = readVcc();
   sensors.requestTemperatures();
-  payload.temp = sensors.getTempC(outsideThermometer) ;
+  tempCoutside = sensors.getTempC(outsideThermometer) ;
 
-  if (isnan(payload.temp) || payload.temp < -50 ) {
+  if (isnan(tempCoutside) || tempCoutside < -50 ) {
     sleep();
   } else {
-  payload.temp = payload.temp * 10 ;
+  payload.temp = tempCoutside * 10 ;
 
   radio.begin(); 
   radio.enableDynamicPayloads();
@@ -94,6 +96,8 @@ void loop() {
   radio.powerDown();
   }
   sleep();
+
+  payload._salt++;
 }
 
 void sleep() {
