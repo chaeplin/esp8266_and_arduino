@@ -1,3 +1,7 @@
+#include <SPI.h>
+#include <nRF24L01.h>
+#include <RF24.h>
+#include <pgmspace.h>
 #include <OneWire.h>
 #include "DHT.h"
 #include <PubSubClient.h>
@@ -6,10 +10,6 @@
 #include <WiFiUdp.h>
 #include <Time.h>
 
-// radio
-#include <SPI.h>
-#include <nRF24L01.h>
-#include <RF24.h>
 // radio
 #define DEVICE_ID 2
 #define CHANNEL 1 //MAX 127
@@ -63,18 +63,21 @@ OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature sensors(&oneWire);
 DeviceAddress outsideThermometer;
 
-
 // radio
 RF24 radio(3, 15);
 
 // Topology
 const uint64_t pipes[2] = { 0xFFFFFFFFFFLL, 0xCCCCCCCCCCLL };
 
-struct dataStruct{
-  unsigned long _salt;
-  float temp;
-  int volt;
-}sensor_data;
+typedef struct {
+  uint32_t _salt;
+  uint16_t volt;
+  int16_t temp;
+  int16_t humi;
+  uint8_t devid;
+} data;
+
+data sensor_data;
 
 // mqtt
 char* topic = "esp8266/arduino/s02";
@@ -240,6 +243,7 @@ void setup()
   if (DEBUG_PRINT) {
     Serial.begin(115200);
   }
+
   delay(20);
   if (DEBUG_PRINT) {
     Serial.println("Sensor and Relay");
@@ -324,19 +328,20 @@ void setup()
     if (DEBUG_PRINT) {
       Serial.println("Failed to read from DS18B20 sensor!");
     }
-    return;
+    //return;
   }
 
   // radio
   yield();
   radio.begin(); // Start up the radio
+  radio.setAutoAck(1); // Ensure autoACK is enabled
+  radio.setRetries(15, 15); // Max delay between retries & number of retries
   radio.setPALevel(RF24_PA_HIGH);
-  radio.setDataRate(RF24_250KBPS);  
-  radio.openReadingPipe(1,pipes[0]);
-  radio.openWritingPipe(pipes[1]);  
-  radio.stopListening();
+  radio.setDataRate(RF24_250KBPS);
+  radio.setPayloadSize(11);
+  radio.openReadingPipe(1, pipes[0]);
+  radio.openWritingPipe(pipes[1]);
   radio.startListening();
-
 }
 
 void loop()
@@ -413,8 +418,10 @@ void loop()
   payload += h;
   payload += ",\"Temperature\":";
   payload += t;
-  payload += ",\"DS18B20\":";
-  payload += tempCoutside;
+  if ( (tempCoutside > -100) && (tempCoutside < 100) ) {
+    payload += ",\"DS18B20\":";
+    payload += tempCoutside;
+  }
   payload += ",\"PIRSTATUS\":";
   payload += pirValue;
   payload += ",\"FreeHeap\":";
@@ -452,18 +459,34 @@ void loop()
     startMills = millis();
   }
 
-// radio 
+  // radio
   if (radio.available()) {
     while (radio.available()) {
-      yield();
       radio.read(&sensor_data, sizeof(sensor_data));
+
+      if (DEBUG_PRINT) {
+        Serial.print(" ****** radio ======> size : ");
+        Serial.print(sizeof(sensor_data));
+        Serial.print(" _salt : ");
+        Serial.print(sensor_data._salt);
+        Serial.print(" volt : ");
+        Serial.print(sensor_data.volt);
+        Serial.print(" temp : ");
+        Serial.print(sensor_data.temp);
+        Serial.print(" humi : ");
+        Serial.println(sensor_data.humi);
+      }
 
       String radiopayload = "{\"_salt\":";
       radiopayload += sensor_data._salt;
       radiopayload += ",\"volt\":";
       radiopayload += sensor_data.volt;
       radiopayload += ",\"temp\":";
-      radiopayload += sensor_data.temp;
+      radiopayload += ((float)sensor_data.temp / 10);
+      radiopayload += ",\"humi\":";
+      radiopayload += ((float)sensor_data.humi / 10);
+      radiopayload += ",\"devid\":";
+      radiopayload += sensor_data.devid;      
       radiopayload += "}";
 
       sendmqttMsg(radiotopic, radiopayload);
@@ -472,7 +495,6 @@ void loop()
   }
 
   client.loop();
-
 }
 
 void runTimerDoLightOff()
@@ -533,7 +555,7 @@ void getdalastemp()
   sensors.requestTemperatures();
   tempCoutside  = sensors.getTempC(outsideThermometer);
 
-  if ( isnan(tempCoutside)  ) {
+  if ( isnan(tempCoutside) || tempCoutside < -50  ) {
     if (DEBUG_PRINT) {
       Serial.println("Failed to read from sensor!");
     }
