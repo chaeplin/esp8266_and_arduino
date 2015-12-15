@@ -60,44 +60,57 @@ void setup() {
     sleep();
   }
   sensors.setResolution(outsideThermometer, TEMPERATURE_PRECISION);
-  sensors.requestTemperatures();
-  tempCoutside = sensors.getTempC(outsideThermometer);
+  /*
+    sensors.requestTemperatures();
+    tempCoutside = sensors.getTempC(outsideThermometer);
 
-  if (isnan(tempCoutside) || tempCoutside < -50 ) {
+    if (isnan(tempCoutside) || tempCoutside < -50 ) {
     sleep();
-  }
-
+    }
+  */
   payload._salt = 0;
   payload.devid = 2;
   payload.humi  = 0;
+
 }
 
 void loop() {
-  payload.volt = readVcc();
+  long startmilis = millis();
+
+  // ds18b20 getTem 766ms
   sensors.requestTemperatures();
   tempCoutside = sensors.getTempC(outsideThermometer) ;
 
   if (isnan(tempCoutside) || tempCoutside < -50 ) {
     sleep();
-  } else {
-  payload.temp = tempCoutside * 10 ;
+  }
 
-  radio.begin(); 
+  payload.temp = tempCoutside * 10 ;
+  payload.volt = readVcc();
+
+  // radio begin to power down : 80 ms
+  radio.begin();
   radio.enableDynamicPayloads();
-  radio.setAutoAck(1); 
-  radio.setRetries(15, 15); 
-  radio.setPALevel(RF24_PA_HIGH);
+  radio.setAutoAck(1);
+  radio.setRetries(15, 15);
+  //radio.setPALevel(RF24_PA_HIGH);
+  radio.setPALevel(RF24_PA_LOW);
   radio.setDataRate(RF24_250KBPS);
   radio.setPayloadSize(11);
   radio.openWritingPipe(pipes[0]);
   radio.stopListening();
+
   radio.write(&payload , sizeof(payload));
-  delay(100);
+  //yield();
+  //delay(100);
   radio.powerDown();
-  }
+  long stopmilis = millis();
+
+  payload.humi = ( stopmilis - startmilis ) * 10 ;
+  payload._salt++;
+
   sleep();
 
-  payload._salt++;
 }
 
 void sleep() {
