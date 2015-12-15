@@ -45,7 +45,8 @@ RF24 radio(CE_PIN, CSN_PIN);
 
 // DS18B20
 #define ONE_WIRE_BUS 3
-#define TEMPERATURE_PRECISION 12
+// 12bit - 750ms, 11bit - 375ms, 10bit - 187ms, 9bit - 93.75ms
+#define TEMPERATURE_PRECISION 9
 
 OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature sensors(&oneWire);
@@ -59,7 +60,7 @@ void setup() {
   if (!sensors.getAddress(outsideThermometer, 0)) {
     sleep();
   }
-  sensors.setResolution(outsideThermometer, TEMPERATURE_PRECISION);
+  //sensors.setResolution(outsideThermometer, TEMPERATURE_PRECISION);
   /*
     sensors.requestTemperatures();
     tempCoutside = sensors.getTempC(outsideThermometer);
@@ -78,6 +79,7 @@ void loop() {
   long startmilis = millis();
 
   // ds18b20 getTem 766ms
+  // 12bit - 750ms, 11bit - 375ms, 10bit - 187ms, 9bit - 93.75ms
   sensors.requestTemperatures();
   tempCoutside = sensors.getTempC(outsideThermometer) ;
 
