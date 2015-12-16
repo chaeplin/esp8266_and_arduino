@@ -55,40 +55,48 @@ DeviceAddress outsideThermometer;
 float tempCoutside;
 
 void setup() {
+  delay(20);
+  long startmilis = millis();
   adc_disable();
   sensors.begin();
   if (!sensors.getAddress(outsideThermometer, 0)) {
     sleep();
+    abort();
   }
   //sensors.setResolution(outsideThermometer, TEMPERATURE_PRECISION);
-  /*
-    sensors.requestTemperatures();
-    tempCoutside = sensors.getTempC(outsideThermometer);
+  long stopmilis = millis();
+  payload.humi = ( stopmilis - startmilis ) * 10 ;
 
-    if (isnan(tempCoutside) || tempCoutside < -50 ) {
-    sleep();
-    }
-  */
   payload._salt = 0;
   payload.devid = 2;
-  payload.humi  = 0;
-
 }
 
 void loop() {
+  payload._salt++;
   long startmilis = millis();
 
   // ds18b20 getTem 766ms
   // 12bit - 750ms, 11bit - 375ms, 10bit - 187ms, 9bit - 93.75ms
   sensors.requestTemperatures();
-  tempCoutside = sensors.getTempC(outsideThermometer) ;
+  tempCoutside = sensors.getTempC(outsideThermometer);
 
-  if (isnan(tempCoutside) || tempCoutside < -50 ) {
+  if (isnan(tempCoutside) || tempCoutside < -50 || tempCoutside > 50 ) {
     sleep();
+    abort();
   }
 
   payload.temp = tempCoutside * 10 ;
   payload.volt = readVcc();
+
+  if ( payload.volt > 5000 || payload.volt <= 0 ) {
+    sleep();
+    abort();
+  }
+
+  if ( payload.humi < 0 ) {
+    sleep();
+    abort();
+  }
 
   // radio begin to power down : 80 ms
   radio.begin();
@@ -103,16 +111,14 @@ void loop() {
   radio.stopListening();
 
   radio.write(&payload , sizeof(payload));
-  //yield();
+  yield();
   //delay(100);
   radio.powerDown();
   long stopmilis = millis();
 
   payload.humi = ( stopmilis - startmilis ) * 10 ;
-  payload._salt++;
-
+  //payload._salt++;
   sleep();
-
 }
 
 void sleep() {
