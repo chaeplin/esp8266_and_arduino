@@ -6,7 +6,7 @@
 
 HX711 scale(A0, A1);
 
-#define DEBUG_OUT 1
+#define DEBUG_OUT 0
 
 const int nemoisonPin = 9;
 volatile int measured = 0;
@@ -20,7 +20,7 @@ Timer t;
 
 void setup()
 {
-  Serial.begin(38400);
+  Serial.begin(115200);
   if ( DEBUG_OUT ) {
     Serial.println("pet pad scale started");
     delay(100);
@@ -33,7 +33,8 @@ void setup()
 
   delay(1000);
 
-  scale.set_scale(23040.f);
+  scale.set_scale(231.f);
+  //scale.set_scale(23040.f);
   scale.tare();
 
   Wire.begin(2);
@@ -47,13 +48,14 @@ void setup()
 void doUpdateHX711()
 {
   volatile float fmeasured = scale.get_units(5) ;
-  measured = int(fmeasured * 1000) ;
+  measured = int(fmeasured * 10) ;
   tosend = measured;
   isSent = ! isSent;
 }
 
 void loop()
 {
+
   t.update();
 
   if ( isSent != o_isSent )
