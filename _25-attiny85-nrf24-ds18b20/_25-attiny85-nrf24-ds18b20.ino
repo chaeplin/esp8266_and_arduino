@@ -45,7 +45,6 @@ RF24 radio(CE_PIN, CSN_PIN);
 
 // DS18B20
 #define ONE_WIRE_BUS 3
-// 12bit - 750ms, 11bit - 375ms, 10bit - 187ms, 9bit - 93.75ms
 #define TEMPERATURE_PRECISION 9
 
 OneWire oneWire(ONE_WIRE_BUS);
@@ -63,7 +62,22 @@ void setup() {
     sleep();
     abort();
   }
+  // ds18b20 getTem 766ms
+  // 12bit - 750ms, 11bit - 375ms, 10bit - 187ms, 9bit - 93.75ms
   //sensors.setResolution(outsideThermometer, TEMPERATURE_PRECISION);
+
+  // radio begin to power down : 80 ms
+  radio.begin();
+  //radio.enableDynamicPayloads();
+  // default is on
+  //radio.setAutoAck(1);
+  radio.setRetries(15, 15);
+  radio.setPALevel(RF24_PA_LOW);
+  radio.setDataRate(RF24_250KBPS);
+  radio.setPayloadSize(11);
+  radio.openWritingPipe(pipes[0]);
+  radio.stopListening();
+
   long stopmilis = millis();
   payload.humi = ( stopmilis - startmilis ) * 10 ;
 
@@ -75,8 +89,6 @@ void loop() {
   payload._salt++;
   long startmilis = millis();
 
-  // ds18b20 getTem 766ms
-  // 12bit - 750ms, 11bit - 375ms, 10bit - 187ms, 9bit - 93.75ms
   sensors.requestTemperatures();
   tempCoutside = sensors.getTempC(outsideThermometer);
 
@@ -98,18 +110,8 @@ void loop() {
     abort();
   }
 
-  // radio begin to power down : 80 ms
-  radio.begin();
-  radio.enableDynamicPayloads();
-  radio.setAutoAck(1);
-  radio.setRetries(15, 15);
-  //radio.setPALevel(RF24_PA_HIGH);
-  radio.setPALevel(RF24_PA_LOW);
-  radio.setDataRate(RF24_250KBPS);
-  radio.setPayloadSize(11);
-  radio.openWritingPipe(pipes[0]);
-  radio.stopListening();
 
+  radio.powerUp();
   radio.write(&payload , sizeof(payload));
   yield();
   //delay(100);
