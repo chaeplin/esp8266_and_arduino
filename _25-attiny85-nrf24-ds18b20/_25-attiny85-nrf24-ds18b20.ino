@@ -55,7 +55,7 @@ float tempCoutside;
 
 void setup() {
   delay(20);
-  long startmilis = millis();
+  unsigned long startmilis = millis();
   adc_disable();
   sensors.begin();
   if (!sensors.getAddress(outsideThermometer, 0)) {
@@ -78,7 +78,7 @@ void setup() {
   radio.openWritingPipe(pipes[0]);
   radio.stopListening();
 
-  long stopmilis = millis();
+  unsigned long stopmilis = millis();
   payload.humi = ( stopmilis - startmilis ) * 10 ;
 
   payload._salt = 0;
@@ -87,7 +87,7 @@ void setup() {
 
 void loop() {
   payload._salt++;
-  long startmilis = millis();
+  unsigned long startmilis = millis();
 
   sensors.requestTemperatures();
   tempCoutside = sensors.getTempC(outsideThermometer);
@@ -116,7 +116,7 @@ void loop() {
   yield();
   //delay(100);
   radio.powerDown();
-  long stopmilis = millis();
+  unsigned long stopmilis = millis();
 
   payload.humi = ( stopmilis - startmilis ) * 10 ;
   //payload._salt++;

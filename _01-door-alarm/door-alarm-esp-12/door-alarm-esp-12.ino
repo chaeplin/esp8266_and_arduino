@@ -37,7 +37,7 @@ int doorstatusPin = 5 ; // espDoorPin
 int doorstatus ;
 int vdd ;
 
-long startMills ;
+unsigned long startMills ;
 
 char* topic = "esp8266/arduino/s05" ;
 char* hellotopic = "HELLO" ;

@@ -39,13 +39,13 @@ IPAddress server(192, 168, 10, 10);
 //#define REPORT_INTERVAL 60000 // in msec
 #define REPORT_INTERVAL 3000 // in msec
 
-volatile long startMills ;
-volatile long revMills ;
+volatile unsigned long startMills ;
+volatile unsigned long revMills ;
 
 unsigned long timemillis;
 
-long oldrevMills ;
-long sentMills ;
+unsigned long oldrevMills ;
+unsigned long sentMills ;
 
 volatile int irStatus = LOW ;
 
@@ -244,7 +244,7 @@ void loop()
         Serial.print("------------> failed, rc=");
         Serial.print(client.state());
       }
-      long now = millis();
+      unsigned long now = millis();
       //      if (now - lastReconnectAttempt > 5000) {
       if (now - lastReconnectAttempt > 1000) {
         lastReconnectAttempt = now;

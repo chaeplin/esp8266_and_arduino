@@ -40,7 +40,7 @@ void callback(const MQTT::Publish& pub) {
 
 PubSubClient client(wifiClient, server);
 
-long startMills;
+unsigned long startMills;
 
 int vdd;
 

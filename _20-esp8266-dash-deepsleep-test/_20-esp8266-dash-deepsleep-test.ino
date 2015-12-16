@@ -153,7 +153,7 @@ void wifi_connect()
   WiFi.begin(ssid, password);
   //WiFi.begin(ssid, password, channel, bssid);
 
-  int timeout = millis() + 10000;
+  unsigned long timeout = millis() + 10000;
   while ((WiFi.status() != WL_CONNECTED) && (timeout > millis())) {
     delay(10);
     if (DEBUG_PRINT) {
@@ -230,7 +230,7 @@ void loop()
   digitalWrite(greenLED, HIGH);
   if (WiFi.status() == WL_CONNECTED) {
     if (!client.connected()) {
-      long now = millis();
+      unsigned long now = millis();
       if (now - lastReconnectAttempt > 200) {
         lastReconnectAttempt = now;
         if (reconnect()) {

@@ -61,8 +61,8 @@ float Humidityinside;
 
 // Timer
 Timer t;
-long temp_Mills;
-long pir_Mills;
+unsigned long temp_Mills;
+unsigned long pir_Mills;
 
 int tvIsOnEvent;
 

@@ -58,8 +58,8 @@ float calcVoltage = 0;
 float dustDensity = 0;
 
 // -----------------------------------------
-long startMills;
-volatile long ac_startMills;
+unsigned long startMills;
+volatile unsigned long ac_startMills;
 // ------------------------------------------
 // IR
 const int AC_TYPE  = 0;

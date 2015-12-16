@@ -28,7 +28,7 @@ int espResetPin   = 9;
 int buzzerVccPin  = 5;
 int buzzerIoPin   = 6;
 
-long startMills;
+unsigned long startMills;
 
 int espRfstate = HIGH;
 

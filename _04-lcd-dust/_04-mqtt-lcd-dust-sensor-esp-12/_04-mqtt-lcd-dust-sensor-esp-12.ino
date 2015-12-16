@@ -504,39 +504,9 @@ time_t prevDisplay = 0; // when the digital clock was displayed
 
 void loop()
 {
-  /*
   if (WiFi.status() == WL_CONNECTED) {
     if (!client.connected()) {
-      long now = millis();
-      if (now - lastReconnectAttempt > 1000) {
-        if (DEBUG_PRINT) {
-          Serial.print("failed, rc=");
-          Serial.println(client.state());
-        }
-        lastReconnectAttempt = now;
-        resetCountforMqttReconnect++;
-        if ( resetCountforMqttReconnect == 100 ) {
-          if (DEBUG_PRINT) {
-            Serial.println();
-            Serial.println("Could not connect to mqtt");
-          }
-          ESP.restart();
-          delay(500);
-        }
-        if (reconnect()) {
-          lastReconnectAttempt = 0;
-          resetCountforMqttReconnect = 0;
-        }
-      }
-    }
-  } else {
-    wifi_connect();
-  }
-  */
-
-  if (WiFi.status() == WL_CONNECTED) {
-    if (!client.connected()) {
-      long now = millis();
+      unsigned long now = millis();
       if (now - lastReconnectAttempt > 500) {
         if (DEBUG_PRINT) {
           Serial.print("failed, rc=");

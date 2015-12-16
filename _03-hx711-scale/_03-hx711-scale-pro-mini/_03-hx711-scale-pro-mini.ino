@@ -13,7 +13,7 @@ volatile int measured = 0;
 volatile int tosend   = 0;
 volatile int isSent   = LOW;
 volatile int o_isSent = LOW;
-long startMills;
+unsigned long startMills;
 
 // Timer
 Timer t;
