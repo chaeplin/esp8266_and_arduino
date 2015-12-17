@@ -60,7 +60,7 @@ void setup() {
   sensors.begin();
   if (!sensors.getAddress(outsideThermometer, 0)) {
     sleep();
-    abort();
+    return();
   }
   // ds18b20 getTem 766ms
   // 12bit - 750ms, 11bit - 375ms, 10bit - 187ms, 9bit - 93.75ms
@@ -69,7 +69,7 @@ void setup() {
   // radio begin to power down : 80 ms
   radio.begin();
   //radio.enableDynamicPayloads();
-  // default is on
+  // setAutoAck default is on
   //radio.setAutoAck(1);
   radio.setRetries(15, 15);
   radio.setPALevel(RF24_PA_LOW);
@@ -94,7 +94,7 @@ void loop() {
 
   if (isnan(tempCoutside) || tempCoutside < -50 || tempCoutside > 50 ) {
     sleep();
-    abort();
+    return();
   }
 
   payload.temp = tempCoutside * 10 ;
@@ -102,24 +102,21 @@ void loop() {
 
   if ( payload.volt > 5000 || payload.volt <= 0 ) {
     sleep();
-    abort();
+    return();
   }
 
   if ( payload.humi < 0 ) {
     sleep();
-    abort();
+    return();
   }
 
 
   radio.powerUp();
   radio.write(&payload , sizeof(payload));
-  yield();
-  //delay(100);
   radio.powerDown();
   unsigned long stopmilis = millis();
 
   payload.humi = ( stopmilis - startmilis ) * 10 ;
-  //payload._salt++;
   sleep();
 }
 
