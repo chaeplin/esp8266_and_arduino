@@ -1,32 +1,23 @@
-// pins
-/* 24l01    85
-   1  gnd   4
-   2  vcc   8
-   3  ce    1
-   4  csn   3
-   5  sck   7
-   6  mosi  6
-   7  miso  5
-*/
-
 #include <LowPower.h>
-#include <avr/wdt.h>
 #include <avr/interrupt.h>
 #include <avr/sleep.h>
+#include <avr/wdt.h>
 #include <avr/pgmspace.h>
-#include <OneWire.h>
-#include <DallasTemperature.h>
 #include <nRF24L01.h>
 #include <RF24.h>
 
 //Disabling ADC saves ~230uAF. Needs to be re-enable for the internal voltage check
 #define adc_disable() (ADCSRA &= ~(1<<ADEN)) // disable ADC
 #define adc_enable()  (ADCSRA |=  (1<<ADEN)) // re-enable ADC
+/*
+  ADCSRA &= ~_BV(ADEN);                   // ADC off
+  ADCSRA |= _BV(ADEN);                    // ADC on
+*/
 
 #define CE_PIN 5
 #define CSN_PIN 4
 
-#define DEVICE_ID 2
+#define DEVICE_ID 3
 #define CHANNEL 1
 
 const uint64_t pipes[2] = { 0xFFFFFFFFFFLL, 0xCCCCCCCCCCLL };
@@ -43,34 +34,18 @@ data payload;
 
 RF24 radio(CE_PIN, CSN_PIN);
 
-// DS18B20
-#define ONE_WIRE_BUS 3
-#define TEMPERATURE_PRECISION 9
-
-OneWire oneWire(ONE_WIRE_BUS);
-DallasTemperature sensors(&oneWire);
-DeviceAddress outsideThermometer;
-
-float tempCoutside;
+const int statusPin = 3;
+volatile int statusPinStatus ;
 
 void setup() {
   delay(20);
   unsigned long startmilis = millis();
   adc_disable();
-  sensors.begin();
-  if (!sensors.getAddress(outsideThermometer, 0)) {
-    sleep();
-    //return;
-  }
-  // ds18b20 getTem 766ms
-  // 12bit - 750ms, 11bit - 375ms, 10bit - 187ms, 9bit - 93.75ms
-  //sensors.setResolution(outsideThermometer, TEMPERATURE_PRECISION);
 
-  // radio begin to power down : 80 ms
+  pinMode(statusPin, INPUT_PULLUP);
+  statusPinStatus = digitalRead(statusPin);
+
   radio.begin();
-  //radio.enableDynamicPayloads();
-  // setAutoAck default is on
-  //radio.setAutoAck(1);
   radio.setRetries(15, 15);
   radio.setPALevel(RF24_PA_LOW);
   radio.setDataRate(RF24_250KBPS);
@@ -86,45 +61,46 @@ void setup() {
 }
 
 void loop() {
-  payload._salt++;
-  unsigned long startmilis = millis();
-
-  sensors.requestTemperatures();
-  tempCoutside = sensors.getTempC(outsideThermometer);
-
-  if (isnan(tempCoutside) || tempCoutside < -50 || tempCoutside > 50 ) {
-    sleep();
-    return;
-  }
-
-  payload.temp = tempCoutside * 10 ;
-  payload.volt = readVcc();
-
-  if ( payload.volt > 5000 || payload.volt <= 0 ) {
-    sleep();
-    return;
-  }
-
-  if ( payload.humi < 0 ) {
-    sleep();
-    return;
-  }
-
-
-  radio.powerUp();
-  radio.write(&payload , sizeof(payload));
-  radio.powerDown();
-  unsigned long stopmilis = millis();
-
-  payload.humi = ( stopmilis - startmilis ) * 10 ;
   sleep();
+
+  statusPinStatus = digitalRead(statusPin);
+  if ( statusPinStatus == HIGH) {
+
+    payload._salt++;
+    unsigned long startmilis = millis();
+
+    payload.temp =  10 ;
+    payload.volt = readVcc();
+
+    if ( payload.volt > 5000 || payload.volt <= 0 ) {
+      return;
+    }
+
+    radio.powerUp();
+    radio.write(&payload , sizeof(payload));
+    radio.powerDown();
+
+    unsigned long stopmilis = millis();
+    LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF);
+  }
 }
 
 void sleep() {
-  for (int i = 0; i < 7; i++) {
-    LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF);
-  }
-  LowPower.powerDown(SLEEP_4S, ADC_OFF, BOD_OFF);
+  GIMSK |= _BV(PCIE);                     // Enable Pin Change Interrupts
+  PCMSK |= _BV(PCINT3);                   // Use PB3 as interrupt pin
+  set_sleep_mode(SLEEP_MODE_PWR_DOWN);    // replaces above statement
+
+  sleep_enable();                         // Sets the Sleep Enable bit in the MCUCR Register (SE BIT)
+  sei();                                  // Enable interrupts
+  sleep_cpu();                            // sleep
+
+  cli();                                  // Disable interrupts
+  PCMSK &= ~_BV(PCINT3);                  // Turn off PB3 as interrupt pin
+  sleep_disable();                        // Clear SE bit
+  //sei();                                  // Enable interrupts
+}
+
+ISR(PCINT0_vect) {
 }
 
 int readVcc() {
