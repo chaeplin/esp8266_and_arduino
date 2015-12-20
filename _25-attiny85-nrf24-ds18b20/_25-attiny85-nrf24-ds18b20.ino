@@ -64,7 +64,7 @@ void setup() {
   }
   // ds18b20 getTem 766ms
   // 12bit - 750ms, 11bit - 375ms, 10bit - 187ms, 9bit - 93.75ms
-  //sensors.setResolution(outsideThermometer, TEMPERATURE_PRECISION);
+  sensors.setResolution(outsideThermometer, TEMPERATURE_PRECISION);
 
   // radio begin to power down : 80 ms
   radio.begin();

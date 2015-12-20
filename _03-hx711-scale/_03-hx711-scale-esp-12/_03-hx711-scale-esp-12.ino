@@ -15,7 +15,7 @@
 #define nemoisOnPin 14
 #define ledPin 13
 
-#define DEBUG_PRINT 1
+#define DEBUG_PRINT 0
 
 // ****************
 const char* ssid = WIFI_SSID;

@@ -3,7 +3,7 @@
 
 HX711 scale(A0, A1);
 
-#define DEBUG_OUT 1
+#define DEBUG_OUT 0
 
 const int nemoisonPin = 9;
 volatile int measured = 0;
