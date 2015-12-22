@@ -1,6 +1,6 @@
 #include <SPI.h>
-#include <nRF24L01.h>
-#include <RF24.h>
+#include "nRF24L01.h"
+#include "RF24.h"
 #include <pgmspace.h>
 #include <OneWire.h>
 #include "DHT.h"
@@ -11,8 +11,8 @@
 #include <Time.h>
 
 // radio
-#define DEVICE_ID 2
-#define CHANNEL 1 //MAX 127
+#define DEVICE_ID 1
+#define CHANNEL 100 //MAX 127
 
 extern "C" {
 #include "user_interface.h"
@@ -57,7 +57,7 @@ DHT dht(DHTPIN, DHTTYPE);
 // DS18B20
 //#define ONE_WIRE_BUS 12
 #define ONE_WIRE_BUS 0
-#define TEMPERATURE_PRECISION 12
+#define TEMPERATURE_PRECISION 9
 
 OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature sensors(&oneWire);
@@ -72,8 +72,8 @@ const uint64_t pipes[2] = { 0xFFFFFFFFFFLL, 0xCCCCCCCCCCLL };
 typedef struct {
   uint32_t _salt;
   uint16_t volt;
-  int16_t temp;
-  int16_t humi;
+  int16_t data1;
+  int16_t data2;
   uint8_t devid;
 } data;
 
@@ -85,6 +85,7 @@ char* subtopic = "esp8266/cmd/light";
 char* rslttopic = "esp8266/cmd/light/rlst";
 char* hellotopic = "HELLO";
 char* radiotopic = "radio/test";
+char* radiofault = "radio/test/fault";
 
 char* willTopic = "clients/relay";
 char* willMessage = "0";
@@ -176,7 +177,6 @@ void wifi_connect()
     Serial.println("IP address: ");
     Serial.println(WiFi.localIP());
   }
-
 }
 
 boolean reconnect()
@@ -332,16 +332,19 @@ void setup()
   }
 
   // radio
-  yield();
-  radio.begin(); // Start up the radio
-  radio.setAutoAck(1); // Ensure autoACK is enabled
-  radio.setRetries(15, 15); // Max delay between retries & number of retries
+  //yield();
+  radio.begin();
+  radio.setChannel(CHANNEL);
   radio.setPALevel(RF24_PA_HIGH);
   radio.setDataRate(RF24_250KBPS);
+  radio.setAutoAck(1);
+  radio.setRetries(15, 15);
+  //radio.setCRCLength(RF24_CRC_8);
   radio.setPayloadSize(11);
   radio.openReadingPipe(1, pipes[0]);
   radio.openWritingPipe(pipes[1]);
   radio.startListening();
+
 }
 
 void loop()
@@ -414,23 +417,36 @@ void loop()
     oldpirValue = pirValue;
   }
 
-  payload = "{\"Humidity\":";
-  payload += h;
-  payload += ",\"Temperature\":";
-  payload += t;
-  if ( (tempCoutside > -100) && (tempCoutside < 100) ) {
-    payload += ",\"DS18B20\":";
-    payload += tempCoutside;
+  if ( isnan(h) || isnan(t) || isnan(tempCoutside )) {
+    payload = "{\"PIRSTATUS\":";
+    payload += pirValue;
+    payload += ",\"FreeHeap\":";
+    payload += ESP.getFreeHeap();
+    payload += ",\"RSSI\":";
+    payload += WiFi.RSSI();
+    payload += ",\"millis\":";
+    payload += (millis() - timemillis);
+    payload += "}";
+
+  } else {
+    payload = "{\"Humidity\":";
+    payload += h;
+    payload += ",\"Temperature\":";
+    payload += t;
+    if ( (tempCoutside > -100) && (tempCoutside < 100) ) {
+      payload += ",\"DS18B20\":";
+      payload += tempCoutside;
+    }
+    payload += ",\"PIRSTATUS\":";
+    payload += pirValue;
+    payload += ",\"FreeHeap\":";
+    payload += ESP.getFreeHeap();
+    payload += ",\"RSSI\":";
+    payload += WiFi.RSSI();
+    payload += ",\"millis\":";
+    payload += (millis() - timemillis);
+    payload += "}";
   }
-  payload += ",\"PIRSTATUS\":";
-  payload += pirValue;
-  payload += ",\"FreeHeap\":";
-  payload += ESP.getFreeHeap();
-  payload += ",\"RSSI\":";
-  payload += WiFi.RSSI();
-  payload += ",\"millis\":";
-  payload += (millis() - timemillis);
-  payload += "}";
 
   //if (( pirSent == HIGH ) && ( pirValue == HIGH ))
   if ( pirSent == HIGH )
@@ -471,25 +487,42 @@ void loop()
         Serial.print(sensor_data._salt);
         Serial.print(" volt : ");
         Serial.print(sensor_data.volt);
-        Serial.print(" temp : ");
-        Serial.print(sensor_data.temp);
-        Serial.print(" humi : ");
-        Serial.println(sensor_data.humi);
+        Serial.print(" data1 : ");
+        Serial.print(sensor_data.data1);
+        Serial.print(" data2 : ");
+        Serial.print(sensor_data.data2);
+        Serial.print(" dev_id :");
+        Serial.println(sensor_data.devid);
       }
+
 
       String radiopayload = "{\"_salt\":";
       radiopayload += sensor_data._salt;
       radiopayload += ",\"volt\":";
       radiopayload += sensor_data.volt;
-      radiopayload += ",\"temp\":";
-      radiopayload += ((float)sensor_data.temp / 10);
-      radiopayload += ",\"humi\":";
-      radiopayload += ((float)sensor_data.humi / 10);
+      radiopayload += ",\"data1\":";
+      radiopayload += ((float)sensor_data.data1 / 10);
+      radiopayload += ",\"data2\":";
+      radiopayload += ((float)sensor_data.data2 / 10);
       radiopayload += ",\"devid\":";
-      radiopayload += sensor_data.devid;      
+      radiopayload += sensor_data.devid;
       radiopayload += "}";
 
-      sendmqttMsg(radiotopic, radiopayload);
+      if ( (sensor_data.devid > 0) && (sensor_data.devid < 255) ) 
+      {
+        String newRadiotopic = radiotopic;
+        newRadiotopic += "/";
+        newRadiotopic += sensor_data.devid;
+
+        unsigned int newRadiotopic_length = newRadiotopic.length();
+        char newRadiotopictosend[newRadiotopic_length] ;
+        newRadiotopic.toCharArray(newRadiotopictosend, newRadiotopic_length + 1);
+
+        sendmqttMsg(newRadiotopictosend, radiopayload);
+
+      } else {
+        sendmqttMsg(radiofault, radiopayload);
+      }
 
     }
   }
@@ -568,6 +601,8 @@ void sendmqttMsg(char* topictosend, String payload)
   if (client.connected()) {
     if (DEBUG_PRINT) {
       Serial.print("Sending payload: ");
+      Serial.print(topictosend);
+      Serial.print(" - ");
       Serial.print(payload);
     }
 

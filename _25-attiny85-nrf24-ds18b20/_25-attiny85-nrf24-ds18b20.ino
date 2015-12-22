@@ -27,15 +27,15 @@
 #define CSN_PIN 4
 
 #define DEVICE_ID 2
-#define CHANNEL 1
+#define CHANNEL 100
 
 const uint64_t pipes[2] = { 0xFFFFFFFFFFLL, 0xCCCCCCCCCCLL };
 
 typedef struct {
   uint32_t _salt;
   uint16_t volt;
-  int16_t temp;
-  int16_t humi;
+  int16_t data1;
+  int16_t data2;
   uint8_t devid;
 } data;
 
@@ -68,18 +68,19 @@ void setup() {
 
   // radio begin to power down : 80 ms
   radio.begin();
-  //radio.enableDynamicPayloads();
-  // setAutoAck default is on
-  //radio.setAutoAck(1);
-  radio.setRetries(15, 15);
+  radio.setChannel(CHANNEL);
   radio.setPALevel(RF24_PA_LOW);
   radio.setDataRate(RF24_250KBPS);
+  //radio.setAutoAck(1); 
+  radio.setRetries(15, 15);
+  //radio.setCRCLength(RF24_CRC_8);
   radio.setPayloadSize(11);
+  //
   radio.openWritingPipe(pipes[0]);
   radio.stopListening();
 
   unsigned long stopmilis = millis();
-  payload.humi = ( stopmilis - startmilis ) * 10 ;
+  payload.data2 = ( stopmilis - startmilis ) * 10 ;
 
   payload._salt = 0;
   payload.devid = DEVICE_ID;
@@ -97,7 +98,7 @@ void loop() {
     return;
   }
 
-  payload.temp = tempCoutside * 10 ;
+  payload.data1 = (tempCoutside * 10);
   payload.volt = readVcc();
 
   if ( payload.volt > 5000 || payload.volt <= 0 ) {
@@ -105,7 +106,7 @@ void loop() {
     return;
   }
 
-  if ( payload.humi < 0 ) {
+  if ( payload.data2 < 0 ) {
     sleep();
     return;
   }
@@ -116,7 +117,7 @@ void loop() {
   radio.powerDown();
   unsigned long stopmilis = millis();
 
-  payload.humi = ( stopmilis - startmilis ) * 10 ;
+  payload.data2 = ( stopmilis - startmilis ) * 10  ;
   sleep();
 }
 
