@@ -3,21 +3,6 @@
 #include <PubSubClient.h>
 #include <ESP8266WiFi.h>
 
-extern "C" {
-#include "user_interface.h"
-}
-
-ADC_MODE(ADC_VCC);
-
-#define dsout 5
-
-#define ONE_WIRE_BUS 4
-#define TEMPERATURE_PRECISION 12
-
-OneWire oneWire(ONE_WIRE_BUS);
-DallasTemperature sensors(&oneWire);
-DeviceAddress insideThermometer, outsideThermometer;
-
 #define _IS_MY_HOME
 
 // wifi
@@ -27,64 +12,137 @@ DeviceAddress insideThermometer, outsideThermometer;
 #include "ap_setting.h"
 #endif
 
-char* topic = "esp8266/arduino/s04";
-char* hellotopic = "HELLO";
-IPAddress server(192, 168, 10, 10);
-
-String clientName;
-WiFiClient wifiClient;
-
-void callback(const MQTT::Publish& pub) {
-  // handle message arrived
+extern "C" {
+#include "user_interface.h"
 }
 
-PubSubClient client(wifiClient, server);
+ADC_MODE(ADC_VCC);
 
-unsigned long startMills;
+#define DEBUG_PRINT 0
+
+#define dsout 5
+#define ONE_WIRE_BUS 4
+#define TEMPERATURE_PRECISION 9
+
+OneWire oneWire(ONE_WIRE_BUS);
+DallasTemperature sensors(&oneWire);
+DeviceAddress insideThermometer, outsideThermometer;
+
+#define IPSET_STATIC { 192, 168, 10, 21 }
+#define IPSET_GATEWAY { 192, 168, 10, 1 }
+#define IPSET_SUBNET { 255, 255, 255, 0 }
+#define IPSET_DNS { 192, 168, 10, 10 }
+
+// ****************
+const char* ssid = WIFI_SSID;
+const char* password = WIFI_PASSWORD;
+int32_t channel = WIFI_CHANNEL;
+//byte bssid[] = WIFI_BSSID;
+byte mqtt_server[] = MQTT_SERVER;
+//
+byte ip_static[] = IPSET_STATIC;
+byte ip_gateway[] = IPSET_GATEWAY;
+byte ip_subnet[] = IPSET_SUBNET;
+byte ip_dns[] = IPSET_DNS;
+// ****************
+
+char* topic = "esp8266/arduino/s04";
+char* hellotopic = "HELLO";
+
+WiFiClient wifiClient;
+PubSubClient client(mqtt_server, 1883, callback, wifiClient);
+
+long lastReconnectAttempt = 0;
+
+unsigned long startMills = 0;
+unsigned long wifiMills = 0;
+
+String clientName;
+
+  float tempCoutside ;
+  float tempCinside ;
 
 int vdd;
+
+void callback(char* intopic, byte* inpayload, unsigned int length) {
+  //
+}
+
+boolean reconnect()
+{
+  if (client.connect((char*) clientName.c_str())) {
+    //
+  } else {
+    goingToSleep();
+  }
+  return client.connected();
+}
+
+void wifi_connect()
+{
+  WiFiClient::setLocalPortStart(micros() + vdd);
+  wifi_set_phy_mode(PHY_MODE_11N);
+  system_phy_set_rfoption(1);
+  wifi_set_channel(channel);
+
+  if (WiFi.status() != WL_CONNECTED) {
+    delay(10);
+    WiFi.mode(WIFI_STA);
+    // ****************
+    WiFi.begin(ssid, password);
+    //WiFi.begin(ssid, password, channel, bssid);
+    WiFi.config(IPAddress(ip_static), IPAddress(ip_gateway), IPAddress(ip_subnet), IPAddress(ip_dns));
+    // ****************
+
+    int Attempt = 0;
+    while (WiFi.status() != WL_CONNECTED) {
+      delay(100);
+      Attempt++;
+      if (Attempt == 150)
+      {
+        goingToSleep();
+      }
+    }
+
+    wifiMills = millis() - startMills;
+  }
+}
+
 
 void setup(void)
 {
   startMills = millis();
   // start serial port
-  Serial.begin(74880);
-  Serial.println("Dallas Temperature IC Control Library Demo");
+  if (DEBUG_PRINT) {
+    Serial.begin(115200);
+  }
+  delay(10);
+  vdd = ESP.getVcc();
 
-  Serial.println(millis() - startMills);
-  vdd = ESP.getVcc() ;
-  Serial.println(millis() - startMills);
+  // get ds18b20 temp
+  delay(10);
+  pinMode(dsout, OUTPUT);
+  digitalWrite(dsout, HIGH);
+  delay(10);
 
-  // vdd = readvdd33();
-  //-------------------
+  sensors.begin();
+  if (!sensors.getAddress(insideThermometer, 0)) {
+    goingToSleep();
+  }
+  sensors.setResolution(insideThermometer, TEMPERATURE_PRECISION);
+  sensors.requestTemperatures();
+  tempCoutside = tempCinside = sensors.getTempC(insideThermometer);
 
-  Serial.println();
-  Serial.println();
-  Serial.print("Connecting to ");
-  Serial.println(ssid);
+  digitalWrite(dsout, LOW);
 
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(ssid, password);
-
-  int Attempt = 0;
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(100);
-    Attempt++;
-    Serial.print(".");
-    if (Attempt == 100)
-    {
-      Serial.println();
-      Serial.println("Could not connect to WIFI");
-      goingToSleep();
-    }
+  if ( isnan(tempCinside) || isnan(tempCoutside) || isnan(vdd) ) {
+    goingToSleep();
   }
 
-  Serial.println(millis() - startMills);
-  Serial.println("");
-  Serial.println("WiFi connected");
-  Serial.println("IP address: ");
-  Serial.println(WiFi.localIP());
+  //
+  wifi_connect();
 
+  //
   clientName += "esp8266-";
   uint8_t mac[6];
   WiFi.macAddress(mac);
@@ -92,163 +150,98 @@ void setup(void)
   clientName += "-";
   clientName += String(micros() & 0xff, 16);
 
-  delay(100);
-
-  pinMode(dsout, OUTPUT);
-  digitalWrite(dsout, HIGH);
-  delay(20);
-
-  // Start up the library
-  sensors.begin();
-
-
-  //
-  // method 1: by index
-  if (!sensors.getAddress(insideThermometer, 0)) {
-    Serial.println("Unable to find address for Device 0");
-    goingToSleep();
-  }
-  /*
-  if (!sensors.getAddress(outsideThermometer, 1)) {
-    Serial.println("Unable to find address for Device 1");
-    goingToSleep();
-  }
-  */
-  sensors.setResolution(insideThermometer, TEMPERATURE_PRECISION);
-  /*
-  sensors.setResolution(outsideThermometer, TEMPERATURE_PRECISION);
-  */
-  Serial.println(millis() - startMills);
-
-}
-
-// function to print a device address
-void printAddress(DeviceAddress deviceAddress)
-{
-  for (uint8_t i = 0; i < 8; i++)
-  {
-    // zero pad the address if necessary
-    if (deviceAddress[i] < 16) Serial.print("0");
-    Serial.print(deviceAddress[i], HEX);
-  }
-}
-
-// function to print the temperature for a device
-void printTemperature(DeviceAddress deviceAddress)
-{
-  float tempC = sensors.getTempC(deviceAddress);
-  Serial.print("Temp C: ");
-  Serial.print(tempC);
-  Serial.print(" Temp F: ");
-  Serial.print(DallasTemperature::toFahrenheit(tempC));
-}
-
-// function to print a device's resolution
-void printResolution(DeviceAddress deviceAddress)
-{
-  Serial.print("Resolution: ");
-  Serial.print(sensors.getResolution(deviceAddress));
-  Serial.println();
-}
-
-// main function to print information about a device
-void printData(DeviceAddress deviceAddress)
-{
-  Serial.print("Device Address: ");
-  printAddress(deviceAddress);
-  Serial.print(" ");
-  printTemperature(deviceAddress);
-  Serial.println();
+  lastReconnectAttempt = 0;
+  reconnect();
 }
 
 void loop(void)
 {
-
-  // original loop
-
-  Serial.println(millis() - startMills);
-  // call sensors.requestTemperatures() to issue a global temperature
-  // request to all devices on the bus
-  Serial.print("Requesting temperatures...");
-  sensors.requestTemperatures();
-  Serial.println("DONE");
-  Serial.println(millis() - startMills);
-
-  // print the device information
-  // printData(insideThermometer);
-  // printData(outsideThermometer);
-
-  Serial.println(millis() - startMills);
-  /*
-  float tempCinside  = sensors.getTempC(outsideThermometer);
-  */
-  float tempCoutside = sensors.getTempC(insideThermometer);
-  float tempCinside  = tempCoutside;
-
-  digitalWrite(dsout, LOW);
-
-
-  if ( isnan(tempCinside) || isnan(tempCoutside) || isnan(vdd) ) {
-    Serial.println("Failed to read from sensor!");
-    goingToSleep();
+  if (WiFi.status() == WL_CONNECTED) {
+    if (!client.connected()) {
+      long now = millis();
+      if (now - lastReconnectAttempt > 200) {
+        lastReconnectAttempt = now;
+        if (reconnect()) {
+          lastReconnectAttempt = 0;
+        }
+      }
+    }
+  } else {
+    wifi_connect();
   }
 
-  Serial.println(millis() - startMills);
   String payload = "{\"INSIDE\":";
   payload += tempCinside;
   payload += ",\"OUTSIDE\":";
   payload += tempCoutside;
   payload += ",\"vdd\":";
   payload += vdd;
+  payload += ",\"totalmillis\":";
+  payload += (millis() - startMills) ;
+  payload += ",\"wifiMills\":";
+  payload += wifiMills ;  
   payload += "}";
 
-  Serial.println(payload);
+  if (sendmqttMsg(topic, payload)) {
+      if (DEBUG_PRINT) {
+        Serial.print("payload pub  ----> ");
+        Serial.println(millis() - startMills);
+      }
+      goingToSleep();
+  }  
 
-  sendTemperature(payload);
+  if ((millis() - startMills) > 15000) {
+    if (DEBUG_PRINT) {
+      Serial.println("going to sleep with fail");
+    }
+    goingToSleep();
+  }
 
-  Serial.println(millis() - startMills);
-  goingToSleep();
 }
 
 
 void goingToSleep()
 {
-  Serial.println("Going to sleep");
-  delay(250);
   ESP.deepSleep(300000000);
   delay(250);
 }
 
-
-void sendTemperature(String payload)
+boolean sendmqttMsg(char* topictosend, String payload)
 {
-  if (!client.connected()) {
-    if (client.connect((char*) clientName.c_str())) {
-      Serial.println("Connected to MQTT broker again OUTTEMP");
-      Serial.print("Topic is: ");
-      Serial.println(topic);
-    }
-    else {
-      Serial.println("MQTT connect failed");
-      Serial.println("Will reset and try again...");
-      abort();
-    }
-  }
 
   if (client.connected()) {
-    Serial.print("Sending payload: ");
-    Serial.println(payload);
-
-    if (client.publish(topic, (char*) payload.c_str())) {
-      Serial.println("Publish ok");
+    if (DEBUG_PRINT) {
+      Serial.print("Sending payload: ");
+      Serial.print(payload);
     }
-    else {
-      Serial.println("Publish failed");
+
+    unsigned int msg_length = payload.length();
+
+    if (DEBUG_PRINT) {
+      Serial.print(" length: ");
+      Serial.println(msg_length);
+    }
+
+    byte* p = (byte*)malloc(msg_length);
+    memcpy(p, (char*) payload.c_str(), msg_length);
+
+    if ( client.publish(topictosend, p, msg_length, 1)) {
+      if (DEBUG_PRINT) {
+        Serial.print("Publish ok  --> ");
+        Serial.println(millis() - startMills);
+      }
+      free(p);
+      return 1;
+    } else {
+      if (DEBUG_PRINT) {
+        Serial.print("Publish failed --> ");
+        Serial.println(millis() - startMills);
+      }
+      free(p);
+      return 0;
     }
   }
-
 }
-
 
 String macToStr(const uint8_t* mac)
 {
