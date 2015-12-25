@@ -59,8 +59,8 @@ unsigned long wifiMills = 0;
 
 String clientName;
 
-  float tempCoutside ;
-  float tempCinside ;
+float tempCoutside ;
+float tempCinside ;
 
 int vdd;
 
@@ -73,7 +73,10 @@ boolean reconnect()
   if (client.connect((char*) clientName.c_str())) {
     //
   } else {
-    goingToSleep();
+    if (DEBUG_PRINT) {
+      Serial.println("going to sleep / mqtt con fail");
+    }
+    //goingToSleep();
   }
   return client.connected();
 }
@@ -81,6 +84,7 @@ boolean reconnect()
 void wifi_connect()
 {
   WiFiClient::setLocalPortStart(micros() + vdd);
+  //wifi_set_phy_mode(PHY_MODE_11B);
   wifi_set_phy_mode(PHY_MODE_11N);
   system_phy_set_rfoption(1);
   wifi_set_channel(channel);
@@ -96,11 +100,19 @@ void wifi_connect()
 
     int Attempt = 0;
     while (WiFi.status() != WL_CONNECTED) {
+      if (DEBUG_PRINT) {
+        Serial.print(". ");
+        Serial.print(Attempt);
+      }
       delay(100);
       Attempt++;
       if (Attempt == 150)
       {
-        goingToSleep();
+        if (DEBUG_PRINT) {
+          Serial.println("going to sleep / wifi con fail");
+        }
+        //goingToSleep();
+        return;
       }
     }
 
@@ -115,6 +127,9 @@ void setup(void)
   // start serial port
   if (DEBUG_PRINT) {
     Serial.begin(115200);
+    Serial.println("");
+    Serial.println("");
+    Serial.println("---");
   }
   delay(10);
   vdd = ESP.getVcc();
@@ -123,21 +138,7 @@ void setup(void)
   delay(10);
   pinMode(dsout, OUTPUT);
   digitalWrite(dsout, HIGH);
-  delay(10);
-
-  sensors.begin();
-  if (!sensors.getAddress(insideThermometer, 0)) {
-    goingToSleep();
-  }
-  sensors.setResolution(insideThermometer, TEMPERATURE_PRECISION);
-  sensors.requestTemperatures();
-  tempCoutside = tempCinside = sensors.getTempC(insideThermometer);
-
-  digitalWrite(dsout, LOW);
-
-  if ( isnan(tempCinside) || isnan(tempCoutside) || isnan(vdd) ) {
-    goingToSleep();
-  }
+  delay(20);
 
   //
   wifi_connect();
@@ -152,6 +153,27 @@ void setup(void)
 
   lastReconnectAttempt = 0;
   reconnect();
+
+  sensors.begin();
+  if (!sensors.getAddress(insideThermometer, 0)) {
+    if (DEBUG_PRINT) {
+      Serial.println("going to sleep / sensor fail");
+    }
+    goingToSleep();
+  }
+  sensors.setResolution(insideThermometer, TEMPERATURE_PRECISION);
+  sensors.requestTemperatures();
+  tempCoutside = tempCinside = sensors.getTempC(insideThermometer);
+
+  digitalWrite(dsout, LOW);
+
+  if ( isnan(tempCinside) || isnan(tempCoutside) || isnan(vdd) ) {
+    if (DEBUG_PRINT) {
+      Serial.println("going to sleep / sensor value nan");
+    }
+    goingToSleep();
+  }
+
 }
 
 void loop(void)
@@ -179,20 +201,20 @@ void loop(void)
   payload += ",\"totalmillis\":";
   payload += (millis() - startMills) ;
   payload += ",\"wifiMills\":";
-  payload += wifiMills ;  
+  payload += wifiMills ;
   payload += "}";
 
   if (sendmqttMsg(topic, payload)) {
-      if (DEBUG_PRINT) {
-        Serial.print("payload pub  ----> ");
-        Serial.println(millis() - startMills);
-      }
-      goingToSleep();
-  }  
+    if (DEBUG_PRINT) {
+      Serial.print("payload pub  ----> ");
+      Serial.println(millis() - startMills);
+    }
+    goingToSleep();
+  }
 
   if ((millis() - startMills) > 15000) {
     if (DEBUG_PRINT) {
-      Serial.println("going to sleep with fail");
+      Serial.println("going to sleep with fail / long exe");
     }
     goingToSleep();
   }
@@ -202,13 +224,16 @@ void loop(void)
 
 void goingToSleep()
 {
-  ESP.deepSleep(300000000);
+  if (DEBUG_PRINT) {
+    ESP.deepSleep(20000000);
+  } else {
+    ESP.deepSleep(300000000);
+  }
   delay(250);
 }
 
 boolean sendmqttMsg(char* topictosend, String payload)
 {
-
   if (client.connected()) {
     if (DEBUG_PRINT) {
       Serial.print("Sending payload: ");
