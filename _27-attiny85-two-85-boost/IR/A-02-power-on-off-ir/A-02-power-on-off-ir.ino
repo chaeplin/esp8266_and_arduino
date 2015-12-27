@@ -89,8 +89,8 @@ void powerDn() {
 }
 
 void sleep() {
-  //for (int i = 0; i < 7; i++) {
+  for (int i = 0; i < 7; i++) {
     LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF);
-  //}
-  //LowPower.powerDown(SLEEP_4S, ADC_OFF, BOD_OFF);
+  }
+  LowPower.powerDown(SLEEP_4S, ADC_OFF, BOD_OFF);
 }

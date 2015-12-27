@@ -64,7 +64,7 @@ RF24 radio(CE_PIN, CSN_PIN);
 #define DATA1PIN A2  // A2 // PIN 3 // D 4
 #define VCCPIN A3  //  A3 // PIN 2 // D 3
 
-Average<float> ave(10);
+Average<float> ave(2);
 
 void setup() {
   //adc_disable();
@@ -152,19 +152,19 @@ int16_t readData1() {
 
 
 uint16_t readVolt() {
-  for (int k = 0; k < 10; k = k + 1) {
+  for (int k = 0; k < 2; k = k + 1) {
     uint16_t value = analogRead(VCCPIN);
     ave.push(value);
-    delay(50);
+    delay(5);
   }
   return ((ave.mean() * (5.0 / 1023.0)) * 1000 );
 }
 
 void readData1() {
-  for (int k = 0; k < 10; k = k + 1) {
+  for (int k = 0; k < 2; k = k + 1) {
     uint16_t value = analogRead(DATA1PIN);
     ave.push(value);
-    delay(50);
+    delay(5);
   }
   if (ave.mean() < 10) {
     payload.data1 =  ((( 67870.0 / (10 - 3.0)) - 40.0) * 10 ) ;
