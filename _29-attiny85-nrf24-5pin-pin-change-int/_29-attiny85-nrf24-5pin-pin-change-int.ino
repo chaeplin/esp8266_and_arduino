@@ -24,7 +24,6 @@
 #include <avr/interrupt.h>
 #include <avr/sleep.h>
 #include <avr/pgmspace.h>
-#include <Average.h>
 #include <nRF24L01.h>
 #include <RF24.h>
 
@@ -33,8 +32,9 @@
 
 #define _TEST
 #define _DIGITAL
-#define _3PIN
-//#define _5PIN
+//#define _3PIN
+
+#define _5PINpp]]]]
 
 #ifdef _3PIN
 // 3pin
@@ -46,7 +46,7 @@
 #define CSN_PIN 4
 #endif
 
-#define DEVICE_ID 65
+#define DEVICE_ID 5
 #define CHANNEL 100
 
 const uint64_t pipes[2] = { 0xFFFFFFFFFFLL, 0xCCCCCCCCCCLL };
@@ -63,21 +63,16 @@ data payload;
 
 RF24 radio(CE_PIN, CSN_PIN);
 
-#define IRENPIN 4 // p3 / A2
-#define DATA1PIN A3 // p2
-
-Average<float> ave(2);
+const int statusPin = 3;
+volatile int statusPinStatus ;
 
 void setup() {
   delay(20);
-  adc_disable();
   unsigned long startmilis = millis();
+  adc_disable();
 
-#ifdef _DIGITAL
-  pinMode(DATA1PIN, INPUT_PULLUP);
-#endif
-  pinMode(IRENPIN, OUTPUT);
-  digitalWrite(IRENPIN, LOW);
+  pinMode(statusPin, INPUT_PULLUP);
+  statusPinStatus = digitalRead(statusPin);
 
   radio.begin();
   radio.setChannel(CHANNEL);
@@ -95,57 +90,64 @@ void setup() {
 
   payload._salt = 0;
   payload.devid = DEVICE_ID;
-
 }
 
 void loop() {
-  unsigned long startmilis = millis();
-  payload._salt++;
-  payload.volt = readVcc();
-  digitalWrite(IRENPIN, HIGH);
-#ifdef _DIGITAL
-  delay(1);
-  payload.data1  = digitalRead(DATA1PIN) * 10 ;
-#else
-  delay(1);
-  payload.data1  = readData1() * 10;
-#endif
-  digitalWrite(IRENPIN, LOW);
-
-  radio.powerUp();
-  radio.write(&payload , sizeof(payload));
-  radio.powerDown();
-
-  unsigned long stopmilis = millis();
-
-  payload.data2 = ( stopmilis - startmilis ) * 10 ;
-
-  if ((millis() - startmilis) > 100) {
-    sleep();
-    return;
-  }
-
   sleep();
+  //statusPinStatus = digitalRead(statusPin);
+  //if ( statusPinStatus == HIGH) {
 
+    payload._salt++;
+    unsigned long startmilis = millis();
+
+    //payload.data1 =  10 ;
+    payload.data1 = statusPinStatus * 10 ;
+    payload.volt = readVcc();
+
+    if ( payload.volt > 5000 || payload.volt <= 0 ) {
+      return;
+    }
+
+    radio.powerUp();
+    radio.write(&payload , sizeof(payload));
+    radio.powerDown();
+
+    unsigned long stopmilis = millis();
+
+    payload.data2 = ( stopmilis - startmilis ) * 10 ;
+
+    if ((millis() - startmilis) > 500) {
+      sleep();
+      return;
+    }
+    LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF);
+  //}
 }
 
 void sleep() {
-#ifdef _TEST
-  for (int i = 0; i < 7; i++) {
-    LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF);
-  }
-#else
-  for (int i = 0; i < 450; i++) {
-    LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF);
-  }
-#endif
+  GIMSK |= _BV(PCIE);                     // Enable Pin Change Interrupts
+  PCMSK |= _BV(PCINT3);                   // Use PB3 as interrupt pin
+  set_sleep_mode(SLEEP_MODE_PWR_DOWN);    // replaces above statement
+
+  sleep_enable();                         // Sets the Sleep Enable bit in the MCUCR Register (SE BIT)
+  sei();                                  // Enable interrupts
+  sleep_cpu();                            // sleep
+
+  cli();                                  // Disable interrupts
+  PCMSK &= ~_BV(PCINT3);                  // Turn off PB3 as interrupt pin
+  sleep_disable();                        // Clear SE bit
+  sei();                                  // Enable interrupts
+}
+
+ISR(PCINT0_vect) {
+  statusPinStatus = digitalRead(statusPin);
 }
 
 int readVcc() {
   adc_enable();
   ADMUX = _BV(MUX3) | _BV(MUX2);
 
-  delay(2);
+  delay(2); // Wait for Vref to settle
   ADCSRA |= _BV(ADSC); // Start conversion
   while (bit_is_set(ADCSRA, ADSC)); // measuring
 
@@ -161,17 +163,4 @@ int readVcc() {
   adc_disable();
 
   return (int)result; // Vcc in millivolts
-}
-
-int16_t readData1() {
-
-  adc_enable();
-  delay(2);
-  for (int k = 0; k < 2; k = k + 1) {
-    uint16_t value = analogRead(DATA1PIN);
-    ave.push(value);
-    delay(5);
-  }
-  return ave.mean();
-  adc_disable();
 }
