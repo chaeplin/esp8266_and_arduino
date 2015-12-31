@@ -19,11 +19,13 @@
    6  mosi  6
    7  miso  5
 */
-#include <LowPower.h>
+
 #include <avr/wdt.h>
 #include <avr/interrupt.h>
 #include <avr/sleep.h>
 #include <avr/pgmspace.h>
+#include <avr/power.h>
+#include <LowPower.h>
 #include <nRF24L01.h>
 #include <RF24.h>
 
@@ -34,7 +36,7 @@
 #define _DIGITAL
 //#define _3PIN
 
-#define _5PINpp]]]]
+#define _5PIN
 
 #ifdef _3PIN
 // 3pin
@@ -71,7 +73,7 @@ void setup() {
   unsigned long startmilis = millis();
   adc_disable();
 
-  pinMode(statusPin, INPUT_PULLUP);
+  pinMode(statusPin, INPUT);
   statusPinStatus = digitalRead(statusPin);
 
   radio.begin();
@@ -83,7 +85,7 @@ void setup() {
   radio.setPayloadSize(11);
   radio.openWritingPipe(pipes[0]);
   radio.stopListening();
-  //radio.powerDown();
+  radio.powerDown();
 
   unsigned long stopmilis = millis();
   payload.data2 = ( stopmilis - startmilis ) * 10 ;
@@ -94,53 +96,39 @@ void setup() {
 
 void loop() {
   sleep();
-  //statusPinStatus = digitalRead(statusPin);
-  //if ( statusPinStatus == HIGH) {
+  unsigned long startmilis = millis();
 
-    payload._salt++;
-    unsigned long startmilis = millis();
+  payload._salt++;
+  payload.data1 = statusPinStatus * 10 ;
+  payload.volt = readVcc();
 
-    //payload.data1 =  10 ;
-    payload.data1 = statusPinStatus * 10 ;
-    payload.volt = readVcc();
+  radio.powerUp();
+  radio.write(&payload , sizeof(payload));
+  radio.powerDown();
 
-    if ( payload.volt > 5000 || payload.volt <= 0 ) {
-      return;
-    }
+  unsigned long stopmilis = millis();
 
-    radio.powerUp();
-    radio.write(&payload , sizeof(payload));
-    radio.powerDown();
+  payload.data2 = ( stopmilis - startmilis ) * 10 ;
 
-    unsigned long stopmilis = millis();
+  wdtsleep();
+}
 
-    payload.data2 = ( stopmilis - startmilis ) * 10 ;
+void wdtsleep() {
+  LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF);
+  delay(20);
+}
 
-    if ((millis() - startmilis) > 500) {
-      sleep();
-      return;
-    }
-    LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF);
-  //}
+
+ISR(PCINT0_vect) {
+  statusPinStatus = digitalRead(statusPin);
 }
 
 void sleep() {
   GIMSK |= _BV(PCIE);                     // Enable Pin Change Interrupts
   PCMSK |= _BV(PCINT3);                   // Use PB3 as interrupt pin
-  set_sleep_mode(SLEEP_MODE_PWR_DOWN);    // replaces above statement
-
-  sleep_enable();                         // Sets the Sleep Enable bit in the MCUCR Register (SE BIT)
-  sei();                                  // Enable interrupts
-  sleep_cpu();                            // sleep
-
-  cli();                                  // Disable interrupts
-  PCMSK &= ~_BV(PCINT3);                  // Turn off PB3 as interrupt pin
-  sleep_disable();                        // Clear SE bit
-  sei();                                  // Enable interrupts
-}
-
-ISR(PCINT0_vect) {
-  statusPinStatus = digitalRead(statusPin);
+  LowPower.powerDown(SLEEP_FOREVER, ADC_OFF, BOD_OFF);
+  GIMSK &= ~_BV(PCIE);
+  PCMSK &= ~_BV(PCINT3);
 }
 
 int readVcc() {
