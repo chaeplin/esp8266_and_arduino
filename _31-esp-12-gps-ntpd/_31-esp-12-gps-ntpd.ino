@@ -1,10 +1,7 @@
-#define vers "NTP GPS V01A"
-
-#define debug false
-
 #include <TinyGPS.h>
 #include <ESP8266WiFi.h>
 #include <WiFiUdp.h>
+#include <TimeLib.h>
 
 
 #define _IS_MY_HOME
@@ -16,7 +13,7 @@
 #endif
 
 extern "C" {
-  #include "user_interface.h"
+#include "user_interface.h"
 }
 
 #define IPSET_STATIC { 192, 168, 10, 25 }
@@ -41,31 +38,23 @@ byte ip_dns[] = IPSET_DNS;
 WiFiClient wifiClient;
 WiFiUDP Udp;
 
-// Time Server Port
 #define NTP_PORT 123
 
 static const int NTP_PACKET_SIZE = 48;
-
-// buffers for receiving and sending data
 byte packetBuffer[NTP_PACKET_SIZE];
-
+boolean stringComplete = false;
+boolean acceptNtpinput = false;
 
 //GPS instance
 TinyGPS gps;
 
-int year;
-byte month, day, hour, minute, second, hundredths;
-//unsigned long date, time, age;
-unsigned long date, age;
 uint32_t timestamp, tempval;
-
-////////////////////////////////////////
 
 void wifi_connect()
 {
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
-  WiFi.config(IPAddress(ip_static), IPAddress(ip_gateway), IPAddress(ip_subnet), IPAddress(ip_dns));
+  //WiFi.config(IPAddress(ip_static), IPAddress(ip_gateway), IPAddress(ip_subnet), IPAddress(ip_dns));
 
   int Attempt = 0;
   while (WiFi.status() != WL_CONNECTED) {
@@ -76,21 +65,13 @@ void wifi_connect()
       ESP.restart();
     }
   }
-
 }
 
 void setup() {
   // start the Ethernet and UDP:
 
   Serial.begin(4800);
-  wifi_connect();
-  Udp.begin(NTP_PORT);
-
-#if debug
-  Serial.print("Version:");
-  Serial.println(vers);
-#endif
-
+  delay(2000);
 
   // Disable everything but $GPRMC
   // Note the following sentences are for UBLOX NEO6MV2 GPS
@@ -102,84 +83,58 @@ void setup() {
   Serial.write("$PUBX,40,GSA,0,0,0,0,0,0*4E\r\n");
   */
 
-}
+  for ( int i = 0 ; i++ ; i < 10 ) {
+    if (Serial.available()) {
+      if (gps.encode(Serial.read())) {
+        unsigned long age;
+        int Year;
+        byte Month, Day, Hour, Minute, Second;
+        gps.crack_datetime(&Year, &Month, &Day, &Hour, &Minute, &Second, NULL, &age);
+        if (age < 500) {
+          setTime(Hour, Minute, Second, Day, Month, Year);
+        }
+      }
+    }
+  }
 
+  wifi_connect();
+  Udp.begin(NTP_PORT);
+}
 
 ////////////////////////////////////////
 
 void loop() {
-
-  if (getgps()) {
-
-    gps.crack_datetime(&year, &month, &day, &hour, &minute, &second, &hundredths, &age);
-    if (age == TinyGPS::GPS_INVALID_AGE) {
-
-#if debug
-      Serial.println("Invalid GPS age");
-#endif
-
+  while (Serial.available()) {
+    if (gps.encode(Serial.read())) {
+      unsigned long age;
+      int Year;
+      byte Month, Day, Hour, Minute, Second;
+      gps.crack_datetime(&Year, &Month, &Day, &Hour, &Minute, &Second, NULL, &age);
+      if (age < 500) {
+        setTime(Hour, Minute, Second, Day, Month, Year);
+        stringComplete = false;
+        acceptNtpinput = true;
+      }
+      if (age != TinyGPS::GPS_INVALID_AGE) {
+        acceptNtpinput = true;
+      }
     }
-    else {
-      processNTP();
-    }
+  }
+
+  if (acceptNtpinput) {
+    processNTP();
   }
 }
 
 ////////////////////////////////////////
 
 void processNTP() {
-
-  // if there's data available, read a packet
   int packetSize = Udp.parsePacket();
   if (packetSize)
   {
     Udp.read(packetBuffer, NTP_PACKET_SIZE);
     IPAddress Remote = Udp.remoteIP();
     int PortNum = Udp.remotePort();
-
-#if debug
-    Serial.println();
-    Serial.print("Received UDP packet size ");
-    Serial.println(packetSize);
-    Serial.print("From ");
-
-    for (int i = 0; i < 4; i++)
-    {
-      Serial.print(Remote[i], DEC);
-      if (i < 3)
-      {
-        Serial.print(".");
-      }
-    }
-    Serial.print(", port ");
-    Serial.print(PortNum);
-
-    byte LIVNMODE = packetBuffer[0];
-    Serial.print("  LI, Vers, Mode :");
-    Serial.print(packetBuffer[0], HEX);
-
-    byte STRATUM = packetBuffer[1];
-    Serial.print("  Stratum :");
-    Serial.print(packetBuffer[1], HEX);
-
-    byte POLLING = packetBuffer[2];
-    Serial.print("  Polling :");
-    Serial.print(packetBuffer[2], HEX);
-
-    byte PRECISION = packetBuffer[3];
-    Serial.print("  Precision :");
-    Serial.println(packetBuffer[3], HEX);
-
-    for (int z = 0; z < NTP_PACKET_SIZE; z++) {
-      Serial.print(packetBuffer[z], HEX);
-      if (((z + 1) % 4) == 0) {
-        Serial.println();
-      }
-    }
-    Serial.println();
-
-#endif
-
 
     packetBuffer[0] = 0b00100100;   // LI, Version, Mode
     packetBuffer[1] = 1 ;   // stratum
@@ -196,16 +151,7 @@ void processNTP() {
     packetBuffer[13] = 0xC;
     packetBuffer[14] = 0;
 
-    gps.crack_datetime(&year, &month, &day, &hour, &minute, &second, &hundredths, &age);
-
-    timestamp = numberOfSecondsSince1900Epoch(year, month, day, hour, minute, second);
-
-#if debug
-    Serial.println(timestamp);
-    Serial.println(day);
-    print_date(gps);
-#endif
-
+    timestamp = numberOfSecondsSince1900Epoch(year(), month(), day(), hour(), minute(), second());
     tempval = timestamp;
 
     packetBuffer[12] = 71; //"G";
@@ -252,6 +198,8 @@ void processNTP() {
     packetBuffer[39] = 0;
 
     //transmitt timestamp
+    timestamp = numberOfSecondsSince1900Epoch(year(), month(), day(), hour(), minute(), second());
+    tempval = timestamp;
 
     packetBuffer[40] = (tempval >> 24) & 0XFF;
     tempval = timestamp;
@@ -275,11 +223,8 @@ void processNTP() {
   }
 }
 
-
-
-
 ////////////////////////////////////////
-
+/*
 static bool getgps()
 {
   while (Serial.available())
@@ -294,7 +239,7 @@ static bool getgps()
   return false;
 }
 
-
+*/
 
 // original code
 ////////////////////////////////////////
@@ -354,6 +299,7 @@ __int64 SecondsSince1900 (int y, int m, int d)
     return (__int64)Days * 86400;
 }
 */
+
 long DateToMjd (uint16_t y, uint8_t m, uint8_t d)
 {
   return
@@ -370,69 +316,7 @@ static unsigned long  numberOfSecondsSince1900Epoch(uint16_t y, uint8_t m, uint8
   long Days;
 
   Days = DateToMjd(y, m, d) - DateToMjd(1900, 1, 1);
-  return (uint16_t)Days * 86400 + h * 3600L + mm * 60L + s;
+  return (uint16_t)Days * 86400 + h * 3600L + mm * 60L + s + 1;
 }
 
-////////////////////////////////////////
-
-#if debug
-
-////////////////////////////////////////
-
-
-static void print_date(TinyGPS &gps)
-{
-  int year;
-  byte month, day, hour, minute, second, hundredths;
-  unsigned long age;
-  gps.crack_datetime(&year, &month, &day, &hour, &minute, &second, &hundredths, &age);
-  if (age == TinyGPS::GPS_INVALID_AGE)
-    Serial.print(F("*******    *******    "));
-  else
-  {
-    char sz[32];
-    sprintf(sz, "%02d/%02d/%02d %02d:%02d:%02d :",
-            month, day, year, hour, minute, second);
-    Serial.print(sz);
-  }
-  print_int(age, TinyGPS::GPS_INVALID_AGE, 5);
-
-}
-
-////////////////////////////////////////
-
-static void print_int(unsigned long val, unsigned long invalid, int len)
-{
-  char sz[32];
-  if (val == invalid)
-    strcpy(sz, "*******");
-  else
-    sprintf(sz, "%ld", val);
-  sz[len] = 0;
-  for (int i = strlen(sz); i < len; ++i)
-    sz[i] = ' ';
-  if (len > 0)
-    sz[len - 1] = ' ';
-  Serial.print(sz);
-
-}
-
-
-
-#endif
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+//---
