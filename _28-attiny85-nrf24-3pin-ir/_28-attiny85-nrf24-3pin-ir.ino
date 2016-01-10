@@ -125,7 +125,7 @@ void loop() {
 #endif
   digitalWrite(IRENPIN, LOW);
 
-  if (( currentData1 != payload.data1 ) || ( (payload._salt / 12) == 0 ) ){
+  if (( currentData1 != payload.data1 ) || ( (payload._salt % 12) == 0 ) ){
     radio.powerUp();
     radio.write(&payload , sizeof(payload));
     radio.powerDown();
