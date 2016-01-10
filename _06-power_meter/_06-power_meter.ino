@@ -1,8 +1,8 @@
 #include <PubSubClient.h>
 #include <ESP8266WiFi.h>
-//#include <ESP8266mDNS.h>
-//#include <WiFiUdp.h>
-//#include <ArduinoOTA.h>
+#include <ESP8266mDNS.h>
+#include <WiFiUdp.h>
+#include <ArduinoOTA.h>
 // https://github.com/openenergymonitor/EmonLib
 #include "EmonLib.h" // Include Emon Library
 #include <Average.h>
@@ -18,11 +18,6 @@
 
 #define DEBUG_PRINT 0
 
-//#define IPSET_STATIC { 192, 168, 10, 16 }
-#define IPSET_GATEWAY { 192, 168, 10, 1 }
-#define IPSET_SUBNET { 255, 255, 255, 0 }
-#define IPSET_DNS { 192, 168, 10, 10 }
-
 // ****************
 void sendmqttMsg(char* topictosend, String payloadtosend);
 void callback(char* intopic, byte* inpayload, unsigned int length);
@@ -34,16 +29,10 @@ void count_powermeter();
 // ****************
 const char* ssid = WIFI_SSID;
 const char* password = WIFI_PASSWORD;
-//int32_t channel = WIFI_CHANNEL;
-//byte bssid[] = WIFI_BSSID;
 byte mqtt_server[] = MQTT_SERVER;
-//
-//byte ip_static[] = IPSET_STATIC;
-byte ip_gateway[] = IPSET_GATEWAY;
-byte ip_subnet[] = IPSET_SUBNET;
-byte ip_dns[] = IPSET_DNS;
-// ****************
+const char* otapassword = OTA_PASSWORD;
 
+//
 
 // ********** change MQTT_KEEPALIVE to 60 at PubSubClient.h *****************
 EnergyMonitor emon1;
@@ -58,8 +47,6 @@ char* willTopic = "clients/power";
 char* willMessage = "0";
 
 char* subtopic = "esp8266/check";
-
-IPAddress server(192, 168, 10, 10);
 
 // pin : using line tracker
 #define IRPIN 4
@@ -225,9 +212,6 @@ void setup() {
   clientName += "-";
   clientName += String(micros() & 0xff, 16);
 
-
-  client.setServer(server, 1883);
-
   lastReconnectAttempt = 0;
   revCounts = 0 ;
 
@@ -254,36 +238,39 @@ void setup() {
   emon1.current(A0, 75);
   oldirStatus = LOW ;
 
-  /*
-    //OTA
-    // Port defaults to 8266
-    //ArduinoOTA.setPort(8266);
 
-    // Hostname defaults to esp8266-[ChipID]
-    ArduinoOTA.setHostname("esp-power");
+  //OTA
+  // Port defaults to 8266
+  //ArduinoOTA.setPort(8266);
 
-    // No authentication by default
-    // ArduinoOTA.setPassword((const char *)"123");
+  // Hostname defaults to esp8266-[ChipID]
+  ArduinoOTA.setHostname("esp-power");
 
-    ArduinoOTA.onStart([]() {
-    Serial.println("Start");
-    });
-    ArduinoOTA.onEnd([]() {
-    Serial.println("\nEnd");
-    });
-    ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
-    Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
-    });
-    ArduinoOTA.onError([](ota_error_t error) {
-    Serial.printf("Error[%u]: ", error);
-    if (error == OTA_AUTH_ERROR) Serial.println("Auth Failed");
-    else if (error == OTA_BEGIN_ERROR) Serial.println("Begin Failed");
-    else if (error == OTA_CONNECT_ERROR) Serial.println("Connect Failed");
-    else if (error == OTA_RECEIVE_ERROR) Serial.println("Receive Failed");
-    else if (error == OTA_END_ERROR) Serial.println("End Failed");
-    });
-    ArduinoOTA.begin();
-  */
+
+  // No authentication by default
+  ArduinoOTA.setPassword(otapassword);
+
+  ArduinoOTA.onStart([]() {
+    //Serial.println("Start");
+  });
+  ArduinoOTA.onEnd([]() {
+    //Serial.println("\nEnd");
+  });
+  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+    //Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
+  });
+  ArduinoOTA.onError([](ota_error_t error) {
+    //ESP.restart();
+      if (error == OTA_AUTH_ERROR) abort();
+      else if (error == OTA_BEGIN_ERROR) abort();
+      else if (error == OTA_CONNECT_ERROR) abort();
+      else if (error == OTA_RECEIVE_ERROR) abort();
+      else if (error == OTA_END_ERROR) abort();
+    
+  });
+
+  ArduinoOTA.begin();
+
 }
 
 void DOORCHECKING() {
@@ -389,9 +376,8 @@ void loop()
     oldrevMills = revMills ;
   }
 
-  //ArduinoOTA.handle();
   client.loop();
-  //delay(500);
+  ArduinoOTA.handle();
 }
 
 void sendmqttMsg(char* topictosend, String payloadtosend)
