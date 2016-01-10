@@ -1,3 +1,4 @@
+#include <TimeLib.h>
 #include <SPI.h>
 #include "nRF24L01.h"
 #include "RF24.h"
@@ -8,7 +9,8 @@
 #include <ESP8266WiFi.h>
 #include <DallasTemperature.h>
 #include <WiFiUdp.h>
-#include <Time.h>
+#include <ESP8266mDNS.h>
+#include <ArduinoOTA.h>
 
 // radio
 #define DEVICE_ID 1
@@ -29,9 +31,24 @@ extern "C" {
 #define DEBUG_PRINT 0
 
 // ****************
+void callback(char* intopic, byte* inpayload, unsigned int length);
+String macToStr(const uint8_t* mac);
+time_t getNtpTime();
+void run_lightcmd();
+void changelight();
+void sendmqttMsg(char* topictosend, String payload);
+void runTimerDoLightOff();
+void getdalastemp();
+void getdht22temp();
+void sendNTPpacket(IPAddress & address);
+
+
+// ****************
 const char* ssid = WIFI_SSID;
 const char* password = WIFI_PASSWORD;
-int32_t channel = WIFI_CHANNEL;
+const char* otapassword = OTA_PASSWORD;
+
+//int32_t channel = WIFI_CHANNEL;
 
 //
 IPAddress mqtt_server = MQTT_SERVER;
@@ -148,8 +165,8 @@ void wifi_connect()
     Serial.println(ssid);
   }
 
-  wifi_set_phy_mode(PHY_MODE_11N);
-  wifi_set_channel(channel);
+  //wifi_set_phy_mode(PHY_MODE_11N);
+  //wifi_set_channel(channel);
 
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
@@ -345,6 +362,38 @@ void setup()
   radio.openWritingPipe(pipes[1]);
   radio.startListening();
 
+  //OTA
+  // Port defaults to 8266
+  //ArduinoOTA.setPort(8266);
+
+  // Hostname defaults to esp8266-[ChipID]
+  ArduinoOTA.setHostname("esp-swtemp");
+
+
+  // No authentication by default
+  ArduinoOTA.setPassword(otapassword);
+
+  ArduinoOTA.onStart([]() {
+    //Serial.println("Start");
+  });
+  ArduinoOTA.onEnd([]() {
+    //Serial.println("\nEnd");
+  });
+  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+    //Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
+  });
+  ArduinoOTA.onError([](ota_error_t error) {
+    //ESP.restart();
+      if (error == OTA_AUTH_ERROR) abort();
+      else if (error == OTA_BEGIN_ERROR) abort();
+      else if (error == OTA_CONNECT_ERROR) abort();
+      else if (error == OTA_RECEIVE_ERROR) abort();
+      else if (error == OTA_END_ERROR) abort();
+    
+  });
+
+  ArduinoOTA.begin();
+
 }
 
 void loop()
@@ -528,6 +577,7 @@ void loop()
   }
 
   client.loop();
+  ArduinoOTA.handle();
 }
 
 void runTimerDoLightOff()

@@ -3,6 +3,9 @@
 #include <Average.h>
 #include <pgmspace.h>
 #include <Wire.h>
+#include <ESP8266mDNS.h>
+#include <WiFiUdp.h>
+#include <ArduinoOTA.h>
 
 #define _IS_MY_HOME
 // wifi
@@ -18,9 +21,19 @@
 #define DEBUG_PRINT 0
 
 // ****************
+void callback(char* intopic, byte* inpayload, unsigned int length);
+String macToStr(const uint8_t* mac);
+void check_isr();
+void hx711IsReady();
+void sendHx711toMqtt(String payload, char* topic, int retain);
+
+
+// ****************
 const char* ssid = WIFI_SSID;
 const char* password = WIFI_PASSWORD;
-int32_t channel = WIFI_CHANNEL;
+const char* otapassword = OTA_PASSWORD;
+
+//int32_t channel = WIFI_CHANNEL;
 
 //
 IPAddress mqtt_server = MQTT_SERVER;
@@ -175,28 +188,39 @@ void setup() {
   getResetInfo = "hello from ESP8266 s06 ";
   getResetInfo += ESP.getResetInfo().substring(0, 30);
 
-/*
-  if (WiFi.status() == WL_CONNECTED) {
-    if (!client.connected()) {
-      if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
-        client.publish(willTopic, "1", true);
-        client.publish(hellotopic, (char*) getResetInfo.c_str());
-        if (DEBUG_PRINT) {
-          Serial.print("Sending payload: ");
-          Serial.println(getResetInfo);
-        }
-      }
-    } else {
-      client.publish(willTopic, "1", true);
-      client.publish(hellotopic, (char*) getResetInfo.c_str());
-      if (DEBUG_PRINT) {
-        Serial.print("Sending payload: ");
-        Serial.println(getResetInfo);
-      }
-    }
-  }
-*/
   attachInterrupt(14, check_isr, RISING);
+
+  //OTA
+  // Port defaults to 8266
+  //ArduinoOTA.setPort(8266);
+
+  // Hostname defaults to esp8266-[ChipID]
+  ArduinoOTA.setHostname("esp-scale");
+
+
+  // No authentication by default
+  ArduinoOTA.setPassword(otapassword);
+
+  ArduinoOTA.onStart([]() {
+    //Serial.println("Start");
+  });
+  ArduinoOTA.onEnd([]() {
+    //Serial.println("\nEnd");
+  });
+  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+    //Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
+  });
+  ArduinoOTA.onError([](ota_error_t error) {
+    //ESP.restart();
+      if (error == OTA_AUTH_ERROR) abort();
+      else if (error == OTA_BEGIN_ERROR) abort();
+      else if (error == OTA_CONNECT_ERROR) abort();
+      else if (error == OTA_RECEIVE_ERROR) abort();
+      else if (error == OTA_END_ERROR) abort();
+    
+  });
+
+  ArduinoOTA.begin();  
 }
 
 void loop()
@@ -300,7 +324,9 @@ void loop()
     nofnotinuse++;
     o_r = r;
   }
+
   client.loop();
+  ArduinoOTA.handle();
 }
 
 void check_isr()
