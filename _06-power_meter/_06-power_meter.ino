@@ -1,5 +1,8 @@
 #include <PubSubClient.h>
 #include <ESP8266WiFi.h>
+//#include <ESP8266mDNS.h>
+//#include <WiFiUdp.h>
+//#include <ArduinoOTA.h>
 // https://github.com/openenergymonitor/EmonLib
 #include "EmonLib.h" // Include Emon Library
 #include <Average.h>
@@ -14,7 +17,33 @@
 #endif
 
 #define DEBUG_PRINT 0
-#define EVENT_PRINT 0
+
+//#define IPSET_STATIC { 192, 168, 10, 16 }
+#define IPSET_GATEWAY { 192, 168, 10, 1 }
+#define IPSET_SUBNET { 255, 255, 255, 0 }
+#define IPSET_DNS { 192, 168, 10, 10 }
+
+// ****************
+void sendmqttMsg(char* topictosend, String payloadtosend);
+void callback(char* intopic, byte* inpayload, unsigned int length);
+String macToStr(const uint8_t* mac);
+void IRCHECKING_START();
+void DOORCHECKING();
+void count_powermeter();
+
+// ****************
+const char* ssid = WIFI_SSID;
+const char* password = WIFI_PASSWORD;
+//int32_t channel = WIFI_CHANNEL;
+//byte bssid[] = WIFI_BSSID;
+byte mqtt_server[] = MQTT_SERVER;
+//
+//byte ip_static[] = IPSET_STATIC;
+byte ip_gateway[] = IPSET_GATEWAY;
+byte ip_subnet[] = IPSET_SUBNET;
+byte ip_dns[] = IPSET_DNS;
+// ****************
+
 
 // ********** change MQTT_KEEPALIVE to 60 at PubSubClient.h *****************
 EnergyMonitor emon1;
@@ -37,7 +66,7 @@ IPAddress server(192, 168, 10, 10);
 #define DOORPIN 5
 
 //#define REPORT_INTERVAL 60000 // in msec
-#define REPORT_INTERVAL 3000 // in msec
+#define REPORT_INTERVAL 1000 // in msec
 
 volatile unsigned long startMills ;
 volatile unsigned long revMills ;
@@ -46,6 +75,7 @@ unsigned long timemillis;
 
 unsigned long oldrevMills ;
 unsigned long sentMills ;
+volatile unsigned long revCounts ;
 
 volatile int irStatus = LOW ;
 
@@ -71,13 +101,14 @@ int ResetInfo = LOW;
 int average = 0;
 
 WiFiClient wifiClient;
-PubSubClient client(server, 1883, callback, wifiClient);
+PubSubClient client(mqtt_server, 1883, callback, wifiClient);
 
 long lastReconnectAttempt = 0;
+long calcIrmsmillis = 0;
 
 void wifi_connect() {
   // WIFI
-  if (EVENT_PRINT) {
+  if (DEBUG_PRINT) {
     Serial.println();
     Serial.println();
     Serial.print("Connecting to ");
@@ -91,19 +122,19 @@ void wifi_connect() {
   while (WiFi.status() != WL_CONNECTED) {
     delay(100);
     Attempt++;
-    if (EVENT_PRINT) {
+    if (DEBUG_PRINT) {
       Serial.print(".");
     }
     if (Attempt == 200)
     {
-      if (EVENT_PRINT) {
+      if (DEBUG_PRINT) {
         Serial.println();
         Serial.println("Could not connect to WIFI");
       }
       ESP.restart();
     }
   }
-  if (EVENT_PRINT) {
+  if (DEBUG_PRINT) {
     Serial.println("");
     Serial.println("WiFi connected");
     Serial.println("IP address: ");
@@ -112,26 +143,26 @@ void wifi_connect() {
 }
 
 boolean reconnect() {
-  if (!client.connected()) {
-    if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
-      client.publish(willTopic, "1", true);
-      if ( ResetInfo == LOW) {
-        client.publish(hellotopic, (char*) getResetInfo.c_str());
-        ResetInfo = HIGH;
-      } else {
-        client.publish(hellotopic, "hello again 1 from ESP8266 s07");
-      }
-      client.subscribe(subtopic);
-      if (EVENT_PRINT) {
-        Serial.println("---------------> connected");
-      }
+  //if (!client.connected()) {
+  if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
+    client.publish(willTopic, "1", true);
+    if ( ResetInfo == LOW) {
+      client.publish(hellotopic, (char*) getResetInfo.c_str());
+      ResetInfo = HIGH;
     } else {
-      if (EVENT_PRINT) {
-        Serial.print("----------------> failed, rc=");
-        Serial.println(client.state());
-      }
+      client.publish(hellotopic, "hello again 1 from ESP8266 s07");
+    }
+    client.subscribe(subtopic);
+    if (DEBUG_PRINT) {
+      Serial.println("---------------> connected");
+    }
+  } else {
+    if (DEBUG_PRINT) {
+      Serial.print("----------------> failed, rc=");
+      Serial.println(client.state());
     }
   }
+  //}
   //timemillis = millis();
   return client.connected();
 }
@@ -145,7 +176,7 @@ void callback(char* intopic, byte* inpayload, unsigned int length)
     receivedpayload += (char)inpayload[i];
   }
 
-  if (EVENT_PRINT) {
+  if (DEBUG_PRINT) {
     Serial.print(intopic);
     Serial.print(" => ");
     Serial.println(receivedpayload);
@@ -168,7 +199,6 @@ void callback(char* intopic, byte* inpayload, unsigned int length)
 
 void setup() {
   if (DEBUG_PRINT) {
-    //Serial.begin(74880);
     Serial.begin(115200);
   }
   delay(20);
@@ -199,6 +229,7 @@ void setup() {
   client.setServer(server, 1883);
 
   lastReconnectAttempt = 0;
+  revCounts = 0 ;
 
   getResetInfo = "hello from ESP8266 s07 ";
   getResetInfo += ESP.getResetInfo().substring(0, 30);
@@ -223,6 +254,36 @@ void setup() {
   emon1.current(A0, 75);
   oldirStatus = LOW ;
 
+  /*
+    //OTA
+    // Port defaults to 8266
+    //ArduinoOTA.setPort(8266);
+
+    // Hostname defaults to esp8266-[ChipID]
+    ArduinoOTA.setHostname("esp-power");
+
+    // No authentication by default
+    // ArduinoOTA.setPassword((const char *)"123");
+
+    ArduinoOTA.onStart([]() {
+    Serial.println("Start");
+    });
+    ArduinoOTA.onEnd([]() {
+    Serial.println("\nEnd");
+    });
+    ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+    Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
+    });
+    ArduinoOTA.onError([](ota_error_t error) {
+    Serial.printf("Error[%u]: ", error);
+    if (error == OTA_AUTH_ERROR) Serial.println("Auth Failed");
+    else if (error == OTA_BEGIN_ERROR) Serial.println("Begin Failed");
+    else if (error == OTA_CONNECT_ERROR) Serial.println("Connect Failed");
+    else if (error == OTA_RECEIVE_ERROR) Serial.println("Receive Failed");
+    else if (error == OTA_END_ERROR) Serial.println("End Failed");
+    });
+    ArduinoOTA.begin();
+  */
 }
 
 void DOORCHECKING() {
@@ -245,7 +306,6 @@ void loop()
         Serial.print(client.state());
       }
       unsigned long now = millis();
-      //      if (now - lastReconnectAttempt > 5000) {
       if (now - lastReconnectAttempt > 1000) {
         lastReconnectAttempt = now;
         if (reconnect()) {
@@ -257,9 +317,14 @@ void loop()
     wifi_connect();
   }
 
-  VIrms = emon1.calcIrms(1480) * 220.0;
-  ave.push(VIrms);
-  average = ave.mean();
+  if ((millis() - sentMills) > ( REPORT_INTERVAL / 2) ) {
+    unsigned long emonmillis = millis();
+    VIrms = emon1.calcIrms(1480) * 220.0;
+    calcIrmsmillis = millis() - emonmillis;
+
+    ave.push(VIrms);
+    average = ave.mean();
+  }
 
   if ( revMills > 600 ) {
     revValue = (float(( 3600  * 1000 ) / ( 600 * float(revMills) ) ) * 1000);
@@ -283,6 +348,10 @@ void loop()
   payload += (( average + revValue ) / 2) ;
   payload += ",\"Stddev\":";
   payload += ave.stddev();
+  payload += ",\"calcIrmsmillis\":";
+  payload += calcIrmsmillis;
+  payload += ",\"revCounts\":";
+  payload += revCounts;
   payload += ",\"FreeHeap\":";
   payload += ESP.getFreeHeap();
   payload += ",\"RSSI\":";
@@ -307,6 +376,11 @@ void loop()
     olddoorStatus = doorStatus ;
   }
 
+  if (((millis() - sentMills) > REPORT_INTERVAL ) && ( irStatus == oldirStatus ) &&  ( revMills > 600 )) {
+    sendmqttMsg(topic, payload);
+    sentMills = millis();
+  }
+
   if (( irStatus != oldirStatus ) && ( revMills > 600 )) {
     sendmqttMsg(topic, payload);
     sentMills = millis();
@@ -315,24 +389,21 @@ void loop()
     oldrevMills = revMills ;
   }
 
-  if (((millis() - sentMills) > REPORT_INTERVAL ) && ( revMills > 600 )) {
-    sendmqttMsg(topic, payload);
-    sentMills = millis();
-  }
+  //ArduinoOTA.handle();
   client.loop();
-  delay(100);
+  //delay(500);
 }
 
 void sendmqttMsg(char* topictosend, String payloadtosend)
 {
 
   if (client.connected()) {
-    if (EVENT_PRINT) {
+    if (DEBUG_PRINT) {
       Serial.print("Sending payload: ");
       Serial.print(payloadtosend);
     }
     unsigned int msg_length = payloadtosend.length();
-    if (EVENT_PRINT) {
+    if (DEBUG_PRINT) {
       Serial.print(" length: ");
       Serial.println(msg_length);
     }
@@ -340,12 +411,12 @@ void sendmqttMsg(char* topictosend, String payloadtosend)
     memcpy(p, (char*) payloadtosend.c_str(), msg_length);
 
     if ( client.publish(topictosend, p, msg_length, 1)) {
-      if (EVENT_PRINT) {
+      if (DEBUG_PRINT) {
         Serial.println("Publish ok");
       }
       free(p);
     } else {
-      if (EVENT_PRINT) {
+      if (DEBUG_PRINT) {
         Serial.println("Publish failed");
       }
       free(p);
@@ -366,13 +437,22 @@ void count_powermeter()
     return;
   }
 
-  if (( millis() - startMills ) < ( revMills / 3 )) {
+  /*
+    if (( millis() - startMills ) < ( revMills / 5 )) {
     return;
-  } else {
+    } else {
     revMills   = (millis() - startMills)  ;
     startMills = millis();
     irStatus   = !irStatus ;
-  }
+    revCounts++;
+    }
+  */
+
+  revMills   = (millis() - startMills)  ;
+  startMills = millis();
+  irStatus   = !irStatus ;
+  revCounts++;
+
 }
 
 String macToStr(const uint8_t* mac)
