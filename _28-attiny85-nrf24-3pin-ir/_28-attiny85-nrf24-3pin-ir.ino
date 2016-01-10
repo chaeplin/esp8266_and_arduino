@@ -31,7 +31,7 @@
 #define adc_disable() (ADCSRA &= ~(1<<ADEN)) // disable ADC
 #define adc_enable()  (ADCSRA |=  (1<<ADEN)) // re-enable ADC
 
-#define _TEST
+//#define _TEST
 #define _DIGITAL
 #define _3PIN
 //#define _5PIN
@@ -68,6 +68,8 @@ RF24 radio(CE_PIN, CSN_PIN);
 
 Average<float> ave(2);
 
+int16_t currentData1 ;
+
 void setup() {
   delay(20);
   adc_disable();
@@ -93,6 +95,16 @@ void setup() {
   unsigned long stopmilis = millis();
   payload.data2 = ( stopmilis - startmilis ) * 10 ;
 
+  digitalWrite(IRENPIN, HIGH);
+#ifdef _DIGITAL
+  delay(1);
+  currentData1  = digitalRead(DATA1PIN) * 10 ;
+#else
+  delay(1);
+  currentData1  = readData1() * 10;
+#endif
+  digitalWrite(IRENPIN, LOW);
+
   payload._salt = 0;
   payload.devid = DEVICE_ID;
 
@@ -102,6 +114,7 @@ void loop() {
   unsigned long startmilis = millis();
   payload._salt++;
   payload.volt = readVcc();
+
   digitalWrite(IRENPIN, HIGH);
 #ifdef _DIGITAL
   delay(1);
@@ -112,10 +125,13 @@ void loop() {
 #endif
   digitalWrite(IRENPIN, LOW);
 
-  radio.powerUp();
-  radio.write(&payload , sizeof(payload));
-  radio.powerDown();
+  if (( currentData1 != payload.data1 ) || ( (payload._salt / 12) == 0 ) ){
+    radio.powerUp();
+    radio.write(&payload , sizeof(payload));
+    radio.powerDown();
+  }
 
+  currentData1 = payload.data1;
   unsigned long stopmilis = millis();
 
   payload.data2 = ( stopmilis - startmilis ) * 10 ;
@@ -164,7 +180,6 @@ int readVcc() {
 }
 
 int16_t readData1() {
-
   adc_enable();
   delay(2);
   for (int k = 0; k < 2; k = k + 1) {
