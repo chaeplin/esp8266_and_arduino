@@ -1,5 +1,9 @@
 * ESP8266 mqtt node
 
+
+|![1](https://raw.githubusercontent.com/chaeplin/esp8266_and_arduino/master/_06-power_meter/pics/powermter-calibrated.png)|
+
+
 #### Server ####
 - mqtt broker : mosquitto
 - db : influxdb
