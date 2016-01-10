@@ -1,12 +1,12 @@
+#include <TimeLib.h>
 #include <pgmspace.h>
-#include <Wire.h>
-//#include <RtcDS3231.h>
-#include <PubSubClient.h>
 #include <ESP8266WiFi.h>
 #include <LiquidCrystal_I2C.h>
 #include <ArduinoJson.h>
 #include <WiFiUdp.h>
-#include <Time.h>
+#include <Wire.h>
+//#include <RtcDS3231.h>
+#include <PubSubClient.h>
 
 #define REPORT_INTERVAL 3000 // in msec
 
@@ -21,6 +21,27 @@ extern "C" {
 #else
 #include "ap_setting.h"
 #endif
+
+//
+void callback(char* intopic, byte* inpayload, unsigned int length);
+void parseMqttMsg(String receivedpayload, String receivedtopic);
+String macToStr(const uint8_t* mac);
+time_t getNtpTime();
+void displaysleepmode(int sleepmode);
+void displayHost(int numofhost, int numofall);
+void displaypowerAvg(float Power);
+void displayNemoWeight(int nemoWeight);
+void displayPIR();
+void displayTemperaturedigit(float Temperature);
+void displayTemperature();
+void displaydustDensity();
+void printDigitsnocolon(int digits);
+void printDigits(int digits);
+void sendNTPpacket(IPAddress & address);
+void digitalClockDisplay();
+void requestSharp();
+void sendmqttMsg(String payloadtosend);
+
 //
 const char* ssid = WIFI_SSID;
 const char* password = WIFI_PASSWORD;
@@ -206,7 +227,8 @@ void parseMqttMsg(String receivedpayload, String receivedtopic) {
     Serial.println(ESP.getFreeHeap());
   }
 
-  char json[] = "{\"Humidity\":41.90,\"Temperature\":25.90,\"DS18B20\":26.25,\"SENSORTEMP\":29.31,\"PIRSTATUS\":0,\"FreeHeap\":40608,\"RSSI\":-47,\"millis\":3831709269}";
+  char json[] = "{\"VIrms\":595,\"revValue\":718.56,\"revMills\":8350,\"powerAvg\":656.78,\"Stddev\":66.70,\"calcIrmsmillis\":153,\"revCounts\":126,\"FreeHeap\":46336,\"RSSI\":-61,\"millis\":1076571}";
+  //char json[] = "{\"Humidity\":41.90,\"Temperature\":25.90,\"DS18B20\":26.25,\"SENSORTEMP\":29.31,\"PIRSTATUS\":0,\"FreeHeap\":40608,\"RSSI\":-47,\"millis\":3831709269}";
 
   receivedpayload.toCharArray(json, 300);
   StaticJsonBuffer<300> jsonBuffer;
@@ -499,6 +521,8 @@ void setup() {
   lcd.print("%");
 
 }
+
+
 
 time_t prevDisplay = 0; // when the digital clock was displayed
 
@@ -1066,4 +1090,8 @@ void sendNTPpacket(IPAddress & address)
 
 
 //---------------
+
+
+
+
 
