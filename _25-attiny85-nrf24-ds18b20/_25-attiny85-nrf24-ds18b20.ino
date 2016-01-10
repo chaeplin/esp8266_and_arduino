@@ -49,22 +49,25 @@ RF24 radio(CE_PIN, CSN_PIN);
 
 OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature sensors(&oneWire);
-DeviceAddress outsideThermometer;
+DeviceAddress Thermometer01, Thermometer02;
 
-float tempCoutside;
+float tempC01;
+float tempC02;
 
 void setup() {
   delay(20);
   unsigned long startmilis = millis();
   adc_disable();
   sensors.begin();
-  if (!sensors.getAddress(outsideThermometer, 0)) {
+
+  if ( (!sensors.getAddress(Thermometer01, 0)) || (!sensors.getAddress(Thermometer02, 1)) ){
     sleep();
     //return;
   }
   // ds18b20 getTem 766ms
   // 12bit - 750ms, 11bit - 375ms, 10bit - 187ms, 9bit - 93.75ms
-  sensors.setResolution(outsideThermometer, TEMPERATURE_PRECISION);
+  sensors.setResolution(Thermometer01, TEMPERATURE_PRECISION);
+  sensors.setResolution(Thermometer02, TEMPERATURE_PRECISION);
 
   // radio begin to power down : 80 ms
   radio.begin();
@@ -80,7 +83,7 @@ void setup() {
   radio.stopListening();
 
   unsigned long stopmilis = millis();
-  payload.data2 = ( stopmilis - startmilis ) * 10 ;
+  //payload.data2 = ( stopmilis - startmilis ) * 10 ;
 
   payload._salt = 0;
   payload.devid = DEVICE_ID;
@@ -91,14 +94,17 @@ void loop() {
   unsigned long startmilis = millis();
 
   sensors.requestTemperatures();
-  tempCoutside = sensors.getTempC(outsideThermometer);
+  tempC01 = sensors.getTempC(Thermometer01);
+  tempC02 = sensors.getTempC(Thermometer02);
 
-  if (isnan(tempCoutside) || tempCoutside < -50 || tempCoutside > 50 ) {
+  if (isnan(tempC01) || tempC01 < -50 || tempC01 > 60 || isnan(tempC02) || tempC02 < -50 || tempC02 > 60 ) {
     sleep();
     return;
   }
 
-  payload.data1 = (tempCoutside * 10);
+  payload.data1 = (tempC01 * 10);
+  payload.data2 = (tempC02 * 10);
+
   payload.volt = readVcc();
 
   if ( payload.volt > 5000 || payload.volt <= 0 ) {
@@ -106,18 +112,19 @@ void loop() {
     return;
   }
 
+/*
   if ( payload.data2 < 0 ) {
     sleep();
     return;
   }
-
-
+*/
+  
   radio.powerUp();
   radio.write(&payload , sizeof(payload));
   radio.powerDown();
   unsigned long stopmilis = millis();
 
-  payload.data2 = ( stopmilis - startmilis ) * 10  ;
+  //payload.data2 = ( stopmilis - startmilis ) * 10  ;
   sleep();
 }
 
