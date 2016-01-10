@@ -1,3 +1,5 @@
+// CPU : 160MHz
+// FLASH : 4M/1M
 #include <PubSubClient.h>
 #include <ESP8266WiFi.h>
 #include <ESP8266mDNS.h>
@@ -36,7 +38,7 @@ const char* otapassword = OTA_PASSWORD;
 
 // ********** change MQTT_KEEPALIVE to 60 at PubSubClient.h *****************
 EnergyMonitor emon1;
-Average<float> ave(10);
+Average<float> ave(4);
 
 // mqtt
 char* topic = "esp8266/arduino/s07";
@@ -226,18 +228,6 @@ void setup() {
   oldrevMills = 0 ;
   oldrevValue = 0 ;
 
-  pinMode(IRPIN, INPUT);
-  pinMode(DOORPIN, INPUT_PULLUP);
-
-  doorStatus = digitalRead(DOORPIN);
-  olddoorStatus = doorStatus;
-
-  attachInterrupt(4, IRCHECKING_START, RISING);
-  attachInterrupt(5, DOORCHECKING, CHANGE);
-
-  emon1.current(A0, 75);
-  oldirStatus = LOW ;
-
 
   //OTA
   // Port defaults to 8266
@@ -261,16 +251,29 @@ void setup() {
   });
   ArduinoOTA.onError([](ota_error_t error) {
     //ESP.restart();
-      if (error == OTA_AUTH_ERROR) abort();
-      else if (error == OTA_BEGIN_ERROR) abort();
-      else if (error == OTA_CONNECT_ERROR) abort();
-      else if (error == OTA_RECEIVE_ERROR) abort();
-      else if (error == OTA_END_ERROR) abort();
-    
+    /*
+    if (error == OTA_AUTH_ERROR) abort();
+    else if (error == OTA_BEGIN_ERROR) abort();
+    else if (error == OTA_CONNECT_ERROR) abort();
+    else if (error == OTA_RECEIVE_ERROR) abort();
+    else if (error == OTA_END_ERROR) abort();
+    */
   });
 
   ArduinoOTA.begin();
 
+  pinMode(IRPIN, INPUT);
+  pinMode(DOORPIN, INPUT_PULLUP);
+
+  doorStatus = digitalRead(DOORPIN);
+  olddoorStatus = doorStatus;
+
+  attachInterrupt(4, IRCHECKING_START, FALLING);
+  attachInterrupt(5, DOORCHECKING, CHANGE);
+
+  //emon1.current(A0, 60.6);
+  emon1.current(A0, 85);
+  oldirStatus = LOW ;
 }
 
 void DOORCHECKING() {
@@ -279,7 +282,7 @@ void DOORCHECKING() {
 
 void IRCHECKING_START() {
   detachInterrupt(4);
-  attachInterrupt(4, count_powermeter, RISING);
+  attachInterrupt(4, count_powermeter, FALLING);
   startMills = millis();
   oldirStatus = HIGH ;
 }
@@ -304,9 +307,10 @@ void loop()
     wifi_connect();
   }
 
-  if ((millis() - sentMills) > ( REPORT_INTERVAL / 2) ) {
+  if ((millis() - sentMills) > ( 700) ) {
     unsigned long emonmillis = millis();
-    VIrms = emon1.calcIrms(1480) * 220.0;
+    //VIrms = emon1.calcIrms(1480) * 220.0;
+    VIrms = emon1.calcIrms(2960) * 220.0;
     calcIrmsmillis = millis() - emonmillis;
 
     ave.push(VIrms);
@@ -363,12 +367,12 @@ void loop()
     olddoorStatus = doorStatus ;
   }
 
-  if (((millis() - sentMills) > REPORT_INTERVAL ) && ( irStatus == oldirStatus ) &&  ( revMills > 600 )) {
+  if (((millis() - sentMills) > REPORT_INTERVAL ) && ( irStatus == oldirStatus )) {
     sendmqttMsg(topic, payload);
     sentMills = millis();
   }
 
-  if (( irStatus != oldirStatus ) && ( revMills > 600 )) {
+  if ( irStatus != oldirStatus ) {
     sendmqttMsg(topic, payload);
     sentMills = millis();
     oldirStatus = irStatus ;
@@ -423,21 +427,14 @@ void count_powermeter()
     return;
   }
 
-  /*
-    if (( millis() - startMills ) < ( revMills / 5 )) {
+  if (( millis() - startMills ) < ( revMills / 3 )) {
     return;
-    } else {
+  } else {
     revMills   = (millis() - startMills)  ;
     startMills = millis();
     irStatus   = !irStatus ;
     revCounts++;
-    }
-  */
-
-  revMills   = (millis() - startMills)  ;
-  startMills = millis();
-  irStatus   = !irStatus ;
-  revCounts++;
+  }
 
 }
 
