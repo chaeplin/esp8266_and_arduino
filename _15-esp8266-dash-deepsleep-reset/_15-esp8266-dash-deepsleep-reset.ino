@@ -28,6 +28,16 @@ ADC_MODE(ADC_VCC);
 #define IPSET_SUBNET { 255, 255, 255, 0 }
 #define IPSET_DNS { 192, 168, 10, 10 }
 
+// ------------------
+void callback(char* intopic, byte* inpayload, unsigned int length);
+void goingToSleepWithFail();
+String macToStr(const uint8_t* mac);
+void goingToSleep();
+void sendlightcmd();
+boolean sendmqttMsg(char* topictosend, String payload);
+
+
+
 // #define MQTT_KEEPALIVE 3 in PubSubClient.h
 
 // ****************
@@ -169,9 +179,9 @@ boolean reconnect()
 void wifi_connect()
 {
   WiFiClient::setLocalPortStart(micros() + vdd);
-  wifi_set_phy_mode(PHY_MODE_11N);
-  system_phy_set_rfoption(1);
-  wifi_set_channel(channel);
+  //wifi_set_phy_mode(PHY_MODE_11N);
+  //system_phy_set_rfoption(1);
+  //wifi_set_channel(channel);
 
   if (WiFi.status() != WL_CONNECTED) {
     // WIFI
