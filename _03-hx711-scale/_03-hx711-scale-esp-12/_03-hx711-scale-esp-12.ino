@@ -71,7 +71,8 @@ String getResetInfo ;
 int ResetInfo = LOW;
 
 WiFiClient wifiClient;
-PubSubClient client(mqtt_server, 1883, callback, wifiClient);
+//PubSubClient client(mqtt_server, 1883, callback, wifiClient);
+PubSubClient client(mqtt_server, 1883, wifiClient);
 
 void callback(char* topic, byte* payload, unsigned int length) {
   // handle message arrived
@@ -211,13 +212,14 @@ void setup() {
     //Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
   });
   ArduinoOTA.onError([](ota_error_t error) {
-    //ESP.restart();
+    ESP.restart();
+    /*
       if (error == OTA_AUTH_ERROR) abort();
       else if (error == OTA_BEGIN_ERROR) abort();
       else if (error == OTA_CONNECT_ERROR) abort();
       else if (error == OTA_RECEIVE_ERROR) abort();
       else if (error == OTA_END_ERROR) abort();
-    
+    */
   });
 
   ArduinoOTA.begin();  
