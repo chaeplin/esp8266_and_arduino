@@ -23,6 +23,9 @@
 // MQTT_KEEPALIVE : keepAlive interval in Seconds
 #define MQTT_KEEPALIVE 15
 
+### IDE ###
+- CURRENT : Arduino 1.6.7 with git version of https://github.com/esp8266/Arduino
+- OLD : s1.6.4 ~ 1.65 with board manager 1.6.5 ~ 2.0.0 esp8266/Arduino
 
 ### Library ###
 - https://github.com/knolleary/pubsubclient
