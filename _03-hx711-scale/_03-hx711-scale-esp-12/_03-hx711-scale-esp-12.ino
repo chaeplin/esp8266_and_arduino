@@ -1,5 +1,6 @@
-#include <PubSubClient.h>
+// flash 4M, CPU 160Mhz
 #include <ESP8266WiFi.h>
+#include <PubSubClient.h>
 #include <Average.h>
 #include <pgmspace.h>
 #include <Wire.h>
@@ -21,7 +22,7 @@
 #define DEBUG_PRINT 0
 
 // ****************
-void callback(char* intopic, byte* inpayload, unsigned int length);
+//void callback(char* intopic, byte* inpayload, unsigned int length);
 String macToStr(const uint8_t* mac);
 void check_isr();
 void hx711IsReady();
@@ -74,9 +75,11 @@ WiFiClient wifiClient;
 //PubSubClient client(mqtt_server, 1883, callback, wifiClient);
 PubSubClient client(mqtt_server, 1883, wifiClient);
 
+/*
 void callback(char* topic, byte* payload, unsigned int length) {
   // handle message arrived
 }
+*/
 
 unsigned long startMills;
 
@@ -335,6 +338,7 @@ void check_isr()
 {
   m = !m;
 }
+
 void hx711IsReady()
 {
 
