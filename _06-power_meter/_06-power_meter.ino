@@ -252,23 +252,23 @@ void setup() {
   ArduinoOTA.onError([](ota_error_t error) {
     //ESP.restart();
     /*
-    if (error == OTA_AUTH_ERROR) abort();
-    else if (error == OTA_BEGIN_ERROR) abort();
-    else if (error == OTA_CONNECT_ERROR) abort();
-    else if (error == OTA_RECEIVE_ERROR) abort();
-    else if (error == OTA_END_ERROR) abort();
+      if (error == OTA_AUTH_ERROR) abort();
+      else if (error == OTA_BEGIN_ERROR) abort();
+      else if (error == OTA_CONNECT_ERROR) abort();
+      else if (error == OTA_RECEIVE_ERROR) abort();
+      else if (error == OTA_END_ERROR) abort();
     */
   });
 
   ArduinoOTA.begin();
 
-  pinMode(IRPIN, INPUT);
+  pinMode(IRPIN, INPUT_PULLUP);
   pinMode(DOORPIN, INPUT_PULLUP);
 
   doorStatus = digitalRead(DOORPIN);
   olddoorStatus = doorStatus;
 
-  attachInterrupt(4, IRCHECKING_START, FALLING);
+  attachInterrupt(4, IRCHECKING_START, RISING);
   attachInterrupt(5, DOORCHECKING, CHANGE);
 
   //emon1.current(A0, 60.6);
@@ -282,7 +282,7 @@ void DOORCHECKING() {
 
 void IRCHECKING_START() {
   detachInterrupt(4);
-  attachInterrupt(4, count_powermeter, FALLING);
+  attachInterrupt(4, count_powermeter, RISING);
   startMills = millis();
   oldirStatus = HIGH ;
 }
@@ -302,86 +302,90 @@ void loop()
           lastReconnectAttempt = 0;
         }
       }
+    } else {
+
+      if ((millis() - sentMills) > ( 700) ) {
+        unsigned long emonmillis = millis();
+        //VIrms = emon1.calcIrms(1480) * 220.0;
+        VIrms = emon1.calcIrms(2960) * 220.0;
+        calcIrmsmillis = millis() - emonmillis;
+
+        ave.push(VIrms);
+        average = ave.mean();
+      }
+
+      //if ( revMills > 600 ) {
+      if ( irStatus == oldirStatus ) {
+        revValue = (float(( 3600  * 1000 ) / ( 600 * float(revMills) ) ) * 1000);
+      }
+      //}
+
+      if ( oldrevValue == 0 ) {
+        oldrevValue = revValue;
+      }
+
+      if ( oldrevMills == 0 ) {
+        oldrevMills = revMills;
+      }
+
+      payload = "{\"VIrms\":";
+      payload += average;
+      payload += ",\"revValue\":";
+      payload += revValue;
+      payload += ",\"revMills\":";
+      payload += revMills;
+      payload += ",\"powerAvg\":";
+      payload += (( average + revValue ) / 2) ;
+      payload += ",\"Stddev\":";
+      payload += ave.stddev();
+      payload += ",\"calcIrmsmillis\":";
+      payload += calcIrmsmillis;
+      payload += ",\"revCounts\":";
+      payload += revCounts;
+      payload += ",\"FreeHeap\":";
+      payload += ESP.getFreeHeap();
+      payload += ",\"RSSI\":";
+      payload += WiFi.RSSI();
+      payload += ",\"millis\":";
+      payload += (millis() - timemillis);
+      payload += "}";
+
+      if ( doorStatus != olddoorStatus ) {
+
+        doorpayload = "{\"DOOR\":";
+
+        if ( doorStatus == 0 ) {
+          doorpayload += "\"CLOSED\"";
+        }
+        else {
+          doorpayload += "\"OPEN\"";
+        }
+        doorpayload += "}";
+
+        sendmqttMsg(doortopic, doorpayload);
+        olddoorStatus = doorStatus ;
+      }
+
+      if (((millis() - sentMills) > REPORT_INTERVAL ) && ( irStatus == oldirStatus )) {
+        sendmqttMsg(topic, payload);
+        sentMills = millis();
+      }
+
+      if ( irStatus != oldirStatus ) {
+        sendmqttMsg(topic, payload);
+        sentMills = millis();
+        oldirStatus = irStatus ;
+        oldrevValue = revValue ;
+        oldrevMills = revMills ;
+      }
+
+      client.loop();
+      ArduinoOTA.handle();
+
     }
   } else {
     wifi_connect();
   }
-
-  if ((millis() - sentMills) > ( 700) ) {
-    unsigned long emonmillis = millis();
-    //VIrms = emon1.calcIrms(1480) * 220.0;
-    VIrms = emon1.calcIrms(2960) * 220.0;
-    calcIrmsmillis = millis() - emonmillis;
-
-    ave.push(VIrms);
-    average = ave.mean();
-  }
-
-  if ( revMills > 600 ) {
-    revValue = (float(( 3600  * 1000 ) / ( 600 * float(revMills) ) ) * 1000);
-  }
-
-  if ( oldrevValue == 0 ) {
-    oldrevValue = revValue;
-  }
-
-  if ( oldrevMills == 0 ) {
-    oldrevMills = revMills;
-  }
-
-  payload = "{\"VIrms\":";
-  payload += average;
-  payload += ",\"revValue\":";
-  payload += revValue;
-  payload += ",\"revMills\":";
-  payload += revMills;
-  payload += ",\"powerAvg\":";
-  payload += (( average + revValue ) / 2) ;
-  payload += ",\"Stddev\":";
-  payload += ave.stddev();
-  payload += ",\"calcIrmsmillis\":";
-  payload += calcIrmsmillis;
-  payload += ",\"revCounts\":";
-  payload += revCounts;
-  payload += ",\"FreeHeap\":";
-  payload += ESP.getFreeHeap();
-  payload += ",\"RSSI\":";
-  payload += WiFi.RSSI();
-  payload += ",\"millis\":";
-  payload += (millis() - timemillis);
-  payload += "}";
-
-  if ( doorStatus != olddoorStatus ) {
-
-    doorpayload = "{\"DOOR\":";
-
-    if ( doorStatus == 0 ) {
-      doorpayload += "\"CLOSED\"";
-    }
-    else {
-      doorpayload += "\"OPEN\"";
-    }
-    doorpayload += "}";
-
-    sendmqttMsg(doortopic, doorpayload);
-    olddoorStatus = doorStatus ;
-  }
-
-  if (((millis() - sentMills) > REPORT_INTERVAL ) && ( irStatus == oldirStatus )) {
-    sendmqttMsg(topic, payload);
-    sentMills = millis();
-  }
-
-  if ( irStatus != oldirStatus ) {
-    sendmqttMsg(topic, payload);
-    sentMills = millis();
-    oldirStatus = irStatus ;
-    oldrevValue = revValue ;
-    oldrevMills = revMills ;
-  }
-
-  client.loop();
-  ArduinoOTA.handle();
 }
 
 void sendmqttMsg(char* topictosend, String payloadtosend)
@@ -425,17 +429,18 @@ void count_powermeter()
 
   if (( millis() - startMills ) < 600 ) {
     return;
-  }
+    /*
+      }
 
-  if (( millis() - startMills ) < ( revMills / 3 )) {
-    return;
+      if (( millis() - startMills ) < ( revMills / 3 )) {
+       return;
+    */
   } else {
     revMills   = (millis() - startMills)  ;
     startMills = millis();
     irStatus   = !irStatus ;
     revCounts++;
   }
-
 }
 
 String macToStr(const uint8_t* mac)
