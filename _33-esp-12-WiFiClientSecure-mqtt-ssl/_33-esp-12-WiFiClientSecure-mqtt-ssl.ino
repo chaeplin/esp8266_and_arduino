@@ -24,6 +24,13 @@ const char* mqttpass = MQTT_TEST_PASS;
 
 IPAddress mqtt_server = MQTT_TEST_SERVER;
 const char* fingerprint = "70 B2 BF 0D 4E 2A 54 FC DD C3 75 03 CD 42 20 71 9C 4A 97 37";
+//connecting to 192.168.10.144
+//certificate matches
+
+// test
+//const char* fingerprint = "70 B2 BF 0D 4E 2A 54 FC DD C3 75 03 CD 42 20 71 9C 4A 97 36";
+//connecting to 192.168.10.144
+//certificate doesn't match
 //-------------------------------
 char* topic = "pubtest";
 
@@ -44,7 +51,6 @@ String macToStr(const uint8_t* mac);
 void sendmqttMsg(char* topictosend, String payload);
 
 
-/* to do verifytls
 void verifytls() {
   // Use WiFiClientSecure class to create TLS connection
   Serial.print("connecting to ");
@@ -54,13 +60,13 @@ void verifytls() {
     return;
   }
 
-  if (wifiClient.verify(fingerprint, mqtt_server)) {
+  if (wifiClient.verify(fingerprint, mqtt_server.toString().c_str())) {
     Serial.println("certificate matches");
   } else {
     Serial.println("certificate doesn't match");
   }
 }
-*/
+
   
 //-----------------------
 boolean reconnect()
@@ -139,6 +145,7 @@ void setup()
   clientName += "-";
   clientName += String(micros() & 0xff, 16);
 
+  verifytls();
   //OTA
   // Port defaults to 8266
   //ArduinoOTA.setPort(8266);
