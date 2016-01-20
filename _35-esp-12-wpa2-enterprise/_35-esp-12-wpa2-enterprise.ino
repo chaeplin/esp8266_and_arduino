@@ -1,56 +1,55 @@
 /*
- WPA2-ENT EAP-TLS
- based on joostd's code : https://github.com/joostd/esp8266-eduroam
- https://github.com/joostd/esp8266-eduroam/blob/master/gen_cert.sh
+  WPA2-ENT EAP-TLS
+  based on joostd's code : https://github.com/joostd/esp8266-eduroam
+  https://github.com/joostd/esp8266-eduroam/blob/master/gen_cert.sh
 
 
-wifi_station_set_cert_key
-Function: Set certificate and private key for connecting to WPA2-ENTERPRISE AP.
-Note:
-• Connecting to WPA2-ENTERPRISE AP needs more than 26 KB memory, please ensure enough space (system_get_free_heap_size). ---> 보통 45K 남아 있음
-•  So far, WPA2-ENTERPRISE can only support unencrypted certificate and private key, and only in PEM format.
+  wifi_station_set_cert_key
+  Function: Set certificate and private key for connecting to WPA2-ENTERPRISE AP.
+  Note:
+  • Connecting to WPA2-ENTERPRISE AP needs more than 26 KB memory, please ensure enough space (system_get_free_heap_size). ---> 보통 45K 남아 있음
+  •  So far, WPA2-ENTERPRISE can only support unencrypted certificate and private key, and only in PEM format.
         ‣ Header of certificate: - - - - - BEGIN CERTIFICATE - - - - -
         ‣ Headerofprivatekey:-----BEGINRSAPRIVATEKEY-----
              or - - - - - BEGIN PRIVATE KEY - - - - -
-•  Please call this API to set certificate and private key before connecting to WPA2-ENTERPRISE AP and the application needs to hold the certificate and private key. Call wifi_station_clear_cert_key to release resources and clear status after connected to the target AP, and then the application can release the certificate and private key.
-•  If the private key is encrypted, please use openssl pkey command to change it to unencrypted file to use, or use openssl rsa related commands to change it (or change the start TAG).
+  •  Please call this API to set certificate and private key before connecting to WPA2-ENTERPRISE AP and the application needs to hold the certificate and private key. Call wifi_station_clear_cert_key to release resources and clear status after connected to the target AP, and then the application can release the certificate and private key.
+  •  If the private key is encrypted, please use openssl pkey command to change it to unencrypted file to use, or use openssl rsa related commands to change it (or change the start TAG).
 
-Prototype:
+  Prototype:
         bool wifi_station_set_cert_key (
-                uint8 *client_cert, 
+                uint8 *client_cert,
                 int client_cert_len,
-                uint8 *private_key, 
+                uint8 *private_key,
                 int private_key_len,
-                uint8 *private_key_passwd, 
+                uint8 *private_key_passwd,
                 int private_key_passwd_len,
         )
 
-Parameter:
-        uint8 *client_cert : certificate, HEX array   
+  Parameter:
+        uint8 *client_cert : certificate, HEX array
         int client_cert_len : length of certificate
-        uint8 *private_key : private key, HEX array   
+        uint8 *private_key : private key, HEX array
         int private_key_len : length of private key
         uint8 *private_key_passwd : password for private key, to be supported, can only be NULL now.
         int private_key_passwd_len : length of password, to be supported, can only be 0 now.
 
-Return:
+  Return:
         0 : succeed   non-0 : fail
 
-Example:
-For example, the private key is - - - - - BEGIN PRIVATE KEY - - - - - ... ... ... ...
-Then then array should be uint8 key[]={0x2d, 0x2d, 0x2d, 0x2d, 0x2d, 0x42, 0x45, 0x47, ... ... 0x00 };
-It is the ASCII of the characters, and the array needs to be ended by 0x00.
+  Example:
+  For example, the private key is - - - - - BEGIN PRIVATE KEY - - - - - ... ... ... ...
+  Then then array should be uint8 key[]={0x2d, 0x2d, 0x2d, 0x2d, 0x2d, 0x42, 0x45, 0x47, ... ... 0x00 };
+  It is the ASCII of the characters, and the array needs to be ended by 0x00.
 */
 
 
 
 // by chaeplin 2016/01/20
 // https://github.com/chaeplin/esp8266_and_arduino
-/* 
-SERVER : Rpi2(freeradius:EAP-TLS, mosquitto:tls1.1)
-AP : DIR-868L(DD-WRT) 
-
-
+/*
+  SERVER : Rpi2(freeradius:EAP-TLS, mosquitto:tls1.1)
+  AP : DIR-868L(DD-WRT)
+  FreeHeap : 16.7K
 */
 
 
@@ -62,7 +61,7 @@ AP : DIR-868L(DD-WRT)
 #include <ArduinoOTA.h>
 
 extern "C" {
-  #include "user_interface.h"
+#include "user_interface.h"
 }
 
 #include "/usr/local/src/ap_setting.h"
@@ -75,7 +74,8 @@ extern "C" {
 
 // test
 // 0x2d, 0x2d, 0x2d, 0x2d, 0x2d, 0x42, 0x45, 0x47, 0x49, 0x4e, 0x20, 0x42, --> can't connect
-//   
+//
+// todo : use flash to store crt and key
 uint8 espclient1_crt[] = {
   0x2d, 0x2d, 0x2d, 0x2d, 0x2d, 0x42, 0x45, 0x47, 0x49, 0x4e, 0x20, 0x43,
   0x45, 0x52, 0x54, 0x49, 0x46, 0x49, 0x43, 0x41, 0x54, 0x45, 0x2d, 0x2d,
@@ -331,7 +331,7 @@ uint8 espclient1_key[] = {
 
 
 const char* ssid = "freeradius-2G";
-const char* password = WIFI_PASSWORD;
+const char* password = "any_password_not_used";
 
 const char* otapassword = OTA_PASSWORD;
 
@@ -383,7 +383,7 @@ void verifytls() {
   }
 }
 
-  
+
 //-----------------------
 boolean reconnect()
 {
@@ -414,8 +414,8 @@ void wifi_connect()
     delay(10);
     Serial.println("Cert set up");
     wifi_station_set_cert_key(espclient1_crt, sizeof(espclient1_crt), espclient1_key, sizeof(espclient1_key), NULL, 0);
-    yield();
     Serial.println("Cert set done");
+    Serial.println("");
     WiFi.mode(WIFI_STA);
     WiFi.begin(ssid, password);
 
@@ -438,7 +438,7 @@ void wifi_connect()
       }
 
     }
-    
+
     wifi_station_clear_cert_key();
     if (DEBUG_PRINT) {
       Serial.println();
@@ -465,6 +465,8 @@ void setup()
   clientName += macToStr(mac);
   clientName += "-";
   clientName += String(micros() & 0xff, 16);
+
+  Serial.println(clientName);
 
   verifytls();
   //OTA
@@ -518,6 +520,10 @@ void loop()
         lastMsg = now;
         String payload = "{\"startMills\":";
         payload += (millis() - startMills);
+        payload += ",\"FreeHeap\":";
+        payload += ESP.getFreeHeap();
+        payload += ",\"RSSI\":";
+        payload += WiFi.RSSI();
         payload += "}";
         sendmqttMsg(topic, payload);
       }
