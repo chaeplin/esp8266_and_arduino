@@ -314,47 +314,45 @@ void loop()
         average = ave.mean();
       }
 
-      //if ( revMills > 600 ) {
-      if ( irStatus == oldirStatus ) {
-        revValue = (float(( 3600  * 1000 ) / ( 600 * float(revMills) ) ) * 1000);
+      if ( revMills > 600 ) {
+      revValue = (float(( 3600  * 1000 ) / ( 600 * float(revMills) ) ) * 1000);
       }
-      //}
 
       if ( oldrevValue == 0 ) {
-        oldrevValue = revValue;
-      }
+      oldrevValue = revValue;
+    }
 
-      if ( oldrevMills == 0 ) {
-        oldrevMills = revMills;
-      }
+    if ( oldrevMills == 0 ) {
+      oldrevMills = revMills;
+    }
 
-      payload = "{\"VIrms\":";
-      payload += average;
-      payload += ",\"revValue\":";
-      payload += revValue;
-      payload += ",\"revMills\":";
-      payload += revMills;
-      payload += ",\"powerAvg\":";
-      payload += (( average + revValue ) / 2) ;
-      payload += ",\"Stddev\":";
-      payload += ave.stddev();
-      payload += ",\"calcIrmsmillis\":";
-      payload += calcIrmsmillis;
-      payload += ",\"revCounts\":";
-      payload += revCounts;
-      payload += ",\"FreeHeap\":";
-      payload += ESP.getFreeHeap();
-      payload += ",\"RSSI\":";
-      payload += WiFi.RSSI();
-      payload += ",\"millis\":";
-      payload += (millis() - timemillis);
-      payload += "}";
+    payload = "{\"VIrms\":";
+              payload += average;
+              payload += ",\"revValue\":";
+              payload += revValue;
+              payload += ",\"revMills\":";
+              payload += revMills;
+              payload += ",\"powerAvg\":";
+              payload += (( average + revValue ) / 2) ;
+              payload += ",\"Stddev\":";
+              payload += ave.stddev();
+              payload += ",\"calcIrmsmillis\":";
+              payload += calcIrmsmillis;
+              payload += ",\"revCounts\":";
+              payload += revCounts;
+              payload += ",\"FreeHeap\":";
+              payload += ESP.getFreeHeap();
+              payload += ",\"RSSI\":";
+              payload += WiFi.RSSI();
+              payload += ",\"millis\":";
+              payload += (millis() - timemillis);
+              payload += "}";
 
-      if ( doorStatus != olddoorStatus ) {
+    if ( doorStatus != olddoorStatus ) {
 
-        doorpayload = "{\"DOOR\":";
+      doorpayload = "{\"DOOR\":";
 
-        if ( doorStatus == 0 ) {
+      if ( doorStatus == 0 ) {
           doorpayload += "\"CLOSED\"";
         }
         else {
@@ -367,12 +365,12 @@ void loop()
       }
 
       if (((millis() - sentMills) > REPORT_INTERVAL ) && ( irStatus == oldirStatus )) {
-        sendmqttMsg(topic, payload);
+      sendmqttMsg(topic, payload);
         sentMills = millis();
       }
 
       if ( irStatus != oldirStatus ) {
-        sendmqttMsg(topic, payload);
+      sendmqttMsg(topic, payload);
         sentMills = millis();
         oldirStatus = irStatus ;
         oldrevValue = revValue ;
@@ -429,12 +427,9 @@ void count_powermeter()
 
   if (( millis() - startMills ) < 600 ) {
     return;
-    /*
-      }
-
-      if (( millis() - startMills ) < ( revMills / 3 )) {
-       return;
-    */
+  }
+  if (( millis() - startMills ) < ( revMills / 4 )) {
+    return;
   } else {
     revMills   = (millis() - startMills)  ;
     startMills = millis();
