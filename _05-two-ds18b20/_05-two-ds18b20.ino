@@ -50,7 +50,7 @@ char* topic = "esp8266/arduino/s04";
 char* hellotopic = "HELLO";
 
 WiFiClient wifiClient;
-PubSubClient client(mqtt_server, 1883, callback, wifiClient);
+PubSubClient client(mqtt_server, 1883, wifiClient);
 
 long lastReconnectAttempt = 0;
 
@@ -64,9 +64,17 @@ float tempCinside ;
 
 int vdd;
 
-void callback(char* intopic, byte* inpayload, unsigned int length) {
-  //
+String macToStr(const uint8_t* mac)
+{
+  String result;
+  for (int i = 0; i < 6; ++i) {
+    result += String(mac[i], 16);
+    if (i < 5)
+      result += ':';
+  }
+  return result;
 }
+
 
 boolean reconnect()
 {
@@ -117,6 +125,53 @@ void wifi_connect()
     }
 
     wifiMills = millis() - startMills;
+  }
+}
+
+
+void goingToSleep()
+{
+  if (DEBUG_PRINT) {
+    ESP.deepSleep(20000000);
+  } else {
+    ESP.deepSleep(300000000);
+  }
+  delay(250);
+}
+
+boolean sendmqttMsg(char* topictosend, String payload)
+{
+  if (client.connected()) {
+    if (DEBUG_PRINT) {
+      Serial.print("Sending payload: ");
+      Serial.print(payload);
+    }
+
+    unsigned int msg_length = payload.length();
+
+    if (DEBUG_PRINT) {
+      Serial.print(" length: ");
+      Serial.println(msg_length);
+    }
+
+    byte* p = (byte*)malloc(msg_length);
+    memcpy(p, (char*) payload.c_str(), msg_length);
+
+    if ( client.publish(topictosend, p, msg_length, 1)) {
+      if (DEBUG_PRINT) {
+        Serial.print("Publish ok  --> ");
+        Serial.println(millis() - startMills);
+      }
+      free(p);
+      return 1;
+    } else {
+      if (DEBUG_PRINT) {
+        Serial.print("Publish failed --> ");
+        Serial.println(millis() - startMills);
+      }
+      free(p);
+      return 0;
+    }
   }
 }
 
@@ -219,64 +274,6 @@ void loop(void)
     goingToSleep();
   }
 
-}
-
-
-void goingToSleep()
-{
-  if (DEBUG_PRINT) {
-    ESP.deepSleep(20000000);
-  } else {
-    ESP.deepSleep(300000000);
-  }
-  delay(250);
-}
-
-boolean sendmqttMsg(char* topictosend, String payload)
-{
-  if (client.connected()) {
-    if (DEBUG_PRINT) {
-      Serial.print("Sending payload: ");
-      Serial.print(payload);
-    }
-
-    unsigned int msg_length = payload.length();
-
-    if (DEBUG_PRINT) {
-      Serial.print(" length: ");
-      Serial.println(msg_length);
-    }
-
-    byte* p = (byte*)malloc(msg_length);
-    memcpy(p, (char*) payload.c_str(), msg_length);
-
-    if ( client.publish(topictosend, p, msg_length, 1)) {
-      if (DEBUG_PRINT) {
-        Serial.print("Publish ok  --> ");
-        Serial.println(millis() - startMills);
-      }
-      free(p);
-      return 1;
-    } else {
-      if (DEBUG_PRINT) {
-        Serial.print("Publish failed --> ");
-        Serial.println(millis() - startMills);
-      }
-      free(p);
-      return 0;
-    }
-  }
-}
-
-String macToStr(const uint8_t* mac)
-{
-  String result;
-  for (int i = 0; i < 6; ++i) {
-    result += String(mac[i], 16);
-    if (i < 5)
-      result += ':';
-  }
-  return result;
 }
 
 //---------------
