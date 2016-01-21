@@ -28,6 +28,7 @@
 
 #### _02-mqtt-sw ####
 - esp-12
-- power(5v + 3.3V), fuse(10A + 73°C thermal), 1CH relay, SW(top + lamp), PIR, DS18B20(in + out), DHT22
+- power(5v + 3.3V), fuse(10A + 73°C thermal), 1CH relay, SW(top + lamp), PIR, DS18B20(in + out), DHT22 , NRF24L01P
 - on/off lamp using mqtt, pub temp(inside of box + outside)/humidity/pir
+- gateway for NRF24L01 sensors. pub to mqtt server
 
