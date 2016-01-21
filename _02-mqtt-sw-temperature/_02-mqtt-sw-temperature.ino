@@ -31,9 +31,9 @@ extern "C" {
 #define DEBUG_PRINT 0
 
 // ****************
+time_t getNtpTime();
 void callback(char* intopic, byte* inpayload, unsigned int length);
 String macToStr(const uint8_t* mac);
-time_t getNtpTime();
 void run_lightcmd();
 void changelight();
 void sendmqttMsg(char* topictosend, String payload);
@@ -41,7 +41,6 @@ void runTimerDoLightOff();
 void getdalastemp();
 void getdht22temp();
 void sendNTPpacket(IPAddress & address);
-
 
 // ****************
 const char* ssid = WIFI_SSID;
@@ -132,9 +131,10 @@ int pirSent  ;
 int oldpirValue ;
 
 /*
-volatile int relaystatus    = LOW;
-volatile int oldrelaystatus = LOW;
+  volatile int relaystatus    = LOW;
+  volatile int oldrelaystatus = LOW;
 */
+
 volatile int relaystatus    = LOW;
 int oldrelaystatus = LOW;
 
@@ -369,7 +369,6 @@ void setup()
   // Hostname defaults to esp8266-[ChipID]
   ArduinoOTA.setHostname("esp-swtemp");
 
-
   // No authentication by default
   ArduinoOTA.setPassword(otapassword);
 
@@ -384,12 +383,12 @@ void setup()
   });
   ArduinoOTA.onError([](ota_error_t error) {
     //ESP.restart();
-      if (error == OTA_AUTH_ERROR) abort();
-      else if (error == OTA_BEGIN_ERROR) abort();
-      else if (error == OTA_CONNECT_ERROR) abort();
-      else if (error == OTA_RECEIVE_ERROR) abort();
-      else if (error == OTA_END_ERROR) abort();
-    
+    if (error == OTA_AUTH_ERROR) abort();
+    else if (error == OTA_BEGIN_ERROR) abort();
+    else if (error == OTA_CONNECT_ERROR) abort();
+    else if (error == OTA_RECEIVE_ERROR) abort();
+    else if (error == OTA_END_ERROR) abort();
+
   });
 
   ArduinoOTA.begin();
@@ -544,7 +543,6 @@ void loop()
         Serial.println(sensor_data.devid);
       }
 
-
       String radiopayload = "{\"_salt\":";
       radiopayload += sensor_data._salt;
       radiopayload += ",\"volt\":";
@@ -557,7 +555,7 @@ void loop()
       radiopayload += sensor_data.devid;
       radiopayload += "}";
 
-      if ( (sensor_data.devid > 0) && (sensor_data.devid < 255) ) 
+      if ( (sensor_data.devid > 0) && (sensor_data.devid < 255) )
       {
         String newRadiotopic = radiotopic;
         newRadiotopic += "/";
@@ -595,7 +593,6 @@ void runTimerDoLightOff()
 
 void changelight()
 {
-
   if (DEBUG_PRINT) {
     Serial.print(" => ");
     Serial.print("checking relay status changelight --> ");
@@ -682,13 +679,14 @@ void sendmqttMsg(char* topictosend, String payload)
 
 void run_lightcmd()
 {
-  int topbuttonstatus =  ! digitalRead(TOPBUTTONPIN);
+  //int topbuttonstatus =  ! digitalRead(TOPBUTTONPIN);
   if ( relayIsReady == HIGH  ) {
-    relaystatus = topbuttonstatus ;
+    //relaystatus = topbuttonstatus ;
+    relaystatus = !relaystatus;
   }
   if (DEBUG_PRINT && ( relayIsReady == HIGH  )) {
-    Serial.print("run_lightcmd  => topbuttonstatus => ");
-    Serial.print(topbuttonstatus);
+    //Serial.print("run_lightcmd  => topbuttonstatus => ");
+    //Serial.print(topbuttonstatus);
     Serial.print(" => relaystatus => ");
     Serial.println(relaystatus);
   }
@@ -696,15 +694,15 @@ void run_lightcmd()
 
 // pin 16 can't be used for Interrupts
 /*
-void motion_detection()
-{
+  void motion_detection()
+  {
   if (DEBUG_PRINT) {
     Serial.println("motion_detection called");
   }
   //pirValue =
   pirValue = digitalRead(pir);
   pirSent = HIGH ;
-}
+  }
 */
 
 String macToStr(const uint8_t* mac)
