@@ -69,6 +69,7 @@ RF24 radio(CE_PIN, CSN_PIN);
 Average<float> ave(2);
 
 int16_t currentData1 ;
+int reportcount ;
 
 void setup() {
   delay(20);
@@ -108,6 +109,8 @@ void setup() {
   payload._salt = 0;
   payload.devid = DEVICE_ID;
 
+  reportcount = 0;
+
 }
 
 void loop() {
@@ -125,12 +128,22 @@ void loop() {
 #endif
   digitalWrite(IRENPIN, LOW);
 
-  if (( currentData1 != payload.data1 ) || ( (payload._salt % 12) == 0 ) ){
+  /*
+    if (( currentData1 != payload.data1 ) || ( ( payload._salt % 12) == 0 ) ){
+      radio.powerUp();
+      radio.write(&payload , sizeof(payload));
+      radio.powerDown();
+    }
+  */
+
+  if (( currentData1 != payload.data1 ) || ( reportcount == 0 ) || ( reportcount > 12 )) {
     radio.powerUp();
     radio.write(&payload , sizeof(payload));
     radio.powerDown();
+    reportcount = 1;
   }
 
+  reportcount++;
   currentData1 = payload.data1;
   unsigned long stopmilis = millis();
 
