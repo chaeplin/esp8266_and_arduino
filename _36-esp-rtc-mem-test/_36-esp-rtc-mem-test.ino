@@ -66,7 +66,7 @@ extern "C" {
 }
 
 //--
-#define RTC_MAGIC 12345
+#define RTC_MAGIC 12345678
 
 typedef struct _tagPoint {
   uint32 magic ;
@@ -75,6 +75,16 @@ typedef struct _tagPoint {
 } RTC_TEST;
 
 RTC_TEST rtc_mem_test;
+
+#define IPSET_STATIC { 192, 168, 10, 7 }
+#define IPSET_GATEWAY { 192, 168, 10, 1 }
+#define IPSET_SUBNET { 255, 255, 255, 0 }
+#define IPSET_DNS { 192, 168, 10, 10 }
+
+IPAddress ip_static = IPSET_STATIC;
+IPAddress ip_gateway = IPSET_GATEWAY;
+IPAddress ip_subnet = IPSET_SUBNET;
+IPAddress ip_dns = IPSET_DNS;
 
 //---
 String macToStr(const uint8_t* mac);
@@ -90,7 +100,7 @@ char* topic = "pubtest";
 String clientName;
 long lastReconnectAttempt = 0;
 long lastMsg = 0;
-int test_para = 2000;
+int test_para = 1;
 unsigned long startMills;
 
 WiFiClient wifiClient;
@@ -102,7 +112,7 @@ void goingToSleepNoRF()
   Serial.println("going to sleep with no rf");
   //system_deep_sleep_set_option(4);
   //system_deep_sleep(10000000);
-  ESP.deepSleep(1, WAKE_RF_DISABLED);
+  ESP.deepSleep(3000000, WAKE_RF_DISABLED);
 }
 
 void goingToSleepWithRF()
@@ -111,7 +121,7 @@ void goingToSleepWithRF()
   Serial.println("going to sleep with rf");
   //system_deep_sleep_set_option(0);
   //system_deep_sleep(10000000);
-  ESP.deepSleep(3000000, WAKE_RF_DEFAULT);
+  ESP.deepSleep(1, WAKE_RF_DEFAULT);
 }
 
 void rtc_count()
@@ -177,6 +187,8 @@ void wifi_connect()
     delay(10);
     WiFi.mode(WIFI_STA);
     WiFi.begin(ssid, password);
+    WiFi.config(IPAddress(ip_static), IPAddress(ip_gateway), IPAddress(ip_subnet), IPAddress(ip_dns));
+
 
     int Attempt = 0;
     while (WiFi.status() != WL_CONNECTED) {
@@ -241,7 +253,7 @@ void loop()
         String payload = "{\"startMills\":";
         payload += (millis() - startMills);
         payload += ",\"salt\":";
-        payload += rtc_mem_test.salt;        
+        payload += rtc_mem_test.salt;
         payload += ",\"FreeHeap\":";
         payload += ESP.getFreeHeap();
         payload += ",\"RSSI\":";
