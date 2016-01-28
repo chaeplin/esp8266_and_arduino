@@ -27,6 +27,8 @@ IPAddress influxdbudp = MQTT_SERVER;
 
 String clientName;
 unsigned long startMills;
+unsigned long prevMills;
+unsigned long portCount;
 
 WiFiClient wifiClient;
 WiFiUDP udp;
@@ -166,6 +168,8 @@ void wifi_connect()
 void setup()
 {
   startMills = millis();
+  prevMills =  millis();
+  portCount = 0;
   //Serial.begin(74880);
 
   Serial.println("");
@@ -200,6 +204,8 @@ void loop()
     payload += ESP.getFreeHeap();
     payload += "i,RSSI=";
     payload += WiFi.RSSI();
+    payload += ",delay=";
+    payload += (millis() - prevMills);
 
     Serial.print("payload : ");
     Serial.println(payload);
@@ -210,6 +216,8 @@ void loop()
   }
   //delay(1);
   delayMicroseconds(200);
+  prevMills = millis() ;
+  portCount++;
 }
 
 void sendUdpSyslog(String msgtosend)
@@ -218,7 +226,11 @@ void sendUdpSyslog(String msgtosend)
   byte* p = (byte*)malloc(msg_length);
   memcpy(p, (char*) msgtosend.c_str(), msg_length);
 
-  udp.beginPacket(influxdbudp, 8089);
+  if ( portCount % 2 == 0 ) {
+    udp.beginPacket(influxdbudp, 8089);
+  } else {
+    udp.beginPacket(influxdbudp, 8090);
+  }
   udp.write(p, msg_length);
   udp.endPacket();
   free(p);
