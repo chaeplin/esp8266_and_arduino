@@ -268,7 +268,7 @@ void loop()
   }
   prevMills = millis() ;
   portCount++;
-  delayMicroseconds(500);
+  delayMicroseconds(400);
   //delay(1);
 }
 
