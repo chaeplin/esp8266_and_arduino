@@ -14,45 +14,6 @@
    16 / 15 ---> detect range ( m / u / n )
 */
 
-/*
-  D0    PCINT16 (PCMSK2 / PCIF2 / PCIE2)
-  D1    PCINT17 (PCMSK2 / PCIF2 / PCIE2)
-  D2    PCINT18 (PCMSK2 / PCIF2 / PCIE2)
-  D3    PCINT19 (PCMSK2 / PCIF2 / PCIE2)
-  D4    PCINT20 (PCMSK2 / PCIF2 / PCIE2)
-  D5    PCINT21 (PCMSK2 / PCIF2 / PCIE2)
-  D6    PCINT22 (PCMSK2 / PCIF2 / PCIE2)
-  D7    PCINT23 (PCMSK2 / PCIF2 / PCIE2)
-  D8    PCINT0  (PCMSK0 / PCIF0 / PCIE0)
-  D9    PCINT1  (PCMSK0 / PCIF0 / PCIE0)
-  D10   PCINT2  (PCMSK0 / PCIF0 / PCIE0)
-  D11   PCINT3  (PCMSK0 / PCIF0 / PCIE0)
-  D12   PCINT4  (PCMSK0 / PCIF0 / PCIE0)
-  D13   PCINT5  (PCMSK0 / PCIF0 / PCIE0)
-  A0    PCINT8  (PCMSK1 / PCIF1 / PCIE1)
-  A1    PCINT9  (PCMSK1 / PCIF1 / PCIE1)
-  A2    PCINT10 (PCMSK1 / PCIF1 / PCIE1)
-  A3    PCINT11 (PCMSK1 / PCIF1 / PCIE1)
-  A4    PCINT12 (PCMSK1 / PCIF1 / PCIE1)
-  A5    PCINT13 (PCMSK1 / PCIF1 / PCIE1)
-
-
-  ISR (PCINT0_vect)
-  {
-  // handle pin change interrupt for D8 to D13 here
-  }  // end of PCINT0_vect
-
-  ISR (PCINT1_vect)
-  {
-  // handle pin change interrupt for A0 to A5 here
-  }  // end of PCINT1_vect
-
-  ISR (PCINT2_vect)
-  {
-  // handle pin change interrupt for D0 to D7 here
-  }  // end of PCINT2_vect
-*/
-
 #include <avr/wdt.h>
 #include <avr/interrupt.h>
 #include <avr/sleep.h>
@@ -63,6 +24,7 @@
 #include "nRF24L01.h"
 #include "RF24.h"
 #include <Wire.h>
+#include "PinChangeInterrupt.h"
 #include <Adafruit_ADS1015.h>
 
 #define adc_disable() (ADCSRA &= ~(1<<ADEN)) // disable ADC
@@ -97,22 +59,36 @@ const int microPin  = 15;
 const int ledPin    = 14;
 
 int rangeStatus;
-
-unsigned long counterForloop;
+volatile unsigned long counterForloop;
 volatile unsigned long counterForloop_old;
+volatile boolean checkRangenow;
+volatile int noOfWake;
+
+void checkRange() {
+  checkRangenow = true;
+}
 
 void wakeUp() {
+  noOfWake++;
   counterForloop_old = counterForloop;
+  checkRangenow = true;
+
   detachInterrupt(digitalPinToInterrupt(2));
+
+  attachPinChangeInterrupt(digitalPinToPinChangeInterrupt(microPin), checkRange, CHANGE);
+  attachPinChangeInterrupt(digitalPinToPinChangeInterrupt(nanoPin), checkRange, CHANGE);
 }
 
 void sleepNow() {
+  detachPinChangeInterrupt(digitalPinToPinChangeInterrupt(microPin));
+  detachPinChangeInterrupt(digitalPinToPinChangeInterrupt(nanoPin));
+
   digitalWrite(ledPin, LOW);
   attachInterrupt(digitalPinToInterrupt(2), wakeUp, FALLING);
   LowPower.powerDown(SLEEP_FOREVER, ADC_OFF, BOD_OFF);
 }
 
-void checkBttn() {
+void checkRecordBttn() {
   attachInterrupt(digitalPinToInterrupt(2), sleepNow, FALLING);
 }
 
@@ -135,7 +111,9 @@ void setup() {
   rangeStatus = microStatus << 1;
   rangeStatus = rangeStatus + nanoStatus;
 
+  noOfWake = 0;
   counterForloop = 0;
+  checkRangenow = false;
 
   // radio
   radio.begin();
@@ -156,53 +134,91 @@ void setup() {
   payload._salt = 0;
   payload.devid = DEVICE_ID;
 
+  ads.setGain(GAIN_ONE);
+  ads.begin();
+
+  for (int k = 0; k < 10; k = k + 1) {
+    if (k % 2 == 0) {
+      digitalWrite(ledPin, HIGH);
+    }
+    else {
+      digitalWrite(ledPin, LOW);
+    }
+    delay(100);
+  }
+
   sleepNow();
 }
 
-
 void loop() {
+
+  unsigned long startmilis = millis();
   digitalWrite(ledPin, HIGH);
 
-  int microStatus = digitalRead(microPin);
-  int nanoStatus  = digitalRead(nanoPin);
+  if ( checkRangenow == true ) {
 
-  rangeStatus = microStatus << 1;
-  rangeStatus = rangeStatus + nanoStatus;
+    int microStatus = digitalRead(microPin);
+    int nanoStatus  = digitalRead(nanoPin);
 
-  Serial.print("counterForloop : ");
-  Serial.print(counterForloop);
-  Serial.print(" - rangeStatus : ");
-  Serial.println(rangeStatus);
+    rangeStatus = microStatus << 1;
+    rangeStatus = rangeStatus + nanoStatus;
 
-  if (counterForloop > (counterForloop_old + 10)) {
-    checkBttn();
+    checkRangenow = false;
   }
 
+  int16_t results;
+  float multiplier = 0.125F;
+  results = ads.readADC_Differential_0_1();
 
-  // milli
-  // micro
-  // nano
+  Serial.print("  noOfWakeup : ");
+  Serial.print(noOfWake);
+  Serial.print(" - counterForloop : ");
+  Serial.print(counterForloop);
+  Serial.print(" - rangeStatus : ");
+  Serial.print(rangeStatus);
+  Serial.print(" - results : ");
+  Serial.print(results * multiplier);
+  Serial.println(" mA");
+
+  if (counterForloop > (counterForloop_old + 100)) {
+    checkRecordBttn();
+  }
+
+  // milli  1
+  // micro  3
+  // nano   2
 
 
+  payload._salt = noOfWake ;
+  payload.data1 = results * multiplier ;
+  payload.volt = readVcc();
 
-  /*
-    unsigned long startmilis = millis();
+  radioSend();
 
-    payload._salt++;
-    payload.data1 = 10 ;
-    payload.volt = readVcc();
+  unsigned long stopmilis = millis();
 
-    radio.powerUp();
-    radio.write(&payload , sizeof(payload));
-    radio.powerDown();
+  payload.data2 = ( stopmilis - startmilis ) * 10 ;
 
-    unsigned long stopmilis = millis();
-
-    payload.data2 = ( stopmilis - startmilis ) * 10 ;
-  */
   digitalWrite(ledPin, LOW);
   counterForloop++;
-  delay(100);
+  //delay(30);
+  
+}
+
+void radioSend() {
+  /*
+  radio.powerUp();
+  radio.write(&payload , sizeof(payload));
+  radio.powerDown();
+  */
+  Serial.print("_salt : ");
+  Serial.print(payload._salt);
+  Serial.print(" - data1 : ");
+  Serial.print(payload.data1);
+  Serial.print(" - data2 : ");
+  Serial.print(payload.data2);
+  Serial.print(" - volt : ");
+  Serial.print(payload.volt);  
 }
 
 int readVcc() {
