@@ -36,7 +36,7 @@
 #define DEVICE_ID 15
 #define CHANNEL 100
 
-const uint64_t pipes[3] = { 0xFFFFFFFFFFLL, 0xCCCCCCCCCCLL, 0xFFCCFFCCCCLL };
+const uint64_t pipes[3] = { 0xFFFFFFFFFFLL, 0xCCCCCCCCCCLL, 0xFFFFFFFFCCLL };
 
 typedef struct {
   uint32_t _salt;
@@ -86,7 +86,7 @@ void checkRecordBttn() {
 }
 
 void setup() {
-  Serial.begin(115200);
+  //Serial.begin(115200);
 
   delay(20);
   adc_disable();
@@ -167,7 +167,7 @@ void loop() {
 
   payload.data1 = results * multiplier ;
   payload.data2 = rangeStatus;
- 
+
   payload._salt = noOfWake ;
   payload.volt = readVcc();
 
@@ -176,21 +176,14 @@ void loop() {
   Serial.println(payload.data2);
 
   if ( rangeStatus == 1 || rangeStatus == 3 || rangeStatus == 2 ) {
-    radioSend();
-  }
-  
-  digitalWrite(ledPin, LOW);
-  counterForloop++;
-  delay(1000);
-
-}
-
-void radioSend() {
-  /*
     radio.powerUp();
     radio.write(&payload , sizeof(payload));
     radio.powerDown();
-  */
+  }
+
+  digitalWrite(ledPin, LOW);
+  counterForloop++;
+  //delay(30);
 }
 
 int readVcc() {

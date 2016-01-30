@@ -90,7 +90,7 @@ DeviceAddress outsideThermometer;
 RF24 radio(3, 15);
 
 // Topology
-const uint64_t pipes[3] = { 0xFFFFFFFFFFLL, 0xCCCCCCCCCCLL, 0xFFCCFFCCCCLL };
+const uint64_t pipes[3] = { 0xFFFFFFFFFFLL, 0xCCCCCCCCCCLL, 0xFFFFFFFFCCLL };
 
 typedef struct {
   uint32_t _salt;
@@ -300,7 +300,7 @@ void setup()
   //
   lastReconnectAttempt = 0;
   millisnow = 0;
-  
+
   getResetInfo = "hello from ESP8266 s02 ";
   getResetInfo += ESP.getResetInfo().substring(0, 30);
 
@@ -592,16 +592,26 @@ void loop()
           timestamp = numberOfSecondsSinceEpochUTC(year(), month(), day(), hour(), minute(), second());
           millisnow = millisecond();
         }
-        
-        String udppayload = "udptest,test=test01,measure=";
+
+        if ( sensor_data.data1 < 0 ) {
+          sensor_data.data1 = 0;
+        }
+        String udppayload = "current,test=current,measureno=";
         udppayload += sensor_data._salt;
-        udppayload += " devid=";
+        udppayload += ",unit=";
+        if ( sensor_data.data2 == 1) {
+          udppayload += "mA devid=";
+        }
+        if ( sensor_data.data2 == 3) {
+          udppayload += "µA devid=";
+        }
+        if ( sensor_data.data2 == 2) {
+          udppayload += "nA devid=";
+        }
         udppayload += sensor_data.devid;
         udppayload += "i,volt=";
         udppayload += sensor_data.volt;
-        udppayload += "i,delay=";
-        udppayload += ((float)sensor_data.data2 / 10);
-        udppayload += ",nA=";
+        udppayload += "i,ampere=";
         udppayload += sensor_data.data1;
         udppayload += " ";
         udppayload += timestamp;
@@ -618,8 +628,6 @@ void loop()
 
         sendUdpmsg(udppayload);
       }
-
-
     }
   }
 
