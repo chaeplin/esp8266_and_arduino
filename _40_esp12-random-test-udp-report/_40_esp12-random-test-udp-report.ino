@@ -7,7 +7,7 @@ extern "C" {
 #include "user_interface.h"
 }
 
-#define DEBUG_PRINT 0
+#define DEBUG_PRINT 1
 
 #define IPSET_STATIC { 192, 168, 10, 7 }
 #define IPSET_GATEWAY { 192, 168, 10, 1 }
@@ -152,6 +152,8 @@ void wifi_connect()
     */
     //wifi_set_user_rate_limit(RC_LIMIT_11N, 0x00, RATE_11N_B5M, RATE_11N_B1M);
 
+    //WiFi.setPhyMode(WIFI_PHY_MODE_11N);
+
     WiFi.mode(WIFI_STA);
     WiFi.begin(ssid, password);
     //WiFi.config(IPAddress(ip_static), IPAddress(ip_gateway), IPAddress(ip_subnet), IPAddress(ip_dns));
@@ -187,11 +189,6 @@ void setup()
     Serial.begin(74880);
   }
 
-  Serial.println("");
-  Serial.println("rtc mem test");
-  Serial.println(wifi_station_get_auto_connect());
-  WiFi.setAutoConnect(true);
-
   wifi_connect();
 
   clientName += "esp8266-";
@@ -212,6 +209,7 @@ void setup()
   setSyncProvider(getNtpTime);
   if (timeStatus() == timeNotSet) {
     Serial.println("waiting for sync message");
+    setSyncProvider(getNtpTime);
   }
 }
 
@@ -221,13 +219,14 @@ void loop()
     if (timeStatus() != timeNotSet) {
       timestamp = numberOfSecondsSinceEpoch(year(), month(), day(), hour(), minute(), second());
       int millisnow = millisecond();
-      
+      /*
       Serial.print("epoch : ");
       Serial.println(timestamp);
 
       Serial.print("milis : ");
       Serial.println(millisecond());      
-
+      */
+      
 // 1434055562 005 000 035
 // 14540691511
 // 1454069151
@@ -258,8 +257,8 @@ void loop()
       }
       payload += "000000";
 
-      Serial.print("payload : ");
-      Serial.println(payload);
+      //Serial.print("payload : ");
+      //Serial.println(payload);
       sendUdpSyslog(payload);
       
     }
@@ -278,11 +277,14 @@ void sendUdpSyslog(String msgtosend)
   byte* p = (byte*)malloc(msg_length);
   memcpy(p, (char*) msgtosend.c_str(), msg_length);
 
+/*
   if ( portCount % 2 == 0 ) {
     udp.beginPacket(influxdbudp, 8089);
   } else {
     udp.beginPacket(influxdbudp, 8090);
   }
+*/
+  udp.beginPacket(influxdbudp, 8089);  
   udp.write(p, msg_length);
   udp.endPacket();
   free(p);
@@ -311,7 +313,7 @@ time_t getNtpTime()
 
   sendNTPpacket(time_server);
   uint32_t beginWait = millis();
-  while (millis() - beginWait < 2500) {
+  while (millis() - beginWait < 1500) {
     int size = udp.parsePacket();
     if (size >= NTP_PACKET_SIZE) {
       Serial.println("Receive NTP Response");
