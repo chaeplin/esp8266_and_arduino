@@ -73,9 +73,11 @@ void wakeUp() {
   counterForloop_old = counterForloop;
   checkRangenow = true;
   detachInterrupt(digitalPinToInterrupt(2));
+  radio.powerUp();
 }
 
 void sleepNow() {
+  radio.powerDown();
   digitalWrite(ledPin, LOW);
   attachInterrupt(digitalPinToInterrupt(2), wakeUp, FALLING);
   LowPower.powerDown(SLEEP_FOREVER, ADC_OFF, BOD_OFF);
@@ -176,9 +178,9 @@ void loop() {
   Serial.println(payload.data2);
 
   if ( rangeStatus == 1 || rangeStatus == 3 || rangeStatus == 2 ) {
-    radio.powerUp();
+    //radio.powerUp();
     radio.write(&payload , sizeof(payload));
-    radio.powerDown();
+    //radio.powerDown();
   }
 
   digitalWrite(ledPin, LOW);
