@@ -24,7 +24,7 @@
 #include "nRF24L01.h"
 #include "RF24.h"
 #include <Wire.h>
-#include "PinChangeInterrupt.h"
+//#include "PinChangeInterrupt.h"
 #include <Adafruit_ADS1015.h>
 
 #define adc_disable() (ADCSRA &= ~(1<<ADEN)) // disable ADC
@@ -36,7 +36,7 @@
 #define DEVICE_ID 15
 #define CHANNEL 100
 
-const uint64_t pipes[2] = { 0xFFFFFFFFFFLL, 0xCCCCCCCCCCLL };
+const uint64_t pipes[3] = { 0xFFFFFFFFFFLL, 0xCCCCCCCCCCLL, 0xFFCCFFCCCCLL };
 
 typedef struct {
   uint32_t _salt;
@@ -72,17 +72,10 @@ void wakeUp() {
   noOfWake++;
   counterForloop_old = counterForloop;
   checkRangenow = true;
-
   detachInterrupt(digitalPinToInterrupt(2));
-
-  attachPinChangeInterrupt(digitalPinToPinChangeInterrupt(microPin), checkRange, CHANGE);
-  attachPinChangeInterrupt(digitalPinToPinChangeInterrupt(nanoPin), checkRange, CHANGE);
 }
 
 void sleepNow() {
-  detachPinChangeInterrupt(digitalPinToPinChangeInterrupt(microPin));
-  detachPinChangeInterrupt(digitalPinToPinChangeInterrupt(nanoPin));
-
   digitalWrite(ledPin, LOW);
   attachInterrupt(digitalPinToInterrupt(2), wakeUp, FALLING);
   LowPower.powerDown(SLEEP_FOREVER, ADC_OFF, BOD_OFF);
@@ -96,7 +89,6 @@ void setup() {
   Serial.begin(115200);
 
   delay(20);
-  unsigned long startmilis = millis();
   adc_disable();
 
   pinMode(recordPin, INPUT_PULLUP);
@@ -123,13 +115,9 @@ void setup() {
   //radio.setAutoAck(1);
   radio.setRetries(15, 15);
   radio.setPayloadSize(11);
-  radio.openWritingPipe(pipes[0]);
+  radio.openWritingPipe(pipes[2]);
   radio.stopListening();
   radio.powerDown();
-
-  // payload
-  unsigned long stopmilis = millis();
-  payload.data2 = ( stopmilis - startmilis ) * 10 ;
 
   payload._salt = 0;
   payload.devid = DEVICE_ID;
@@ -151,74 +139,58 @@ void setup() {
 }
 
 void loop() {
-
-  unsigned long startmilis = millis();
   digitalWrite(ledPin, HIGH);
 
-  if ( checkRangenow == true ) {
+  int microStatus = digitalRead(microPin);
+  int nanoStatus  = digitalRead(nanoPin);
 
-    int microStatus = digitalRead(microPin);
-    int nanoStatus  = digitalRead(nanoPin);
-
-    rangeStatus = microStatus << 1;
-    rangeStatus = rangeStatus + nanoStatus;
-
-    checkRangenow = false;
-  }
+  rangeStatus = microStatus << 1;
+  rangeStatus = rangeStatus + nanoStatus;
 
   int16_t results;
   float multiplier = 0.125F;
   results = ads.readADC_Differential_0_1();
 
-  Serial.print("  noOfWakeup : ");
+  Serial.print("noOfWakeup : ");
   Serial.print(noOfWake);
-  Serial.print(" - counterForloop : ");
+  Serial.print(" : counterForloop : ");
   Serial.print(counterForloop);
-  Serial.print(" - rangeStatus : ");
+  Serial.print(" : rangeStatus : ");
   Serial.print(rangeStatus);
-  Serial.print(" - results : ");
+  Serial.print(" : results : ");
   Serial.print(results * multiplier);
-  Serial.println(" mA");
+  Serial.print(" mA ----> ");
 
-  if (counterForloop > (counterForloop_old + 100)) {
+  if (counterForloop > (counterForloop_old + 10)) {
     checkRecordBttn();
   }
 
-  // milli  1
-  // micro  3
-  // nano   2
-
-
-  payload._salt = noOfWake ;
   payload.data1 = results * multiplier ;
+  payload.data2 = rangeStatus;
+ 
+  payload._salt = noOfWake ;
   payload.volt = readVcc();
 
-  radioSend();
+  Serial.print(payload.data1);
+  Serial.print(" : data2 : ");
+  Serial.println(payload.data2);
 
-  unsigned long stopmilis = millis();
-
-  payload.data2 = ( stopmilis - startmilis ) * 10 ;
-
+  if ( rangeStatus == 1 || rangeStatus == 3 || rangeStatus == 2 ) {
+    radioSend();
+  }
+  
   digitalWrite(ledPin, LOW);
   counterForloop++;
-  //delay(30);
-  
+  delay(1000);
+
 }
 
 void radioSend() {
   /*
-  radio.powerUp();
-  radio.write(&payload , sizeof(payload));
-  radio.powerDown();
+    radio.powerUp();
+    radio.write(&payload , sizeof(payload));
+    radio.powerDown();
   */
-  Serial.print("_salt : ");
-  Serial.print(payload._salt);
-  Serial.print(" - data1 : ");
-  Serial.print(payload.data1);
-  Serial.print(" - data2 : ");
-  Serial.print(payload.data2);
-  Serial.print(" - volt : ");
-  Serial.print(payload.volt);  
 }
 
 int readVcc() {
