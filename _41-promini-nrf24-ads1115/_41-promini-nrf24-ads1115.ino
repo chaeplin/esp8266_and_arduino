@@ -14,6 +14,23 @@
    16 / 15 ---> detect range ( m / u / n )
 */
 
+/* 250 report / sec
+Adafruit_ADS1015.h
+--> #define ADS1115_CONVERSIONDELAY         (1)
+
+Adafruit_ADS1015.cpp
+---> int16_t Adafruit_ADS1015::readADC_Differential_0_1() {
+  // Start with default values
+  uint16_t config = ADS1015_REG_CONFIG_CQUE_NONE    | // Disable the comparator (default val)
+                    ADS1015_REG_CONFIG_CLAT_NONLAT  | // Non-latching (default val)
+                    ADS1015_REG_CONFIG_CPOL_ACTVLOW | // Alert/Rdy active low   (default val)
+                    ADS1015_REG_CONFIG_CMODE_TRAD   | // Traditional comparator (default val)
+                    ADS1015_REG_CONFIG_DR_3300SPS   | // 1600 samples per second (default)
+                    ADS1015_REG_CONFIG_MODE_SINGLE;   // Single-shot mode (default)
+
+
+ */
+
 #include <avr/wdt.h>
 #include <avr/interrupt.h>
 #include <avr/sleep.h>
