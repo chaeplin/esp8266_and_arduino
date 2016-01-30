@@ -72,8 +72,9 @@ void wakeUp() {
   noOfWake++;
   counterForloop_old = counterForloop;
   checkRangenow = true;
-  detachInterrupt(digitalPinToInterrupt(2));
+  //detachInterrupt(digitalPinToInterrupt(2));
   radio.powerUp();
+  checkRecordBttn();
 }
 
 void sleepNow() {
@@ -112,7 +113,8 @@ void setup() {
   // radio
   radio.begin();
   radio.setChannel(CHANNEL);
-  radio.setPALevel(RF24_PA_LOW);
+  //radio.setPALevel(RF24_PA_LOW);
+  radio.setPALevel(RF24_PA_HIGH);
   radio.setDataRate(RF24_250KBPS);
   //radio.setAutoAck(1);
   radio.setRetries(15, 15);
@@ -153,6 +155,7 @@ void loop() {
   float multiplier = 0.125F;
   results = ads.readADC_Differential_0_1();
 
+  /*
   Serial.print("noOfWakeup : ");
   Serial.print(noOfWake);
   Serial.print(" : counterForloop : ");
@@ -162,26 +165,34 @@ void loop() {
   Serial.print(" : results : ");
   Serial.print(results * multiplier);
   Serial.print(" mA ----> ");
+  */
 
+  /*
   if (counterForloop > (counterForloop_old + 10)) {
     checkRecordBttn();
   }
+  */
 
   payload.data1 = results * multiplier ;
   payload.data2 = rangeStatus;
 
   payload._salt = noOfWake ;
-  payload.volt = readVcc();
+  //payload.volt = readVcc();
+  payload.volt = 3300;
 
+  /*
   Serial.print(payload.data1);
   Serial.print(" : data2 : ");
   Serial.println(payload.data2);
-
-  if ( rangeStatus == 1 || rangeStatus == 3 || rangeStatus == 2 ) {
+  */
+  
+  //if ( rangeStatus == 1 || rangeStatus == 3 || rangeStatus == 2 ) {
+  //if ( rangeStatus != 0 ) {
+  
     //radio.powerUp();
     radio.write(&payload , sizeof(payload));
     //radio.powerDown();
-  }
+  //}
 
   digitalWrite(ledPin, LOW);
   counterForloop++;
