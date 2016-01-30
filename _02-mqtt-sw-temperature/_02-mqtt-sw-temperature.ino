@@ -11,6 +11,7 @@
 #include <WiFiUdp.h>
 #include <ESP8266mDNS.h>
 #include <ArduinoOTA.h>
+#include <WiFiUdp.h>
 
 // radio
 #define DEVICE_ID 1
@@ -42,6 +43,11 @@ void getdalastemp();
 void getdht22temp();
 void sendNTPpacket(IPAddress & address);
 
+static unsigned long  numberOfSecondsSinceEpochUTC(uint16_t y, uint8_t m, uint8_t d, uint8_t h, uint8_t mm, uint8_t s);
+long DateToMjd (uint16_t y, uint8_t m, uint8_t d);
+void sendUdpmsg(String msgtosend);
+
+
 // ****************
 const char* ssid = WIFI_SSID;
 const char* password = WIFI_PASSWORD;
@@ -50,6 +56,7 @@ const char* otapassword = OTA_PASSWORD;
 //int32_t channel = WIFI_CHANNEL;
 
 //
+IPAddress influxdbudp = MQTT_SERVER;
 IPAddress mqtt_server = MQTT_SERVER;
 IPAddress time_server = MQTT_SERVER;
 
@@ -83,7 +90,7 @@ DeviceAddress outsideThermometer;
 RF24 radio(3, 15);
 
 // Topology
-const uint64_t pipes[2] = { 0xFFFFFFFFFFLL, 0xCCCCCCCCCCLL };
+const uint64_t pipes[3] = { 0xFFFFFFFFFFLL, 0xCCCCCCCCCCLL, 0xFFCCFFCCCCLL };
 
 typedef struct {
   uint32_t _salt;
@@ -145,6 +152,10 @@ int getdht22tempstatus = 0;
 unsigned long startMills;
 unsigned long timemillis;
 unsigned long lastRelayActionmillis;
+
+//
+uint32_t timestamp;
+int millisnow;
 
 //
 int relayIsReady = HIGH;
@@ -288,7 +299,8 @@ void setup()
 
   //
   lastReconnectAttempt = 0;
-
+  millisnow = 0;
+  
   getResetInfo = "hello from ESP8266 s02 ";
   getResetInfo += ESP.getResetInfo().substring(0, 30);
 
@@ -306,6 +318,7 @@ void setup()
   if (timeStatus() == timeNotSet) {
     if (DEBUG_PRINT) {
       Serial.println("waiting for sync message");
+      setSyncProvider(getNtpTime);
     }
   }
 
@@ -359,7 +372,8 @@ void setup()
   //radio.setCRCLength(RF24_CRC_8);
   radio.setPayloadSize(11);
   radio.openReadingPipe(1, pipes[0]);
-  radio.openWritingPipe(pipes[1]);
+  radio.openReadingPipe(2, pipes[2]);
+  //radio.openWritingPipe(pipes[1]);
   radio.startListening();
 
   //OTA
@@ -543,33 +557,68 @@ void loop()
         Serial.println(sensor_data.devid);
       }
 
-      String radiopayload = "{\"_salt\":";
-      radiopayload += sensor_data._salt;
-      radiopayload += ",\"volt\":";
-      radiopayload += sensor_data.volt;
-      radiopayload += ",\"data1\":";
-      radiopayload += ((float)sensor_data.data1 / 10);
-      radiopayload += ",\"data2\":";
-      radiopayload += ((float)sensor_data.data2 / 10);
-      radiopayload += ",\"devid\":";
-      radiopayload += sensor_data.devid;
-      radiopayload += "}";
+      if ( sensor_data.devid != 15 ) {
 
-      if ( (sensor_data.devid > 0) && (sensor_data.devid < 255) )
-      {
-        String newRadiotopic = radiotopic;
-        newRadiotopic += "/";
-        newRadiotopic += sensor_data.devid;
+        String radiopayload = "{\"_salt\":";
+        radiopayload += sensor_data._salt;
+        radiopayload += ",\"volt\":";
+        radiopayload += sensor_data.volt;
+        radiopayload += ",\"data1\":";
+        radiopayload += ((float)sensor_data.data1 / 10);
+        radiopayload += ",\"data2\":";
+        radiopayload += ((float)sensor_data.data2 / 10);
+        radiopayload += ",\"devid\":";
+        radiopayload += sensor_data.devid;
+        radiopayload += "}";
 
-        unsigned int newRadiotopic_length = newRadiotopic.length();
-        char newRadiotopictosend[newRadiotopic_length] ;
-        newRadiotopic.toCharArray(newRadiotopictosend, newRadiotopic_length + 1);
+        if ( (sensor_data.devid > 0) && (sensor_data.devid < 255) )
+        {
+          String newRadiotopic = radiotopic;
+          newRadiotopic += "/";
+          newRadiotopic += sensor_data.devid;
 
-        sendmqttMsg(newRadiotopictosend, radiopayload);
+          unsigned int newRadiotopic_length = newRadiotopic.length();
+          char newRadiotopictosend[newRadiotopic_length] ;
+          newRadiotopic.toCharArray(newRadiotopictosend, newRadiotopic_length + 1);
 
+          sendmqttMsg(newRadiotopictosend, radiopayload);
+
+        } else {
+          sendmqttMsg(radiofault, radiopayload);
+        }
       } else {
-        sendmqttMsg(radiofault, radiopayload);
+
+        if (timeStatus() != timeNotSet) {
+          timestamp = numberOfSecondsSinceEpochUTC(year(), month(), day(), hour(), minute(), second());
+          millisnow = millisecond();
+        }
+        
+        String udppayload = "udptest,test=test01,measure=";
+        udppayload += sensor_data._salt;
+        udppayload += " devid=";
+        udppayload += sensor_data.devid;
+        udppayload += "i,volt=";
+        udppayload += sensor_data.volt;
+        udppayload += "i,delay=";
+        udppayload += ((float)sensor_data.data2 / 10);
+        udppayload += ",nA=";
+        udppayload += sensor_data.data1;
+        udppayload += " ";
+        udppayload += timestamp;
+        if ( millisnow > 99 ) {
+          udppayload += millisnow;
+        } else if ( millisnow > 9 && millisnow < 100 ) {
+          udppayload += "0";
+          udppayload += millisnow;
+        } else {
+          udppayload += "00";
+          udppayload += millisnow;
+        }
+        udppayload += "000000";
+
+        sendUdpmsg(udppayload);
       }
+
 
     }
   }
@@ -705,6 +754,19 @@ void run_lightcmd()
   }
 */
 
+//
+void sendUdpmsg(String msgtosend)
+{
+  unsigned int msg_length = msgtosend.length();
+  byte* p = (byte*)malloc(msg_length);
+  memcpy(p, (char*) msgtosend.c_str(), msg_length);
+
+  udp.beginPacket(influxdbudp, 8089);
+  udp.write(p, msg_length);
+  udp.endPacket();
+  free(p);
+}
+
 String macToStr(const uint8_t* mac)
 {
   String result;
@@ -772,4 +834,27 @@ void sendNTPpacket(IPAddress & address)
     Serial.println("Transmit NTP Sent");
   }
 }
+
+
+long DateToMjd (uint16_t y, uint8_t m, uint8_t d)
+{
+  return
+    367 * y
+    - 7 * (y + (m + 9) / 12) / 4
+    - 3 * ((y + (m - 9) / 7) / 100 + 1) / 4
+    + 275 * m / 9
+    + d
+    + 1721028
+    - 2400000;
+}
+
+static unsigned long  numberOfSecondsSinceEpochUTC(uint16_t y, uint8_t m, uint8_t d, uint8_t h, uint8_t mm, uint8_t s)
+{
+  long Days;
+
+  Days = DateToMjd(y, m, d) - DateToMjd(1970, 1, 1);
+  return (uint16_t)Days * 86400 + h * 3600L + mm * 60L + s - (timeZone * SECS_PER_HOUR);
+}
+
+
 //
