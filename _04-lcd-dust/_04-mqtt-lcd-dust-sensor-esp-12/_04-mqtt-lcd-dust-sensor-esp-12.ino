@@ -22,10 +22,6 @@ extern "C" {
 #include "ap_setting.h"
 #endif
 
-// for PubSubClient 2.5
-#define MQTT_MAX_PACKET_SIZE 250
-//#define MQTT_KEEPALIVE 60
-
 //
 void callback(char* intopic, byte* inpayload, unsigned int length);
 void parseMqttMsg(String receivedpayload, String receivedtopic);

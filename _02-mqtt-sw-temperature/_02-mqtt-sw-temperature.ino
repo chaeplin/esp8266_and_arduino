@@ -29,11 +29,6 @@ extern "C" {
 #include "ap_setting.h"
 #endif
 
-// for PubSubClient 2.5
-#define MQTT_MAX_PACKET_SIZE 250
-//#define MQTT_KEEPALIVE 60
-
-
 #define DEBUG_PRINT 0
 
 // ****************
