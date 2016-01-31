@@ -9,14 +9,26 @@
 #include "EmonLib.h" // Include Emon Library
 #include <Average.h>
 
+extern "C" {
+#include "user_interface.h"
+}
+
 #define _IS_MY_HOME
 // WIFI
 #ifdef _IS_MY_HOME
-//#include "/usr/local/src/ap_settingii.h"
 #include "/usr/local/src/ap_setting.h"
 #else
 #include "ap_setting.h"
 #endif
+
+#define RTC_MAGIC 12345678
+
+typedef struct _tagPoint {
+  uint32 magic;
+  uint32 salt;
+} RTC_REVCOUNT;
+
+RTC_REVCOUNT rtc_mem_revcount;
 
 #define DEBUG_PRINT 0
 
@@ -94,6 +106,26 @@ PubSubClient client(mqtt_server, 1883, callback, wifiClient);
 
 long lastReconnectAttempt = 0;
 long calcIrmsmillis = 0;
+
+void rtc_check()
+{
+  // system_rtc_mem_read(64... not work, use > 64
+  system_rtc_mem_read(100, &rtc_mem_revcount, sizeof(rtc_mem_revcount));
+  if (DEBUG_PRINT) {
+    Serial.print("=================> rtc mem mgic / salt :  ");
+    Serial.print(rtc_mem_revcount.magic);
+    Serial.print(" / ");
+    Serial.println(rtc_mem_revcount.salt);
+  }
+
+  if (rtc_mem_revcount.magic != RTC_MAGIC) {
+    if (DEBUG_PRINT) {
+      Serial.println("===============> rtc mem init...");
+    }
+    rtc_mem_revcount.magic = RTC_MAGIC;
+    rtc_mem_revcount.salt = 5255;
+  }
+}
 
 void wifi_connect() {
   // WIFI
@@ -191,6 +223,9 @@ void setup() {
     Serial.begin(115200);
   }
   delay(20);
+
+  rtc_check();
+
   if (DEBUG_PRINT) {
     Serial.println("power meter test!");
 
@@ -215,7 +250,7 @@ void setup() {
   clientName += String(micros() & 0xff, 16);
 
   lastReconnectAttempt = 0;
-  revCounts = 0 ;
+  revCounts = rtc_mem_revcount.salt ;
 
   getResetInfo = "hello from ESP8266 s07 ";
   getResetInfo += ESP.getResetInfo().substring(0, 30);
@@ -315,44 +350,44 @@ void loop()
       }
 
       if ( revMills > 600 ) {
-      revValue = (float(( 3600  * 1000 ) / ( 600 * float(revMills) ) ) * 1000);
+        revValue = (float(( 3600  * 1000 ) / ( 600 * float(revMills) ) ) * 1000);
       }
 
       if ( oldrevValue == 0 ) {
-      oldrevValue = revValue;
-    }
+        oldrevValue = revValue;
+      }
 
-    if ( oldrevMills == 0 ) {
-      oldrevMills = revMills;
-    }
+      if ( oldrevMills == 0 ) {
+        oldrevMills = revMills;
+      }
 
-    payload = "{\"VIrms\":";
-              payload += average;
-              payload += ",\"revValue\":";
-              payload += revValue;
-              payload += ",\"revMills\":";
-              payload += revMills;
-              payload += ",\"powerAvg\":";
-              payload += (( average + revValue ) / 2) ;
-              payload += ",\"Stddev\":";
-              payload += ave.stddev();
-              payload += ",\"calcIrmsmillis\":";
-              payload += calcIrmsmillis;
-              payload += ",\"revCounts\":";
-              payload += revCounts;
-              payload += ",\"FreeHeap\":";
-              payload += ESP.getFreeHeap();
-              payload += ",\"RSSI\":";
-              payload += WiFi.RSSI();
-              payload += ",\"millis\":";
-              payload += (millis() - timemillis);
-              payload += "}";
+      payload = "{\"VIrms\":";
+      payload += average;
+      payload += ",\"revValue\":";
+      payload += revValue;
+      payload += ",\"revMills\":";
+      payload += revMills;
+      payload += ",\"powerAvg\":";
+      payload += (( average + revValue ) / 2) ;
+      payload += ",\"Stddev\":";
+      payload += ave.stddev();
+      payload += ",\"calcIrmsmillis\":";
+      payload += calcIrmsmillis;
+      payload += ",\"revCounts\":";
+      payload += revCounts;
+      payload += ",\"FreeHeap\":";
+      payload += ESP.getFreeHeap();
+      payload += ",\"RSSI\":";
+      payload += WiFi.RSSI();
+      payload += ",\"millis\":";
+      payload += (millis() - timemillis);
+      payload += "}";
 
-    if ( doorStatus != olddoorStatus ) {
+      if ( doorStatus != olddoorStatus ) {
 
-      doorpayload = "{\"DOOR\":";
+        doorpayload = "{\"DOOR\":";
 
-      if ( doorStatus == 0 ) {
+        if ( doorStatus == 0 ) {
           doorpayload += "\"CLOSED\"";
         }
         else {
@@ -365,12 +400,22 @@ void loop()
       }
 
       if (((millis() - sentMills) > REPORT_INTERVAL ) && ( irStatus == oldirStatus )) {
-      sendmqttMsg(topic, payload);
+        sendmqttMsg(topic, payload);
         sentMills = millis();
       }
 
       if ( irStatus != oldirStatus ) {
-      sendmqttMsg(topic, payload);
+        rtc_mem_revcount.salt = revCounts;
+        if (system_rtc_mem_write(100, &rtc_mem_revcount, sizeof(rtc_mem_revcount))) {
+          if (DEBUG_PRINT) {
+            Serial.println("rtc mem write is ok");
+          }
+        } else {
+          if (DEBUG_PRINT) {
+            Serial.println("rtc mem write is fail");
+          }
+        }
+        sendmqttMsg(topic, payload);
         sentMills = millis();
         oldirStatus = irStatus ;
         oldrevValue = revValue ;
