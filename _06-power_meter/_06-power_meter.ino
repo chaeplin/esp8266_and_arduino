@@ -36,6 +36,10 @@ const char* otapassword = OTA_PASSWORD;
 
 //
 
+// for PubSubClient 2.5
+#define MQTT_MAX_PACKET_SIZE 250
+#define MQTT_KEEPALIVE 60
+
 // ********** change MQTT_KEEPALIVE to 60 at PubSubClient.h *****************
 EnergyMonitor emon1;
 Average<float> ave(4);

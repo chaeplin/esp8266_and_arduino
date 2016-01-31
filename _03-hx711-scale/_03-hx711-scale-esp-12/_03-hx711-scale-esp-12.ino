@@ -21,6 +21,10 @@
 
 #define DEBUG_PRINT 0
 
+// for PubSubClient 2.5
+#define MQTT_MAX_PACKET_SIZE 250
+//#define MQTT_KEEPALIVE 60
+
 // ****************
 //void callback(char* intopic, byte* inpayload, unsigned int length);
 String macToStr(const uint8_t* mac);
