@@ -9,39 +9,15 @@
    7  miso  12
 */
 
-/*
-   17  / int 0    ---> record value to influxdb
-   16 / 15 ---> detect range ( m / u / n )
-*/
-
-/* 250 report / sec
-Adafruit_ADS1015.h
---> #define ADS1115_CONVERSIONDELAY         (1)
-
-Adafruit_ADS1015.cpp
----> int16_t Adafruit_ADS1015::readADC_Differential_0_1() {
-  // Start with default values
-  uint16_t config = ADS1015_REG_CONFIG_CQUE_NONE    | // Disable the comparator (default val)
-                    ADS1015_REG_CONFIG_CLAT_NONLAT  | // Non-latching (default val)
-                    ADS1015_REG_CONFIG_CPOL_ACTVLOW | // Alert/Rdy active low   (default val)
-                    ADS1015_REG_CONFIG_CMODE_TRAD   | // Traditional comparator (default val)
-                    ADS1015_REG_CONFIG_DR_3300SPS   | // 1600 samples per second (default)
-                    ADS1015_REG_CONFIG_MODE_SINGLE;   // Single-shot mode (default)
-
-
- */
-
 #include <avr/wdt.h>
 #include <avr/interrupt.h>
 #include <avr/sleep.h>
 #include <avr/pgmspace.h>
 #include <avr/power.h>
 #include <SPI.h>
-#include <LowPower.h>
 #include "nRF24L01.h"
 #include "RF24.h"
 #include <Wire.h>
-//#include "PinChangeInterrupt.h"
 #include <Adafruit_ADS1015.h>
 
 #define adc_disable() (ADCSRA &= ~(1<<ADEN)) // disable ADC
@@ -68,54 +44,30 @@ data payload;
 RF24 radio(CE_PIN, CSN_PIN);
 Adafruit_ADS1115 ads(0x48);
 
-// analogPin 3 / 2 / 1 / int 0
-const int wakeupPin = 2;
-const int recordPin = 17;
-const int nanoPin   = 16;
-const int microPin  = 15;
-const int ledPin    = 14;
+const int doRecordPin = 3;
+const int nanoPin     = 16;
+const int microPin    = 15;
+const int ledPin      = 14;
 
 int rangeStatus;
-volatile unsigned long counterForloop;
-volatile unsigned long counterForloop_old;
-volatile boolean checkRangenow;
-volatile int noOfWake;
+volatile int recordNo;
+volatile boolean dorecored;
 
-void checkRange() {
-  checkRangenow = true;
-}
-
-void wakeUp() {
-  noOfWake++;
-  counterForloop_old = counterForloop;
-  checkRangenow = true;
-  //detachInterrupt(digitalPinToInterrupt(2));
-  radio.powerUp();
-  checkRecordBttn();
-}
-
-void sleepNow() {
-  radio.powerDown();
-  digitalWrite(ledPin, LOW);
-  attachInterrupt(digitalPinToInterrupt(2), wakeUp, FALLING);
-  LowPower.powerDown(SLEEP_FOREVER, ADC_OFF, BOD_OFF);
-}
-
-void checkRecordBttn() {
-  attachInterrupt(digitalPinToInterrupt(2), sleepNow, FALLING);
+void record() {
+  recordNo++;
+  dorecored = !dorecored;
 }
 
 void setup() {
-  //Serial.begin(115200);
-
   delay(20);
   adc_disable();
 
-  pinMode(recordPin, INPUT_PULLUP);
-  pinMode(wakeupPin, INPUT_PULLUP);
+  pinMode(doRecordPin, INPUT);
   pinMode(microPin, INPUT_PULLUP);
   pinMode(nanoPin, INPUT_PULLUP);
   pinMode(ledPin, OUTPUT);
+
+  digitalWrite(ledPin, LOW);
 
   int microStatus = digitalRead(microPin);
   int nanoStatus  = digitalRead(nanoPin);
@@ -123,9 +75,8 @@ void setup() {
   rangeStatus = microStatus << 1;
   rangeStatus = rangeStatus + nanoStatus;
 
-  noOfWake = 0;
-  counterForloop = 0;
-  checkRangenow = false;
+  recordNo = 0;
+  dorecored = false;
 
   // radio
   radio.begin();
@@ -138,13 +89,14 @@ void setup() {
   radio.setPayloadSize(11);
   radio.openWritingPipe(pipes[2]);
   radio.stopListening();
-  radio.powerDown();
+  //radio.powerDown();
 
   payload._salt = 0;
   payload.devid = DEVICE_ID;
 
   ads.setGain(GAIN_ONE);
   ads.begin();
+  ads.readADC_Differential_0_1_no_delay();
 
   for (int k = 0; k < 10; k = k + 1) {
     if (k % 2 == 0) {
@@ -155,93 +107,35 @@ void setup() {
     }
     delay(100);
   }
-
-  sleepNow();
+  attachInterrupt(digitalPinToInterrupt(3), record, RISING);
 }
 
 void loop() {
-  digitalWrite(ledPin, HIGH);
+  if (dorecored == true) {
+    digitalWrite(ledPin, HIGH);
+    int microStatus = digitalRead(microPin);
+    int nanoStatus  = digitalRead(nanoPin);
 
-  int microStatus = digitalRead(microPin);
-  int nanoStatus  = digitalRead(nanoPin);
+    rangeStatus = microStatus << 1;
+    rangeStatus = rangeStatus + nanoStatus;
 
-  rangeStatus = microStatus << 1;
-  rangeStatus = rangeStatus + nanoStatus;
+    int16_t results;
+    float multiplier = 0.125F;
+    //results = ads.readADC_Differential_0_1();
+    results = ads.getLastConversionResults_no_delay();
 
-  int16_t results;
-  float multiplier = 0.125F;
-  results = ads.readADC_Differential_0_1();
+    payload.data1 = results * multiplier ;
+    payload.data2 = rangeStatus;
 
-  /*
-  Serial.print("noOfWakeup : ");
-  Serial.print(noOfWake);
-  Serial.print(" : counterForloop : ");
-  Serial.print(counterForloop);
-  Serial.print(" : rangeStatus : ");
-  Serial.print(rangeStatus);
-  Serial.print(" : results : ");
-  Serial.print(results * multiplier);
-  Serial.print(" mA ----> ");
-  */
+    payload._salt = recordNo ;
+    payload.volt = 3300;
 
-  /*
-  if (counterForloop > (counterForloop_old + 10)) {
-    checkRecordBttn();
-  }
-  */
-
-  payload.data1 = results * multiplier ;
-  payload.data2 = rangeStatus;
-
-  payload._salt = noOfWake ;
-  //payload.volt = readVcc();
-  payload.volt = 3300;
-
-  /*
-  Serial.print(payload.data1);
-  Serial.print(" : data2 : ");
-  Serial.println(payload.data2);
-  */
-  
-  //if ( rangeStatus == 1 || rangeStatus == 3 || rangeStatus == 2 ) {
-  //if ( rangeStatus != 0 ) {
-  
-    //radio.powerUp();
+    ads.readADC_Differential_0_1_no_delay();
+    
     radio.write(&payload , sizeof(payload));
-    //radio.powerDown();
-  //}
-
-  digitalWrite(ledPin, LOW);
-  counterForloop++;
-  //delay(30);
+    
+    digitalWrite(ledPin, LOW);
+  } else {
+    digitalWrite(ledPin, LOW);
+  }
 }
-
-int readVcc() {
-  adc_enable();
-  // Read 1.1V reference against AVcc
-  // set the reference to Vcc and the measurement to the internal 1.1V reference
-#if defined(__AVR_ATmega32U4__) || defined(__AVR_ATmega1280__) || defined(__AVR_ATmega2560__)
-  ADMUX = _BV(REFS0) | _BV(MUX4) | _BV(MUX3) | _BV(MUX2) | _BV(MUX1);
-#elif defined (__AVR_ATtiny24__) || defined(__AVR_ATtiny44__) || defined(__AVR_ATtiny84__)
-  ADMUX = _BV(MUX5) | _BV(MUX0);
-#elif defined (__AVR_ATtiny25__) || defined(__AVR_ATtiny45__) || defined(__AVR_ATtiny85__)
-  ADMUX = _BV(MUX3) | _BV(MUX2);
-#else
-  ADMUX = _BV(REFS0) | _BV(MUX3) | _BV(MUX2) | _BV(MUX1);
-#endif
-
-  delay(2); // Wait for Vref to settle
-  ADCSRA |= _BV(ADSC); // Start conversion
-  while (bit_is_set(ADCSRA, ADSC)); // measuring
-
-  uint8_t low  = ADCL; // must read ADCL first - it then locks ADCH
-  uint8_t high = ADCH; // unlocks both
-
-  long result = (high << 8) | low;
-
-  result = 1125300L / result; // Calculate Vcc (in mV); 1125300 = 1.1*1023*1000
-  adc_disable();
-
-  return (int)result; // Vcc in millivolts
-}
-
