@@ -52,6 +52,9 @@ const int ledPin      = 14;
 int rangeStatus;
 volatile int recordNo;
 volatile boolean dorecored;
+//unsigned long startmilis;
+//unsigned long stopmilis;
+unsigned long loopcount;
 
 void record() {
   recordNo++;
@@ -61,7 +64,6 @@ void record() {
 void setup() {
   delay(20);
   adc_disable();
-
   pinMode(doRecordPin, INPUT);
   pinMode(microPin, INPUT_PULLUP);
   pinMode(nanoPin, INPUT_PULLUP);
@@ -75,6 +77,10 @@ void setup() {
   rangeStatus = microStatus << 1;
   rangeStatus = rangeStatus + nanoStatus;
 
+  //startmilis = 0;
+  //stopmilis = 0;
+  loopcount = 0;
+  
   recordNo = 0;
   dorecored = false;
 
@@ -93,6 +99,7 @@ void setup() {
 
   payload._salt = 0;
   payload.devid = DEVICE_ID;
+  payload.volt  = 0;
 
   ads.setGain(GAIN_ONE);
   ads.begin();
@@ -112,6 +119,7 @@ void setup() {
 
 void loop() {
   if (dorecored == true) {
+    //startmilis = millis();
     digitalWrite(ledPin, HIGH);
     int microStatus = digitalRead(microPin);
     int nanoStatus  = digitalRead(nanoPin);
@@ -126,15 +134,17 @@ void loop() {
 
     payload.data1 = results * multiplier ;
     payload.data2 = rangeStatus;
-
+    payload.volt = loopcount;
     payload._salt = recordNo ;
-    payload.volt = 3300;
 
     ads.readADC_Differential_0_1_no_delay();
     
-    radio.write(&payload , sizeof(payload));
+    radio.write(&payload, sizeof(payload));
     
     digitalWrite(ledPin, LOW);
+    //stopmilis = millis();
+    //payload.volt = ( stopmilis - startmilis ) ;
+    loopcount++;
   } else {
     digitalWrite(ledPin, LOW);
   }
