@@ -425,214 +425,214 @@ void loop()
           lastReconnectAttempt = 0;
         }
       }
+    } else {
+
+      if ( relaystatus != oldrelaystatus ) {
+
+        if (DEBUG_PRINT) {
+          Serial.print("call changelight  => relaystatus => ");
+          Serial.println(relaystatus);
+        }
+
+        changelight();
+
+        if (DEBUG_PRINT) {
+          Serial.print("after changelight  => relaystatus => ");
+          Serial.println(relaystatus);
+        }
+
+        String lightpayload = "{\"LIGHT\":";
+        lightpayload += relaystatus;
+        lightpayload += ",\"READY\":0";
+        lightpayload += "}";
+
+        sendmqttMsg(rslttopic, lightpayload);
+
+      }
+
+      if ((( millis() - lastRelayActionmillis) > BETWEEN_RELAY_ACTIVE ) && ( relayIsReady == LOW ) && ( relaystatus == oldrelaystatus ))
+      {
+
+        if (DEBUG_PRINT) {
+          Serial.print("after BETWEEN_RELAY_ACTIVE => relaystatus => ");
+          Serial.println(relaystatus);
+        }
+
+        String lightpayload = "{\"LIGHT\":";
+        lightpayload += relaystatus;
+        lightpayload += ",\"READY\":1";
+        lightpayload += "}";
+
+        sendmqttMsg(rslttopic, lightpayload);
+        relayIsReady = HIGH;
+
+      }
+
+      runTimerDoLightOff();
+
+      pirValue = digitalRead(pir);
+      if ( oldpirValue != pirValue ) {
+        pirSent = HIGH;
+        oldpirValue = pirValue;
+      }
+
+      if ( isnan(h) || isnan(t) || isnan(tempCoutside )) {
+        payload = "{\"PIRSTATUS\":";
+        payload += pirValue;
+        payload += ",\"FreeHeap\":";
+        payload += ESP.getFreeHeap();
+        payload += ",\"RSSI\":";
+        payload += WiFi.RSSI();
+        payload += ",\"millis\":";
+        payload += (millis() - timemillis);
+        payload += "}";
+
+      } else {
+        payload = "{\"Humidity\":";
+        payload += h;
+        payload += ",\"Temperature\":";
+        payload += t;
+        if ( (tempCoutside > -100) && (tempCoutside < 100) ) {
+          payload += ",\"DS18B20\":";
+          payload += tempCoutside;
+        }
+        payload += ",\"PIRSTATUS\":";
+        payload += pirValue;
+        payload += ",\"FreeHeap\":";
+        payload += ESP.getFreeHeap();
+        payload += ",\"RSSI\":";
+        payload += WiFi.RSSI();
+        payload += ",\"millis\":";
+        payload += (millis() - timemillis);
+        payload += "}";
+      }
+
+      //if (( pirSent == HIGH ) && ( pirValue == HIGH ))
+      if ( pirSent == HIGH )
+      {
+        sendmqttMsg(topic, payload);
+        pirSent = LOW;
+        startMills = millis();
+      }
+
+      if (((millis() - startMills) > REPORT_INTERVAL ) && ( getdalastempstatus == 0))
+      {
+        getdalastemp();
+        getdalastempstatus = 1;
+      }
+
+      if (((millis() - startMills) > REPORT_INTERVAL ) && ( getdht22tempstatus == 0))
+      {
+        getdht22temp();
+        getdht22tempstatus = 1;
+      }
+
+      if ((millis() - startMills) > REPORT_INTERVAL )
+      {
+        sendmqttMsg(topic, payload);
+        getdalastempstatus = getdht22tempstatus = 0;
+        startMills = millis();
+      }
+
+      // radio
+      if (radio.available()) {
+        while (radio.available()) {
+          radio.read(&sensor_data, sizeof(sensor_data));
+
+          if (DEBUG_PRINT) {
+            Serial.print(" ****** radio ======> size : ");
+            Serial.print(sizeof(sensor_data));
+            Serial.print(" _salt : ");
+            Serial.print(sensor_data._salt);
+            Serial.print(" volt : ");
+            Serial.print(sensor_data.volt);
+            Serial.print(" data1 : ");
+            Serial.print(sensor_data.data1);
+            Serial.print(" data2 : ");
+            Serial.print(sensor_data.data2);
+            Serial.print(" dev_id :");
+            Serial.println(sensor_data.devid);
+          }
+
+          if ( sensor_data.devid != 15 ) {
+
+            String radiopayload = "{\"_salt\":";
+            radiopayload += sensor_data._salt;
+            radiopayload += ",\"volt\":";
+            radiopayload += sensor_data.volt;
+            radiopayload += ",\"data1\":";
+            radiopayload += ((float)sensor_data.data1 / 10);
+            radiopayload += ",\"data2\":";
+            radiopayload += ((float)sensor_data.data2 / 10);
+            radiopayload += ",\"devid\":";
+            radiopayload += sensor_data.devid;
+            radiopayload += "}";
+
+            if ( (sensor_data.devid > 0) && (sensor_data.devid < 255) )
+            {
+              String newRadiotopic = radiotopic;
+              newRadiotopic += "/";
+              newRadiotopic += sensor_data.devid;
+
+              unsigned int newRadiotopic_length = newRadiotopic.length();
+              char newRadiotopictosend[newRadiotopic_length] ;
+              newRadiotopic.toCharArray(newRadiotopictosend, newRadiotopic_length + 1);
+
+              sendmqttMsg(newRadiotopictosend, radiopayload);
+
+            } else {
+              sendmqttMsg(radiofault, radiopayload);
+            }
+          } else {
+
+            if (timeStatus() != timeNotSet) {
+              timestamp = numberOfSecondsSinceEpochUTC(year(), month(), day(), hour(), minute(), second());
+              millisnow = millisecond();
+            }
+
+            if ( sensor_data.data1 < 0 ) {
+              sensor_data.data1 = 0;
+            }
+            String udppayload = "current,test=current,measureno=";
+            udppayload += sensor_data._salt;
+            udppayload += ",unit=";
+            if ( sensor_data.data2 == 1) {
+              udppayload += "mA devid=";
+            }
+            if ( sensor_data.data2 == 3) {
+              udppayload += "µA devid=";
+            }
+            if ( sensor_data.data2 == 2) {
+              udppayload += "nA devid=";
+            }
+            udppayload += sensor_data.devid;
+            udppayload += "i,volt=";
+            udppayload += sensor_data.volt;
+            udppayload += "i,ampere=";
+            udppayload += sensor_data.data1;
+            udppayload += " ";
+            udppayload += timestamp;
+            if ( millisnow > 99 ) {
+              udppayload += millisnow;
+            } else if ( millisnow > 9 && millisnow < 100 ) {
+              udppayload += "0";
+              udppayload += millisnow;
+            } else {
+              udppayload += "00";
+              udppayload += millisnow;
+            }
+            udppayload += "000000";
+
+            sendUdpmsg(udppayload);
+          }
+        }
+      }
+      client.loop();
     }
+    ArduinoOTA.handle();
   } else {
     wifi_connect();
   }
-
-  if ( relaystatus != oldrelaystatus ) {
-
-    if (DEBUG_PRINT) {
-      Serial.print("call changelight  => relaystatus => ");
-      Serial.println(relaystatus);
-    }
-
-    changelight();
-
-    if (DEBUG_PRINT) {
-      Serial.print("after changelight  => relaystatus => ");
-      Serial.println(relaystatus);
-    }
-
-    String lightpayload = "{\"LIGHT\":";
-    lightpayload += relaystatus;
-    lightpayload += ",\"READY\":0";
-    lightpayload += "}";
-
-    sendmqttMsg(rslttopic, lightpayload);
-
-  }
-
-  if ((( millis() - lastRelayActionmillis) > BETWEEN_RELAY_ACTIVE ) && ( relayIsReady == LOW ) && ( relaystatus == oldrelaystatus ))
-  {
-
-    if (DEBUG_PRINT) {
-      Serial.print("after BETWEEN_RELAY_ACTIVE => relaystatus => ");
-      Serial.println(relaystatus);
-    }
-
-    String lightpayload = "{\"LIGHT\":";
-    lightpayload += relaystatus;
-    lightpayload += ",\"READY\":1";
-    lightpayload += "}";
-
-    sendmqttMsg(rslttopic, lightpayload);
-    relayIsReady = HIGH;
-
-  }
-
-  runTimerDoLightOff();
-
-  pirValue = digitalRead(pir);
-  if ( oldpirValue != pirValue ) {
-    pirSent = HIGH;
-    oldpirValue = pirValue;
-  }
-
-  if ( isnan(h) || isnan(t) || isnan(tempCoutside )) {
-    payload = "{\"PIRSTATUS\":";
-    payload += pirValue;
-    payload += ",\"FreeHeap\":";
-    payload += ESP.getFreeHeap();
-    payload += ",\"RSSI\":";
-    payload += WiFi.RSSI();
-    payload += ",\"millis\":";
-    payload += (millis() - timemillis);
-    payload += "}";
-
-  } else {
-    payload = "{\"Humidity\":";
-    payload += h;
-    payload += ",\"Temperature\":";
-    payload += t;
-    if ( (tempCoutside > -100) && (tempCoutside < 100) ) {
-      payload += ",\"DS18B20\":";
-      payload += tempCoutside;
-    }
-    payload += ",\"PIRSTATUS\":";
-    payload += pirValue;
-    payload += ",\"FreeHeap\":";
-    payload += ESP.getFreeHeap();
-    payload += ",\"RSSI\":";
-    payload += WiFi.RSSI();
-    payload += ",\"millis\":";
-    payload += (millis() - timemillis);
-    payload += "}";
-  }
-
-  //if (( pirSent == HIGH ) && ( pirValue == HIGH ))
-  if ( pirSent == HIGH )
-  {
-    sendmqttMsg(topic, payload);
-    pirSent = LOW;
-    startMills = millis();
-  }
-
-  if (((millis() - startMills) > REPORT_INTERVAL ) && ( getdalastempstatus == 0))
-  {
-    getdalastemp();
-    getdalastempstatus = 1;
-  }
-
-  if (((millis() - startMills) > REPORT_INTERVAL ) && ( getdht22tempstatus == 0))
-  {
-    getdht22temp();
-    getdht22tempstatus = 1;
-  }
-
-  if ((millis() - startMills) > REPORT_INTERVAL )
-  {
-    sendmqttMsg(topic, payload);
-    getdalastempstatus = getdht22tempstatus = 0;
-    startMills = millis();
-  }
-
-  // radio
-  if (radio.available()) {
-    while (radio.available()) {
-      radio.read(&sensor_data, sizeof(sensor_data));
-
-      if (DEBUG_PRINT) {
-        Serial.print(" ****** radio ======> size : ");
-        Serial.print(sizeof(sensor_data));
-        Serial.print(" _salt : ");
-        Serial.print(sensor_data._salt);
-        Serial.print(" volt : ");
-        Serial.print(sensor_data.volt);
-        Serial.print(" data1 : ");
-        Serial.print(sensor_data.data1);
-        Serial.print(" data2 : ");
-        Serial.print(sensor_data.data2);
-        Serial.print(" dev_id :");
-        Serial.println(sensor_data.devid);
-      }
-
-      if ( sensor_data.devid != 15 ) {
-
-        String radiopayload = "{\"_salt\":";
-        radiopayload += sensor_data._salt;
-        radiopayload += ",\"volt\":";
-        radiopayload += sensor_data.volt;
-        radiopayload += ",\"data1\":";
-        radiopayload += ((float)sensor_data.data1 / 10);
-        radiopayload += ",\"data2\":";
-        radiopayload += ((float)sensor_data.data2 / 10);
-        radiopayload += ",\"devid\":";
-        radiopayload += sensor_data.devid;
-        radiopayload += "}";
-
-        if ( (sensor_data.devid > 0) && (sensor_data.devid < 255) )
-        {
-          String newRadiotopic = radiotopic;
-          newRadiotopic += "/";
-          newRadiotopic += sensor_data.devid;
-
-          unsigned int newRadiotopic_length = newRadiotopic.length();
-          char newRadiotopictosend[newRadiotopic_length] ;
-          newRadiotopic.toCharArray(newRadiotopictosend, newRadiotopic_length + 1);
-
-          sendmqttMsg(newRadiotopictosend, radiopayload);
-
-        } else {
-          sendmqttMsg(radiofault, radiopayload);
-        }
-      } else {
-
-        if (timeStatus() != timeNotSet) {
-          timestamp = numberOfSecondsSinceEpochUTC(year(), month(), day(), hour(), minute(), second());
-          millisnow = millisecond();
-        }
-
-        if ( sensor_data.data1 < 0 ) {
-          sensor_data.data1 = 0;
-        }
-        String udppayload = "current,test=current,measureno=";
-        udppayload += sensor_data._salt;
-        udppayload += ",unit=";
-        if ( sensor_data.data2 == 1) {
-          udppayload += "mA devid=";
-        }
-        if ( sensor_data.data2 == 3) {
-          udppayload += "µA devid=";
-        }
-        if ( sensor_data.data2 == 2) {
-          udppayload += "nA devid=";
-        }
-        udppayload += sensor_data.devid;
-        udppayload += "i,volt=";
-        udppayload += sensor_data.volt;
-        udppayload += "i,ampere=";
-        udppayload += sensor_data.data1;
-        udppayload += " ";
-        udppayload += timestamp;
-        if ( millisnow > 99 ) {
-          udppayload += millisnow;
-        } else if ( millisnow > 9 && millisnow < 100 ) {
-          udppayload += "0";
-          udppayload += millisnow;
-        } else {
-          udppayload += "00";
-          udppayload += millisnow;
-        }
-        udppayload += "000000";
-
-        sendUdpmsg(udppayload);
-      }
-    }
-  }
-
-  client.loop();
-  ArduinoOTA.handle();
 }
 
 void runTimerDoLightOff()
