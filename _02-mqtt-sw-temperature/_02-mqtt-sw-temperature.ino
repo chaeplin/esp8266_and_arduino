@@ -93,12 +93,16 @@ RF24 radio(3, 15);
 const uint64_t pipes[3] = { 0xFFFFFFFFFFLL, 0xCCCCCCCCCCLL, 0xFFFFFFFFCCLL };
 
 //
+/*
 const char ampereunit_0[] = "0A";
 const char ampereunit_1[] = "mA";
 const char ampereunit_2[] = "nA";
 const char ampereunit_3[] = "µA";
 
 const char* ampereunit[4] = { ampereunit_0, ampereunit_1, ampereunit_2, ampereunit_3};
+*/
+
+const uint16_t ampereunit[]  = { 0, 1000000, 1, 1000};
 
 typedef struct {
   uint32_t _salt;
@@ -607,8 +611,11 @@ void loop()
 
               String udppayload = "current,test=current,measureno=";
               udppayload += sensor_data._salt;
-              udppayload += ",unit=";
 
+              /*
+              udppayload += ",unit=";
+              */
+              
               /*
                 switch (sensor_data.data2) {
                 case 1:
@@ -639,13 +646,20 @@ void loop()
                 udppayload += "nA devid=";
                 }
               */
+              /*
               udppayload += ampereunit[sensor_data.data2];
+              */
+              
               udppayload += " devid=";
 
               udppayload += sensor_data.devid;
               udppayload += "i,volt=";
               udppayload += sensor_data.volt;
               udppayload += "i,ampere=";
+
+              uint32_t ampere_temp;
+              ampere_temp = sensor_data.data1 * ampereunit[sensor_data.data2];
+              
               udppayload += sensor_data.data1;
               udppayload += " ";
               udppayload += timestamp;
