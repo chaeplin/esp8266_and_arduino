@@ -92,6 +92,14 @@ RF24 radio(3, 15);
 // Topology
 const uint64_t pipes[3] = { 0xFFFFFFFFFFLL, 0xCCCCCCCCCCLL, 0xFFFFFFFFCCLL };
 
+//
+const char ampereunit_0[] = "0A";
+const char ampereunit_1[] = "mA";
+const char ampereunit_2[] = "nA";
+const char ampereunit_3[] = "µA";
+
+const char* ampereunit[4] = { ampereunit_0, ampereunit_1, ampereunit_2, ampereunit_3};
+
 typedef struct {
   uint32_t _salt;
   uint16_t volt;
@@ -450,7 +458,7 @@ void loop()
 
       }
 
-      if ((( millis() - lastRelayActionmillis) > BETWEEN_RELAY_ACTIVE ) && ( relayIsReady == LOW ) && ( relaystatus == oldrelaystatus ))
+      if ( ( relayIsReady == LOW ) &&  (( millis() - lastRelayActionmillis) > BETWEEN_RELAY_ACTIVE ) && ( relaystatus == oldrelaystatus ))
       {
 
         if (DEBUG_PRINT) {
@@ -518,14 +526,17 @@ void loop()
       if (((millis() - startMills) > REPORT_INTERVAL ) && ( getdalastempstatus == 0))
       {
         getdalastemp();
+        getdht22temp();
         getdalastempstatus = 1;
       }
 
-      if (((millis() - startMills) > REPORT_INTERVAL ) && ( getdht22tempstatus == 0))
-      {
-        getdht22temp();
-        getdht22tempstatus = 1;
-      }
+      /*
+        if (((millis() - startMills) > REPORT_INTERVAL ) && ( getdht22tempstatus == 0))
+        {
+          getdht22temp();
+          getdht22tempstatus = 1;
+        }
+      */
 
       if ((millis() - startMills) > REPORT_INTERVAL )
       {
@@ -588,42 +599,78 @@ void loop()
             if (timeStatus() != timeNotSet) {
               timestamp = numberOfSecondsSinceEpochUTC(year(), month(), day(), hour(), minute(), second());
               millisnow = millisecond();
-            }
+              //}
 
-            if ( sensor_data.data1 < 0 ) {
-              sensor_data.data1 = 0;
-            }
-            String udppayload = "current,test=current,measureno=";
-            udppayload += sensor_data._salt;
-            udppayload += ",unit=";
-            if ( sensor_data.data2 == 1) {
-              udppayload += "mA devid=";
-            }
-            if ( sensor_data.data2 == 3) {
-              udppayload += "µA devid=";
-            }
-            if ( sensor_data.data2 == 2) {
-              udppayload += "nA devid=";
-            }
-            udppayload += sensor_data.devid;
-            udppayload += "i,volt=";
-            udppayload += sensor_data.volt;
-            udppayload += "i,ampere=";
-            udppayload += sensor_data.data1;
-            udppayload += " ";
-            udppayload += timestamp;
-            if ( millisnow > 99 ) {
-              udppayload += millisnow;
-            } else if ( millisnow > 9 && millisnow < 100 ) {
-              udppayload += "0";
-              udppayload += millisnow;
-            } else {
-              udppayload += "00";
-              udppayload += millisnow;
-            }
-            udppayload += "000000";
+              if ( sensor_data.data1 < 0 ) {
+                sensor_data.data1 = 0;
+              }
 
-            sendUdpmsg(udppayload);
+              String udppayload = "current,test=current,measureno=";
+              udppayload += sensor_data._salt;
+              udppayload += ",unit=";
+
+              /*
+                switch (sensor_data.data2) {
+                case 1:
+                  udppayload += "mA devid=";
+                  break;
+                case 3:
+                  udppayload += "µA devid=";
+                  break;
+                case 2:
+                  udppayload += "nA devid=";
+                  break;
+                default:
+                  udppayload += "middle devid=";
+                  break;
+                }
+              */
+
+
+              /*
+
+                if ( sensor_data.data2 == 1) {
+                udppayload += "mA devid=";
+                }
+                if ( sensor_data.data2 == 3) {
+                udppayload += "µA devid=";
+                }
+                if ( sensor_data.data2 == 2) {
+                udppayload += "nA devid=";
+                }
+              */
+              udppayload += ampereunit[sensor_data.data2];
+              udppayload += " devid=";
+
+              udppayload += sensor_data.devid;
+              udppayload += "i,volt=";
+              udppayload += sensor_data.volt;
+              udppayload += "i,ampere=";
+              udppayload += sensor_data.data1;
+              udppayload += " ";
+              udppayload += timestamp;
+
+
+              char buf[3];
+              sprintf(buf, "%03d", millisnow);
+              udppayload += buf;
+
+              /*
+                if ( millisnow > 99 ) {
+                udppayload += millisnow;
+                } else if ( millisnow > 9 && millisnow < 100 ) {
+                udppayload += "0";
+                udppayload += millisnow;
+                } else {
+                udppayload += "00";
+                udppayload += millisnow;
+                }
+              */
+
+              udppayload += "000000";
+
+              sendUdpmsg(udppayload);
+            }
           }
         }
       }
