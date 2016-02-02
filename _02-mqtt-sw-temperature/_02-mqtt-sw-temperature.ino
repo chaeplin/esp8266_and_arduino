@@ -94,12 +94,12 @@ const uint64_t pipes[3] = { 0xFFFFFFFFFFLL, 0xCCCCCCCCCCLL, 0xFFFFFFFFCCLL };
 
 //
 /*
-const char ampereunit_0[] = "0A";
-const char ampereunit_1[] = "mA";
-const char ampereunit_2[] = "nA";
-const char ampereunit_3[] = "µA";
+  const char ampereunit_0[] = "0A";
+  const char ampereunit_1[] = "mA";
+  const char ampereunit_2[] = "nA";
+  const char ampereunit_3[] = "µA";
 
-const char* ampereunit[4] = { ampereunit_0, ampereunit_1, ampereunit_2, ampereunit_3};
+  const char* ampereunit[4] = { ampereunit_0, ampereunit_1, ampereunit_2, ampereunit_3};
 */
 
 const uint16_t ampereunit[]  = { 0, 1000000, 1, 1000};
@@ -231,6 +231,16 @@ boolean reconnect()
         client.publish(hellotopic, "hello again 1 from ESP8266 s02");
       }
       client.subscribe(subtopic);
+
+      // send current status
+      String lightpayload = "{\"LIGHT\":";
+      lightpayload += relaystatus;
+      lightpayload += ",\"READY\":1";
+      lightpayload += "}";
+
+      sendmqttMsg(rslttopic, lightpayload);
+      //----
+
       if (DEBUG_PRINT) {
         Serial.println("connected");
       }
@@ -429,7 +439,6 @@ void loop()
         Serial.print("failed, rc=");
         Serial.print(client.state());
       }
-
       unsigned long now = millis();
       if (now - lastReconnectAttempt > 500) {
         lastReconnectAttempt = now;
@@ -599,7 +608,6 @@ void loop()
               sendmqttMsg(radiofault, radiopayload);
             }
           } else {
-
             if (timeStatus() != timeNotSet) {
               timestamp = numberOfSecondsSinceEpochUTC(year(), month(), day(), hour(), minute(), second());
               millisnow = millisecond();
@@ -613,9 +621,9 @@ void loop()
               udppayload += sensor_data._salt;
 
               /*
-              udppayload += ",unit=";
+                udppayload += ",unit=";
               */
-              
+
               /*
                 switch (sensor_data.data2) {
                 case 1:
@@ -647,9 +655,9 @@ void loop()
                 }
               */
               /*
-              udppayload += ampereunit[sensor_data.data2];
+                udppayload += ampereunit[sensor_data.data2];
               */
-              
+
               udppayload += " devid=";
 
               udppayload += sensor_data.devid;
@@ -659,7 +667,7 @@ void loop()
 
               uint32_t ampere_temp;
               ampere_temp = sensor_data.data1 * ampereunit[sensor_data.data2];
-              
+
               udppayload += sensor_data.data1;
               udppayload += " ";
               udppayload += timestamp;
