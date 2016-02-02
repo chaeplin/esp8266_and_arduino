@@ -72,7 +72,8 @@ void setup() {
   // radio begin to power down : 80 ms
   radio.begin();
   radio.setChannel(CHANNEL);
-  radio.setPALevel(RF24_PA_LOW);
+  //radio.setPALevel(RF24_PA_LOW);
+  radio.setPALevel(RF24_PA_MIN);
   radio.setDataRate(RF24_250KBPS);
   //radio.setAutoAck(1); 
   radio.setRetries(15, 15);
@@ -136,7 +137,9 @@ void sleep() {
   LowPower.powerDown(SLEEP_4S, ADC_OFF, BOD_OFF);
   */
   /* 1 sec */
-  LowPower.powerDown(SLEEP_1S, ADC_OFF, BOD_OFF);
+  LowPower.powerDown(SLEEP_500MS, ADC_OFF, BOD_OFF);
+  LowPower.powerDown(SLEEP_250MS, ADC_OFF, BOD_OFF);
+  LowPower.powerDown(SLEEP_120MS, ADC_OFF, BOD_OFF);
 }
 
 int readVcc() {
