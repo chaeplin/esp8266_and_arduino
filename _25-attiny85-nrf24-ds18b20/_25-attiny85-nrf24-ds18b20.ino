@@ -136,10 +136,14 @@ void sleep() {
   }
   LowPower.powerDown(SLEEP_4S, ADC_OFF, BOD_OFF);
   */
-  /* 1 sec */
+  /* 1 sec
   LowPower.powerDown(SLEEP_500MS, ADC_OFF, BOD_OFF);
   LowPower.powerDown(SLEEP_250MS, ADC_OFF, BOD_OFF);
   LowPower.powerDown(SLEEP_120MS, ADC_OFF, BOD_OFF);
+  */
+  /* 10 sec */
+  LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF);
+  LowPower.powerDown(SLEEP_2S, ADC_OFF, BOD_OFF);
 }
 
 int readVcc() {
