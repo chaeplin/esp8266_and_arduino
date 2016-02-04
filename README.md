@@ -88,3 +88,8 @@
 - add timer to LG air conditioner remote
 - 30 min run, 60 min off
 
+#### _29-attiny85-nrf24-5pin-pin-change-int / _30-attiny85-nrf24-5pin-pin-change-int ####
+- attiny 85 + nrf24l01p
+- optical isolator
+- for door bell
+- _30-attiny85-nrf24-5pin-pin-change-int is last one using gammon's wdt
