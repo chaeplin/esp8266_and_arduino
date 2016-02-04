@@ -1,3 +1,4 @@
+// 80M CPU / 4M /3M SPIFFS / esp-swtemp
 #include <TimeLib.h>
 #include <SPI.h>
 #include "nRF24L01.h"
@@ -232,14 +233,16 @@ boolean reconnect()
       }
       client.subscribe(subtopic);
 
-      // send current status
-      String lightpayload = "{\"LIGHT\":";
-      lightpayload += relaystatus;
-      lightpayload += ",\"READY\":1";
-      lightpayload += "}";
+      /*
+        // send current status
+        String lightpayload = "{\"LIGHT\":";
+        lightpayload += relaystatus;
+        lightpayload += ",\"READY\":1";
+        lightpayload += "}";
 
-      sendmqttMsg(rslttopic, lightpayload);
-      //----
+        sendmqttMsg(rslttopic, lightpayload);
+        //----
+      */
 
       if (DEBUG_PRINT) {
         Serial.println("connected");
@@ -271,7 +274,15 @@ void callback(char* intopic, byte* inpayload, unsigned int length)
 
   unsigned long now = millis();
 
-  if ((now - lastRelayActionmillis) >= BETWEEN_RELAY_ACTIVE ) {
+  if ( now < 15000 ) {
+    if ( receivedpayload == "{\"LIGHT\":1}") {
+      relaystatus = HIGH ;
+    }
+    if ( receivedpayload == "{\"LIGHT\":0}") {
+      relaystatus = LOW ;
+    }
+    relayIsReady = LOW;
+  } else if ((now - lastRelayActionmillis) >= BETWEEN_RELAY_ACTIVE ) {
     if ( receivedpayload == "{\"LIGHT\":1}") {
       relaystatus = HIGH ;
     }
@@ -387,12 +398,14 @@ void setup()
   //yield();
   radio.begin();
   radio.setChannel(CHANNEL);
-  radio.setPALevel(RF24_PA_HIGH);
-  radio.setDataRate(RF24_250KBPS);
-  radio.setAutoAck(1);
-  radio.setRetries(15, 15);
+  radio.setPALevel(RF24_PA_MAX);
+  //  radio.setDataRate(RF24_250KBPS);
+  radio.setDataRate(RF24_1MBPS);
+  //radio.setAutoAck(1);
+  radio.setRetries(5, 15);
   //radio.setCRCLength(RF24_CRC_8);
-  radio.setPayloadSize(11);
+  //radio.setPayloadSize(11);
+  radio.enableDynamicPayloads();
   radio.openReadingPipe(1, pipes[0]);
   radio.openReadingPipe(2, pipes[2]);
   //radio.openWritingPipe(pipes[1]);
@@ -471,7 +484,23 @@ void loop()
 
       }
 
-      if ( ( relayIsReady == LOW ) &&  (( millis() - lastRelayActionmillis) > BETWEEN_RELAY_ACTIVE ) && ( relaystatus == oldrelaystatus ))
+      if ((relayIsReady == LOW ) &&  ( millis() < 15000 ) && ( relaystatus == oldrelaystatus ))
+      {
+
+        if (DEBUG_PRINT) {
+          Serial.print("after BETWEEN_RELAY_ACTIVE => relaystatus => ");
+          Serial.println(relaystatus);
+        }
+
+        String lightpayload = "{\"LIGHT\":";
+        lightpayload += relaystatus;
+        lightpayload += ",\"READY\":1";
+        lightpayload += "}";
+
+        sendmqttMsg(rslttopic, lightpayload);
+        relayIsReady = HIGH;
+
+      } else if ((relayIsReady == LOW ) &&  (( millis() - lastRelayActionmillis) > BETWEEN_RELAY_ACTIVE ) && ( relaystatus == oldrelaystatus ))
       {
 
         if (DEBUG_PRINT) {
@@ -561,6 +590,10 @@ void loop()
       // radio
       if (radio.available()) {
         while (radio.available()) {
+          uint8_t len = radio.getDynamicPayloadSize();
+          if ( len != sizeof(sensor_data) ) {
+            return;
+          }
           radio.read(&sensor_data, sizeof(sensor_data));
 
           if (DEBUG_PRINT) {
@@ -670,9 +703,9 @@ void loop()
               udppayload += ampere_temp;
 
               /*
-              udppayload += sensor_data.data1;
+                udppayload += sensor_data.data1;
               */
-              
+
               udppayload += " ";
               udppayload += timestamp;
 

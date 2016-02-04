@@ -86,10 +86,12 @@ void setup() {
   radio.setChannel(CHANNEL);
   //radio.setPALevel(RF24_PA_LOW);
   radio.setPALevel(RF24_PA_HIGH);
-  radio.setDataRate(RF24_250KBPS);
+  //radio.setDataRate(RF24_250KBPS);
+  radio.setDataRate(RF24_1MBPS);
   //radio.setAutoAck(1);
-  radio.setRetries(15, 15);
-  radio.setPayloadSize(11);
+  radio.setRetries(5, 15);
+  //radio.setPayloadSize(11);
+  radio.enableDynamicPayloads();
   radio.openWritingPipe(pipes[0]);
   radio.stopListening();
   radio.powerDown();
@@ -105,7 +107,7 @@ void loop() {
   pinint_sleep();
   unsigned long startmilis = millis();
   payload._salt++;
-  payload.data1 = statusPinStatus * 10 ;
+  payload.data1 = 1 * 10 ;
   payload.volt = readVcc();
 
   radio.powerUp();
@@ -118,6 +120,12 @@ void loop() {
   payload.data2 = millis();
 
   goToSleep();
+  radio.powerUp();
+  delay(2);
+  payload.data1 = 0 ;
+  radio.write(&payload , sizeof(payload));
+  delay(2);
+  radio.powerDown();  
 }
 
 // http://www.gammon.com.au/forum/?id=12769

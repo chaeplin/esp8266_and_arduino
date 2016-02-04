@@ -104,7 +104,7 @@ void loop() {
     while (radio.available()) {
       uint8_t len = radio.getDynamicPayloadSize();
       if ( len != sizeof(sensor_data) ) {
-        break;
+        return;
       }
 
       radio.read(&sensor_data, sizeof(sensor_data));
