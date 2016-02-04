@@ -62,6 +62,7 @@ void record() {
 }
 
 void setup() {
+  //Serial.begin(115200);
   delay(20);
   adc_disable();
   pinMode(doRecordPin, INPUT);
@@ -119,7 +120,9 @@ void setup() {
 
 void loop() {
   if (dorecored == true) {
+    
     //startmilis = millis();
+    
     digitalWrite(ledPin, HIGH);
     int microStatus = digitalRead(microPin);
     int nanoStatus  = digitalRead(nanoPin);
@@ -140,11 +143,19 @@ void loop() {
     ads.readADC_Differential_0_1_no_delay();
     
     radio.write(&payload, sizeof(payload));
-    
-    digitalWrite(ledPin, LOW);
-    //stopmilis = millis();
-    //payload.volt = ( stopmilis - startmilis ) ;
     loopcount++;
+    digitalWrite(ledPin, LOW);
+
+    /*
+    Serial.print(rangeStatus);
+    Serial.print(" -- ");
+    Serial.println(payload.data1);
+    */
+
+    /*
+    stopmilis = millis();
+    payload.volt = ( stopmilis - startmilis ) ;
+    */
   } else {
     digitalWrite(ledPin, LOW);
   }

@@ -102,7 +102,7 @@ const uint64_t pipes[3] = { 0xFFFFFFFFFFLL, 0xCCCCCCCCCCLL, 0xFFFFFFFFCCLL };
   const char* ampereunit[4] = { ampereunit_0, ampereunit_1, ampereunit_2, ampereunit_3};
 */
 
-const uint16_t ampereunit[]  = { 0, 1000000, 1, 1000};
+const uint32_t ampereunit[]  = { 0, 1000000, 1, 1000};
 
 typedef struct {
   uint32_t _salt;
@@ -667,8 +667,12 @@ void loop()
 
               uint32_t ampere_temp;
               ampere_temp = sensor_data.data1 * ampereunit[sensor_data.data2];
+              udppayload += ampere_temp;
 
+              /*
               udppayload += sensor_data.data1;
+              */
+              
               udppayload += " ";
               udppayload += timestamp;
 
