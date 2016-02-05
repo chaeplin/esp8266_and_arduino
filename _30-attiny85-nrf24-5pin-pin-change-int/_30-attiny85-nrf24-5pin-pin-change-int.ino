@@ -89,7 +89,7 @@ void setup() {
   //radio.setDataRate(RF24_250KBPS);
   radio.setDataRate(RF24_1MBPS);
   //radio.setAutoAck(1);
-  radio.setRetries(5, 15);
+  radio.setRetries(15, 15);
   //radio.setPayloadSize(11);
   radio.enableDynamicPayloads();
   radio.openWritingPipe(pipes[0]);
@@ -120,12 +120,14 @@ void loop() {
   payload.data2 = millis();
 
   goToSleep();
+  
   radio.powerUp();
   delay(2);
   payload.data1 = 0 ;
   radio.write(&payload , sizeof(payload));
   delay(2);
   radio.powerDown();  
+  
 }
 
 // http://www.gammon.com.au/forum/?id=12769

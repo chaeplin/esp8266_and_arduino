@@ -398,11 +398,11 @@ void setup()
   //yield();
   radio.begin();
   radio.setChannel(CHANNEL);
-  radio.setPALevel(RF24_PA_MAX);
+  radio.setPALevel(RF24_PA_HIGH);
   //  radio.setDataRate(RF24_250KBPS);
   radio.setDataRate(RF24_1MBPS);
   //radio.setAutoAck(1);
-  radio.setRetries(5, 15);
+  radio.setRetries(15, 15);
   //radio.setCRCLength(RF24_CRC_8);
   //radio.setPayloadSize(11);
   radio.enableDynamicPayloads();
@@ -589,9 +589,18 @@ void loop()
 
       // radio
       if (radio.available()) {
-        while (radio.available()) {
+          // from attiny 85 data size is 11
+          // sensor_data data size = 12
           uint8_t len = radio.getDynamicPayloadSize();
-          if ( len != sizeof(sensor_data) ) {
+          // avr 8bit, esp 32bit. esp use 4 byte step.
+          if ( (len + 1 )!= sizeof(sensor_data) ) {
+            if (DEBUG_PRINT) {
+              Serial.print(" ****** radio ======> len : sizeof(sensor_data) : return : ");
+              Serial.print(len);
+              Serial.print(" : ");
+              Serial.println(sizeof(sensor_data));
+            }
+            radio.read(0,0);
             return;
           }
           radio.read(&sensor_data, sizeof(sensor_data));
@@ -617,10 +626,21 @@ void loop()
             radiopayload += sensor_data._salt;
             radiopayload += ",\"volt\":";
             radiopayload += sensor_data.volt;
+
             radiopayload += ",\"data1\":";
-            radiopayload += ((float)sensor_data.data1 / 10);
+            if ( sensor_data.data1 == 0 ) {
+              radiopayload += 0;
+            } else {
+              radiopayload += ((float)sensor_data.data1 / 10);
+            }
+
             radiopayload += ",\"data2\":";
-            radiopayload += ((float)sensor_data.data2 / 10);
+            if ( sensor_data.data2 == 0 ) {
+              radiopayload += 0;
+            } else {
+              radiopayload += ((float)sensor_data.data2 / 10);
+            }
+
             radiopayload += ",\"devid\":";
             radiopayload += sensor_data.devid;
             radiopayload += "}";
@@ -731,7 +751,6 @@ void loop()
               sendUdpmsg(udppayload);
             }
           }
-        }
       }
       client.loop();
     }
