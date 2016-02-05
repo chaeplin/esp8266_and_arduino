@@ -93,3 +93,14 @@
 - optical isolator
 - for door bell
 - _30-attiny85-nrf24-5pin-pin-change-int is last one using gammon's wdt
+
+#### _25-attiny85-nrf24-ds18b20 ####
+- attiny 85 + nrf24l01p
+- two ds18b20
+- to check temp
+
+#### _28-attiny85-nrf24-3pin-ir ####
+- attiny 85 + nrf24l01p
+- ir send and receiver
+- to check roll
+

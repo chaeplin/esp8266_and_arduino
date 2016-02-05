@@ -90,13 +90,14 @@ void setup() {
   radio.setChannel(CHANNEL);
   //radio.setPALevel(RF24_PA_LOW);
   radio.setPALevel(RF24_PA_HIGH);
-  radio.setDataRate(RF24_250KBPS);
+  //radio.setDataRate(RF24_250KBPS);
+  radio.setDataRate(RF24_1MBPS);
   //radio.setAutoAck(1);
   radio.setRetries(15, 15);
-  radio.setPayloadSize(11);
+  //radio.setPayloadSize(11);
+  radio.enableDynamicPayloads();
   radio.openWritingPipe(pipes[2]);
   radio.stopListening();
-  //radio.powerDown();
 
   payload._salt = 0;
   payload.devid = DEVICE_ID;

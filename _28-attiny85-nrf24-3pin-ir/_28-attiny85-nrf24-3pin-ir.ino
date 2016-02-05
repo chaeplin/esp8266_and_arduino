@@ -85,10 +85,12 @@ void setup() {
   radio.begin();
   radio.setChannel(CHANNEL);
   radio.setPALevel(RF24_PA_LOW);
-  radio.setDataRate(RF24_250KBPS);
+  //radio.setDataRate(RF24_250KBPS);
+  radio.setDataRate(RF24_1MBPS);
   //radio.setAutoAck(1);
   radio.setRetries(15, 15);
-  radio.setPayloadSize(11);
+  radio.enableDynamicPayloads();
+  //radio.setPayloadSize(11);
   radio.openWritingPipe(pipes[0]);
   radio.stopListening();
   //radio.powerDown();
