@@ -186,10 +186,9 @@ void loop()
           if ( acquireresult == 0 ) {
             t = DHT.getCelsius();
             h = DHT.getHumidity();
-
-            bDHTstarted = false;
-            DHTnextSampleTime = millis() + DHT_SAMPLE_INTERVAL;
           }
+          bDHTstarted = false;
+          DHTnextSampleTime = millis() + DHT_SAMPLE_INTERVAL;
         }
       }
 
