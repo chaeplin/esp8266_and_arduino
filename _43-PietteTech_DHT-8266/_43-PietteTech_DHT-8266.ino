@@ -1,6 +1,10 @@
 #include <ESP8266WiFi.h>
 // https://github.com/knolleary/pubsubclient
 #include <PubSubClient.h>
+#include <WiFiUdp.h>
+#include <ESP8266mDNS.h>
+#include <ArduinoOTA.h>
+#include <WiFiUdp.h>
 // for esp8266
 // https://github.com/chaeplin/PietteTech_DHT-8266
 #include "PietteTech_DHT.h"
@@ -13,7 +17,7 @@ extern "C" {
 // system defines
 #define DHTTYPE  DHT22              // Sensor type DHT11/21/22/AM2301/AM2302
 #define DHTPIN   2              // Digital pin for communications
-#define DHT_SAMPLE_INTERVAL   2000  // Sample every two seconds
+#define DHT_SAMPLE_INTERVAL   2100  // Sample every two seconds
 
 #define REPORT_INTERVAL 2000 // in msec
 
@@ -22,6 +26,8 @@ void sendmqttMsg(char* topictosend, String payload);
 
 const char* ssid = WIFI_SSID;
 const char* password = WIFI_PASSWORD;
+const char* otapassword = OTA_PASSWORD;
+
 IPAddress mqtt_server = MQTT_SERVER;
 
 char* topic = "pubtest";
@@ -29,8 +35,8 @@ char* topic = "pubtest";
 String clientName;
 long lastReconnectAttempt = 0;
 unsigned long startMills;
-bool acquired;
 float t, h;
+int acquireresult;
 
 WiFiClient wifiClient;
 PubSubClient client(mqtt_server, 1883, wifiClient);
@@ -102,7 +108,7 @@ void wifi_connect()
 void setup()
 {
   startMills = millis();
-  //Serial.begin(115200);
+  Serial.begin(115200);
 
   wifi_connect();
 
@@ -113,16 +119,42 @@ void setup()
   clientName += "-";
   clientName += String(micros() & 0xff, 16);
 
-
   Serial.println(clientName);
 
-  acquired = false;
+  //OTA
+  // Port defaults to 8266
+  //ArduinoOTA.setPort(8266);
 
-  int result = DHT.acquireAndWait(1000);
-  if ( result == DHTLIB_OK ) {
+  // Hostname defaults to esp8266-[ChipID]
+  ArduinoOTA.setHostname("esp-test-test");
+
+  // No authentication by default
+  ArduinoOTA.setPassword(otapassword);
+
+  ArduinoOTA.onStart([]() {
+    //Serial.println("Start");
+  });
+  ArduinoOTA.onEnd([]() {
+    //Serial.println("\nEnd");
+  });
+  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+    //Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
+  });
+  ArduinoOTA.onError([](ota_error_t error) {
+    //ESP.restart();
+    if (error == OTA_AUTH_ERROR) abort();
+    else if (error == OTA_BEGIN_ERROR) abort();
+    else if (error == OTA_CONNECT_ERROR) abort();
+    else if (error == OTA_RECEIVE_ERROR) abort();
+    else if (error == OTA_END_ERROR) abort();
+
+  });
+
+  ArduinoOTA.begin();
+  acquireresult = DHT.acquireAndWait(1000);
+  if ( acquireresult == 0 ) {
     t = DHT.getCelsius();
     h = DHT.getHumidity();
-    acquired = true;
   } else {
     t = h = 0;
   }
@@ -147,23 +179,21 @@ void loop()
         if (!bDHTstarted) {
           DHT.acquire();
           bDHTstarted = true;
-          acquired = false;
         }
 
         if (!DHT.acquiring()) {
-          int result = DHT.getStatus();
-          if ( result == 0 ) {
+          acquireresult = DHT.getStatus();
+          if ( acquireresult == 0 ) {
             t = DHT.getCelsius();
             h = DHT.getHumidity();
 
             bDHTstarted = false;
-            acquired = true;
             DHTnextSampleTime = millis() + DHT_SAMPLE_INTERVAL;
           }
         }
       }
 
-      if ((millis() - startMills) > REPORT_INTERVAL && acquired == true) {
+      if ((millis() - startMills) > REPORT_INTERVAL) {
         String payload ;
         payload += "{\"startMills\":";
         payload += millis();
@@ -171,6 +201,8 @@ void loop()
         payload += t;
         payload += ",\"Humidity\":";
         payload += h;
+        payload += ",\"acquireresult\":";
+        payload += acquireresult;
         payload += ",\"FreeHeap\":";
         payload += ESP.getFreeHeap();
         payload += ",\"RSSI\":";
@@ -182,6 +214,7 @@ void loop()
       }
       client.loop();
     }
+    ArduinoOTA.handle();
   } else {
     wifi_connect();
   }
