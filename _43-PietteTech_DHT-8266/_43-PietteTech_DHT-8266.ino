@@ -102,7 +102,7 @@ void wifi_connect()
 void setup()
 {
   startMills = millis();
-  Serial.begin(115200);
+  //Serial.begin(115200);
 
   wifi_connect();
 
