@@ -72,8 +72,6 @@ IPAddress time_server = MQTT_SERVER;
 // system defines
 #define DHTTYPE  DHT22              // Sensor type DHT11/21/22/AM2301/AM2302
 #define DHTPIN   2              // Digital pin for communications
-#define DHT_SAMPLE_INTERVAL   3000  // Sample every two seconds
-
 
 // OTHER
 //#define REPORT_INTERVAL 9500 // in msec
@@ -167,7 +165,6 @@ void dht_wrapper(); // must be declared before the lib initialization
 PietteTech_DHT DHT(DHTPIN, DHTTYPE, dht_wrapper);
 
 // globals
-unsigned int DHTnextSampleTime;     // Next time we want to start sample
 bool bDHTstarted;       // flag to indicate we started acquisition
 
 // This wrapper is in charge of calling
@@ -422,16 +419,13 @@ void setup()
 
   ArduinoOTA.begin();
 
-  acquireresult = DHT.acquireAndWait(1000);
+  acquireresult = DHT.acquireAndWait(0);
   if ( acquireresult == 0 ) {
     t = DHT.getCelsius();
     h = DHT.getHumidity();
   } else {
     t = h = 0;
   }
-
-  DHTnextSampleTime = 0;  // Start the first sample immediately
-
 }
 
 void loop()
