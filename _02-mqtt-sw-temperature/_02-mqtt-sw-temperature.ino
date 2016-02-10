@@ -1,8 +1,4 @@
 // 80M CPU / 4M / 1M SPIFFS / esp-swtemp
-//#include "DHT.h"
-// for esp8266
-// https://github.com/chaeplin/PietteTech_DHT-8266
-#include "PietteTech_DHT.h"
 //
 #include <TimeLib.h>
 //#include <SPI.h>
@@ -18,6 +14,9 @@
 #include <ArduinoOTA.h>
 #include <WiFiUdp.h>
 //#include "DHT.h"
+// for esp8266
+// https://github.com/chaeplin/PietteTech_DHT-8266
+#include "PietteTech_DHT.h"
 
 // radio
 #define DEVICE_ID 1
@@ -59,8 +58,6 @@ const char* ssid = WIFI_SSID;
 const char* password = WIFI_PASSWORD;
 const char* otapassword = OTA_PASSWORD;
 
-//int32_t channel = WIFI_CHANNEL;
-
 //
 IPAddress influxdbudp = MQTT_SERVER;
 IPAddress mqtt_server = MQTT_SERVER;
@@ -72,20 +69,15 @@ IPAddress time_server = MQTT_SERVER;
 #define RELAYPIN 4
 #define TOPBUTTONPIN 5
 
-/*
-  // DHT22
-  #define DHTTYPE DHT22   // DHT 22  (AM2302)
-  DHT dht(DHTPIN, DHTTYPE);
-*/
-
 // system defines
 #define DHTTYPE  DHT22              // Sensor type DHT11/21/22/AM2301/AM2302
 #define DHTPIN   2              // Digital pin for communications
-#define DHT_SAMPLE_INTERVAL   4000  // Sample every two seconds
+#define DHT_SAMPLE_INTERVAL   3000  // Sample every two seconds
 
 
 // OTHER
-#define REPORT_INTERVAL 9500 // in msec
+//#define REPORT_INTERVAL 9500 // in msec
+#define REPORT_INTERVAL 5000 // in msec
 
 #define BETWEEN_RELAY_ACTIVE 5000
 
@@ -103,16 +95,6 @@ RF24 radio(3, 15);
 
 // Topology
 const uint64_t pipes[3] = { 0xFFFFFFFFFFLL, 0xCCCCCCCCCCLL, 0xFFFFFFFFCCLL };
-
-//
-/*
-  const char ampereunit_0[] = "0A";
-  const char ampereunit_1[] = "mA";
-  const char ampereunit_2[] = "nA";
-  const char ampereunit_3[] = "µA";
-
-  const char* ampereunit[4] = { ampereunit_0, ampereunit_1, ampereunit_2, ampereunit_3};
-*/
 
 const uint32_t ampereunit[]  = { 0, 1000000, 1, 1000};
 
@@ -152,25 +134,14 @@ int ResetInfo = LOW;
 //
 float tempCoutside ;
 
-//float h ;
-//float t ;
-//float f ;
-
 //
 int pirValue ;
 int pirSent  ;
 int oldpirValue ;
 
-/*
-  volatile int relaystatus    = LOW;
-  volatile int oldrelaystatus = LOW;
-*/
-
+//
 volatile int relaystatus    = LOW;
 int oldrelaystatus = LOW;
-
-//int getdalastempstatus = 0;
-//int getdht22tempstatus = 0;
 
 //
 unsigned long startMills;
@@ -184,9 +155,9 @@ int millisnow;
 //
 int relayIsReady = HIGH;
 
-
 //////////////////
 int acquireresult;
+bool bDalasstarted;
 float t, h;
 
 //declaration
@@ -198,13 +169,13 @@ PietteTech_DHT DHT(DHTPIN, DHTTYPE, dht_wrapper);
 // globals
 unsigned int DHTnextSampleTime;     // Next time we want to start sample
 bool bDHTstarted;       // flag to indicate we started acquisition
-bool bDalasstarted;
 
 // This wrapper is in charge of calling
 // must be defined like this for the lib work
 void dht_wrapper() {
   DHT.isrCallback();
 }
+
 /////////////
 WiFiClient wifiClient;
 PubSubClient client(mqtt_server, 1883, callback, wifiClient);
@@ -265,18 +236,6 @@ boolean reconnect()
         client.publish(hellotopic, "hello again 1 from ESP8266 s02");
       }
       client.subscribe(subtopic);
-
-      /*
-        // send current status
-        String lightpayload = "{\"LIGHT\":";
-        lightpayload += relaystatus;
-        lightpayload += ",\"READY\":1";
-        lightpayload += "}";
-
-        sendmqttMsg(rslttopic, lightpayload);
-        //----
-      */
-
       if (DEBUG_PRINT) {
         Serial.println("connected");
       }
@@ -403,22 +362,6 @@ void setup()
   }
 
   sensors.setResolution(outsideThermometer, TEMPERATURE_PRECISION);
-
-  /*
-    dht.begin();
-
-    h = dht.readHumidity();
-    t = dht.readTemperature();
-    f = dht.readTemperature(true);
-
-    if (isnan(h) || isnan(t) || isnan(f)) {
-    if (DEBUG_PRINT) {
-      Serial.println("Failed to read from DHT sensor!");
-    }
-    return;
-    }
-  */
-
   sensors.requestTemperatures();
   tempCoutside = sensors.getTempC(outsideThermometer);
 
@@ -507,25 +450,6 @@ void loop()
         }
       }
     } else {
-      /*
-        if (millis() > DHTnextSampleTime) {
-        if (!bDHTstarted) {
-          DHT.acquire();
-          bDHTstarted = true;
-        }
-
-        if (!DHT.acquiring()) {
-          acquireresult = DHT.getStatus();
-          if ( acquireresult == 0 ) {
-            t = DHT.getCelsius();
-            h = DHT.getHumidity();
-          }
-          bDHTstarted = false;
-          DHTnextSampleTime = millis() + DHT_SAMPLE_INTERVAL;
-        }
-        }
-      */
-
       if (bDHTstarted) {
         if (!DHT.acquiring()) {
           acquireresult = DHT.getStatus();
@@ -599,7 +523,6 @@ void loop()
 
         sendmqttMsg(rslttopic, lightpayload);
         relayIsReady = HIGH;
-
       }
 
       runTimerDoLightOff();
@@ -610,32 +533,6 @@ void loop()
         oldpirValue = pirValue;
       }
 
-      /*
-        // to test sensor
-        if (isnan(h)) {
-        payload = "{\"Humidity\":";
-        payload += 0;
-        } else {
-        payload = "{\"Humidity\":";
-        payload += h;
-        }
-
-        if (isnan(t)) {
-        payload += ",\"Temperature\":";
-        payload += 0;
-        } else {
-        payload += ",\"Temperature\":";
-        payload += t;
-        }
-
-        if (isnan(tempCoutside)) {
-        payload += ",\"DS18B20\":";
-        payload += 0;
-        } else {
-        payload += ",\"DS18B20\":";
-        payload += tempCoutside;
-        }
-      */
       payload = "{\"Humidity\":";
       payload += h;
       payload += ",\"Temperature\":";
@@ -654,70 +551,12 @@ void loop()
       payload += (millis() - timemillis);
       payload += "}";
 
-      /*
-        if ( isnan(h) || isnan(t) || isnan(tempCoutside )) {
-        payload = "{\"PIRSTATUS\":";
-        payload += pirValue;
-        payload += ",\"FreeHeap\":";
-        payload += ESP.getFreeHeap();
-        payload += ",\"RSSI\":";
-        payload += WiFi.RSSI();
-        payload += ",\"millis\":";
-        payload += (millis() - timemillis);
-        payload += "}";
-
-        } else {
-        payload = "{\"Humidity\":";
-        payload += h;
-        payload += ",\"Temperature\":";
-        payload += t;
-        if ( (tempCoutside > -100) && (tempCoutside < 100) ) {
-          payload += ",\"DS18B20\":";
-          payload += tempCoutside;
-        }
-        payload += ",\"PIRSTATUS\":";
-        payload += pirValue;
-        payload += ",\"FreeHeap\":";
-        payload += ESP.getFreeHeap();
-        payload += ",\"RSSI\":";
-        payload += WiFi.RSSI();
-        payload += ",\"millis\":";
-        payload += (millis() - timemillis);
-        payload += "}";
-        }
-      */
-
-      //if (( pirSent == HIGH ) && ( pirValue == HIGH ))
       if ( pirSent == HIGH )
       {
         sendmqttMsg(topic, payload);
         pirSent = LOW;
-        startMills = millis();
-        sensors.setWaitForConversion(false);
-        sensors.requestTemperatures();
-        sensors.setWaitForConversion(true);
-        bDalasstarted = true;
-
-        DHT.acquire();
-        bDHTstarted = true;
+        //startMills = millis();
       }
-
-      /*
-        if (((millis() - startMills) > REPORT_INTERVAL ) && ( getdalastempstatus == 0))
-        {
-        getdalastemp();
-        getdht22temp();
-        getdalastempstatus = 1;
-        }
-      */
-
-      /*
-        if (((millis() - startMills) > REPORT_INTERVAL ) && ( getdht22tempstatus == 0))
-        {
-          getdht22temp();
-          getdht22tempstatus = 1;
-        }
-      */
 
       if ((millis() - startMills) > REPORT_INTERVAL )
       {
@@ -800,9 +639,7 @@ void loop()
             unsigned int newRadiotopic_length = newRadiotopic.length();
             char newRadiotopictosend[newRadiotopic_length] ;
             newRadiotopic.toCharArray(newRadiotopictosend, newRadiotopic_length + 1);
-
             sendmqttMsg(newRadiotopictosend, radiopayload);
-
           } else {
             sendmqttMsg(radiofault, radiopayload);
           }
@@ -818,9 +655,7 @@ void loop()
 
             String udppayload = "current,test=current,measureno=";
             udppayload += sensor_data._salt;
-
             udppayload += " devid=";
-
             udppayload += sensor_data.devid;
             udppayload += "i,volt=";
             udppayload += sensor_data.volt;
@@ -829,17 +664,13 @@ void loop()
             uint32_t ampere_temp;
             ampere_temp = sensor_data.data1 * ampereunit[sensor_data.data2];
             udppayload += ampere_temp;
-
             udppayload += " ";
             udppayload += timestamp;
-
 
             char buf[3];
             sprintf(buf, "%03d", millisnow);
             udppayload += buf;
-
             udppayload += "000000";
-
             sendUdpmsg(udppayload);
           }
         }
@@ -887,38 +718,6 @@ void changelight()
   oldrelaystatus = relaystatus ;
   //relayIsReady = LOW;
 }
-
-/*
-  void getdht22temp()
-  {
-
-  h = dht.readHumidity();
-  t = dht.readTemperature();
-  f = dht.readTemperature(true);
-
-  if (isnan(h) || isnan(t) || isnan(f)) {
-    if (DEBUG_PRINT) {
-      Serial.println("Failed to read from DHT sensor!");
-    }
-  }
-
-  float hi = dht.computeHeatIndex(f, h);
-  }
-*/
-
-/*
-  void getdalastemp()
-  {
-  sensors.requestTemperatures();
-  tempCoutside  = sensors.getTempC(outsideThermometer);
-
-  if ( isnan(tempCoutside) || tempCoutside < -50  ) {
-    if (DEBUG_PRINT) {
-      Serial.println("Failed to read from sensor!");
-    }
-  }
-  }
-*/
 
 void sendmqttMsg(char* topictosend, String payload)
 {

@@ -1,3 +1,5 @@
+// 80M CPU / 4M / 1M SPIFFS / esp-test-test
+//
 #include <ESP8266WiFi.h>
 // https://github.com/knolleary/pubsubclient
 #include <PubSubClient.h>
@@ -17,9 +19,9 @@ extern "C" {
 // system defines
 #define DHTTYPE  DHT22              // Sensor type DHT11/21/22/AM2301/AM2302
 #define DHTPIN   2              // Digital pin for communications
-#define DHT_SAMPLE_INTERVAL   2100  // Sample every two seconds
+#define DHT_SAMPLE_INTERVAL   3000  // Sample every two seconds
 
-#define REPORT_INTERVAL 2000 // in msec
+#define REPORT_INTERVAL 4000 // in msec
 
 String macToStr(const uint8_t* mac);
 void sendmqttMsg(char* topictosend, String payload);
