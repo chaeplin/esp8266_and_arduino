@@ -1,5 +1,7 @@
 // 80M CPU / 4M / 1M SPIFFS / esp-test-test
-//
+// with #define DHT_DEBUG_TIMING on PietteTech_DHT-8266
+// #define DHTLIB_RESPONSE_MAX_TIMING 210
+// #define DHTLIB_MAX_TIMING 165
 #include <ESP8266WiFi.h>
 // https://github.com/knolleary/pubsubclient
 #include <PubSubClient.h>
