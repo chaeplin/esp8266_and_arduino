@@ -1,5 +1,5 @@
 // 80M CPU / 4M / 1M SPIFFS / esp-swtemp
-// with //#define DHT_DEBUG_TIMING on PietteTech_DHT-8266
+// with #define DHT_DEBUG_TIMING on / PietteTech_DHT-8266
 // #define DHTLIB_RESPONSE_MAX_TIMING 210
 // #define DHTLIB_MAX_TIMING 165
 #include <TimeLib.h>
@@ -11,7 +11,6 @@
 #include <PubSubClient.h>
 #include <ESP8266WiFi.h>
 #include <DallasTemperature.h>
-#include <WiFiUdp.h>
 #include <ESP8266mDNS.h>
 #include <ArduinoOTA.h>
 #include <WiFiUdp.h>
@@ -49,6 +48,7 @@ void runTimerDoLightOff();
 //void getdalastemp();
 //void getdht22temp();
 void sendNTPpacket(IPAddress & address);
+void printEdgeTiming(class PietteTech_DHT *_d);
 
 static unsigned long  numberOfSecondsSinceEpochUTC(uint16_t y, uint8_t m, uint8_t d, uint8_t h, uint8_t mm, uint8_t s);
 long DateToMjd (uint16_t y, uint8_t m, uint8_t d);
@@ -159,13 +159,6 @@ int relayIsReady = HIGH;
 int acquireresult;
 bool bDalasstarted;
 float t, h;
-
-/*
-  uint8_t edges0;
-  uint8_t edges1;
-  uint8_t edges8;
-  uint8_t edges9;
-*/
 
 //declaration
 void dht_wrapper(); // must be declared before the lib initialization
@@ -429,12 +422,6 @@ void setup()
   ArduinoOTA.begin();
 
   acquireresult = DHT.acquireAndWait(0);
-  /*
-    edges0 = DHT._edges[0];
-      edges1 = DHT._edges[1];
-      edges8 = DHT._edges[8];
-      edges9 = DHT._edges[9];
-  */
   if ( acquireresult == 0 ) {
     t = DHT.getCelsius();
     h = DHT.getHumidity();
@@ -462,12 +449,7 @@ void loop()
       if (bDHTstarted) {
         if (!DHT.acquiring()) {
           acquireresult = DHT.getStatus();
-          /*
-              edges0 = DHT._edges[0];
-            edges1 = DHT._edges[1];
-            edges8 = DHT._edges[8];
-            edges9 = DHT._edges[9];
-          */
+          printEdgeTiming(&DHT);
           if ( acquireresult == 0 ) {
             t = DHT.getCelsius();
             h = DHT.getHumidity();
@@ -560,16 +542,6 @@ void loop()
       payload += ESP.getFreeHeap();
       payload += ",\"acquireresult\":";
       payload += acquireresult;
-      /*
-              payload += ",\"e0\":";
-              payload += edges0;
-              payload += ",\"e1\":";
-              payload += edges1;
-              payload += ",\"e8\":";
-              payload += edges8;
-              payload += ",\"e9\":";
-              payload += edges9;
-      */
       payload += ",\"RSSI\":";
       payload += WiFi.RSSI();
       payload += ",\"millis\":";
@@ -829,6 +801,32 @@ String macToStr(const uint8_t* mac)
       result += ':';
   }
   return result;
+}
+
+void printEdgeTiming(class PietteTech_DHT *_d) {
+  byte n;
+  volatile uint8_t *_e = &_d->_edges[0];
+
+  String udppayload = "edges2,device=esp-12-N1,debug=on ";
+  for (n = 0; n < 41; n++) {
+    char buf[2];
+    if ( n < 40 ) {
+      udppayload += "e";
+      sprintf(buf, "%02d", n);
+      udppayload += buf;
+      udppayload += "=";
+      udppayload += *_e++;
+      udppayload += "i,";
+    } else {
+      udppayload += "e";
+      sprintf(buf, "%02d", n);
+      udppayload += buf;
+      udppayload += "=";
+      udppayload += *_e++;
+      udppayload += "i";
+    }
+  }
+  sendUdpmsg(udppayload);
 }
 
 /*-------- NTP code ----------*/
