@@ -1,4 +1,4 @@
-// CPU : 160MHz
+// CPU : 80MHz
 // FLASH : 4M/1M
 #include <PubSubClient.h>
 #include <ESP8266WiFi.h>
@@ -338,11 +338,10 @@ void loop()
         }
       }
     } else {
-
       if ((millis() - sentMills) > ( 700) ) {
         unsigned long emonmillis = millis();
-        //VIrms = emon1.calcIrms(1480) * 220.0;
-        VIrms = emon1.calcIrms(2960) * 220.0;
+        VIrms = emon1.calcIrms(1480) * 220.0;
+        //VIrms = emon1.calcIrms(2960) * 220.0;
         calcIrmsmillis = millis() - emonmillis;
 
         ave.push(VIrms);
@@ -423,9 +422,8 @@ void loop()
       }
 
       client.loop();
-      ArduinoOTA.handle();
-
     }
+    ArduinoOTA.handle();
   } else {
     wifi_connect();
   }
