@@ -14,26 +14,27 @@
 #include "PietteTech_DHT.h"
 #include "/usr/local/src/ap_setting.h"
 
-extern "C" {
-#include "user_interface.h"
-}
-
 // system defines
 #define DHTTYPE  DHT22              // Sensor type DHT11/21/22/AM2301/AM2302
 #define DHTPIN   2              // Digital pin for communications
 
-#define REPORT_INTERVAL 4000 // in msec
+#define REPORT_INTERVAL 5000 // in msec
 
 String macToStr(const uint8_t* mac);
 void sendmqttMsg(char* topictosend, String payload);
+void sendUdpmsg(String msgtosend);
+void printEdgeTiming(class PietteTech_DHT *_d);
 
 const char* ssid = WIFI_SSID;
 const char* password = WIFI_PASSWORD;
 const char* otapassword = OTA_PASSWORD;
 
+IPAddress influxdbudp = MQTT_SERVER;
 IPAddress mqtt_server = MQTT_SERVER;
 
 char* topic = "pubtest";
+
+unsigned int localPort = 2390;
 
 String clientName;
 long lastReconnectAttempt = 0;
@@ -41,13 +42,9 @@ unsigned long startMills;
 float t, h;
 int acquireresult;
 
-uint8_t edges0;
-uint8_t edges1;
-uint8_t edges8;
-uint8_t edges9;
-
 WiFiClient wifiClient;
 PubSubClient client(mqtt_server, 1883, wifiClient);
+WiFiUDP udp;
 
 //declaration
 void dht_wrapper(); // must be declared before the lib initialization
@@ -157,12 +154,10 @@ void setup()
 
   });
 
+  udp.begin(localPort);
+
   ArduinoOTA.begin();
   acquireresult = DHT.acquireAndWait(0);
-  edges0 = DHT._edges[0];
-  edges1 = DHT._edges[1];
-  edges8 = DHT._edges[8];
-  edges9 = DHT._edges[9];
   if ( acquireresult == 0 ) {
     t = DHT.getCelsius();
     h = DHT.getHumidity();
@@ -186,10 +181,7 @@ void loop()
       if (bDHTstarted) {
         if (!DHT.acquiring()) {
           acquireresult = DHT.getStatus();
-          edges0 = DHT._edges[0];
-          edges1 = DHT._edges[1];
-          edges8 = DHT._edges[8];
-          edges9 = DHT._edges[9];
+          printEdgeTiming(&DHT);
           if ( acquireresult == 0 ) {
             t = DHT.getCelsius();
             h = DHT.getHumidity();
@@ -208,19 +200,6 @@ void loop()
         payload += h;
         payload += ",\"acquireresult\":";
         payload += acquireresult;
-        
-        payload += ",\"e0\":";
-        payload += edges0;
-        
-        payload += ",\"e1\":";
-        payload += edges1;
-        
-        payload += ",\"e8\":";
-        payload += edges8;
-        
-        payload += ",\"e9\":";
-        payload += edges9;
-        
         payload += ",\"FreeHeap\":";
         payload += ESP.getFreeHeap();
         payload += ",\"RSSI\":";
@@ -228,6 +207,7 @@ void loop()
         payload += "}";
 
         sendmqttMsg(topic, payload);
+
         startMills = millis();
         DHT.acquire();
         bDHTstarted = true;
@@ -239,6 +219,35 @@ void loop()
     wifi_connect();
   }
 }
+
+
+void printEdgeTiming(class PietteTech_DHT *_d) {
+  byte n;
+  volatile uint8_t *_e = &_d->_edges[0];
+
+  String udppayload = "edges2,device=esp-12-N2,debug=on ";
+  for (n = 0; n < 41; n++) {
+    char buf[2];
+    if ( n < 40 ) {
+      udppayload += "e";
+      sprintf(buf, "%02d", n);
+      udppayload += buf;
+      udppayload += "=";
+      udppayload += *_e++;
+      udppayload += "i,";
+    } else {
+      udppayload += "e";
+      sprintf(buf, "%02d", n);
+      udppayload += buf;
+      udppayload += "=";
+      udppayload += *_e++;
+      udppayload += "i";
+    }
+  }
+  sendUdpmsg(udppayload);
+}
+
+
 
 void sendmqttMsg(char* topictosend, String payload)
 {
@@ -276,3 +285,16 @@ String macToStr(const uint8_t* mac)
   }
   return result;
 }
+
+void sendUdpmsg(String msgtosend)
+{
+  unsigned int msg_length = msgtosend.length();
+  byte* p = (byte*)malloc(msg_length);
+  memcpy(p, (char*) msgtosend.c_str(), msg_length);
+
+  udp.beginPacket(influxdbudp, 8089);
+  udp.write(p, msg_length);
+  udp.endPacket();
+  free(p);
+}
+//
