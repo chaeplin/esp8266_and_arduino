@@ -20,6 +20,8 @@
 
 #define REPORT_INTERVAL 5000 // in msec
 
+//#define DHT_DEBUG_TIMING 
+
 String macToStr(const uint8_t* mac);
 void sendmqttMsg(char* topictosend, String payload);
 void sendUdpmsg(String msgtosend);
@@ -181,7 +183,9 @@ void loop()
       if (bDHTstarted) {
         if (!DHT.acquiring()) {
           acquireresult = DHT.getStatus();
+#if defined(DHT_DEBUG_TIMING)           
           printEdgeTiming(&DHT);
+#endif          
           if ( acquireresult == 0 ) {
             t = DHT.getCelsius();
             h = DHT.getHumidity();
@@ -223,7 +227,9 @@ void loop()
 
 void printEdgeTiming(class PietteTech_DHT *_d) {
   byte n;
+#if defined(DHT_DEBUG_TIMING)    
   volatile uint8_t *_e = &_d->_edges[0];
+#endif
 
   String udppayload = "edges2,device=esp-12-N2,debug=on ";
   for (n = 0; n < 41; n++) {
@@ -233,14 +239,18 @@ void printEdgeTiming(class PietteTech_DHT *_d) {
       sprintf(buf, "%02d", n);
       udppayload += buf;
       udppayload += "=";
+#if defined(DHT_DEBUG_TIMING)        
       udppayload += *_e++;
+#endif         
       udppayload += "i,";
     } else {
       udppayload += "e";
       sprintf(buf, "%02d", n);
       udppayload += buf;
       udppayload += "=";
+#if defined(DHT_DEBUG_TIMING)        
       udppayload += *_e++;
+#endif         
       udppayload += "i";
     }
   }
