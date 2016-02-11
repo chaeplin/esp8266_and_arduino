@@ -20,7 +20,7 @@
 
 #define REPORT_INTERVAL 5000 // in msec
 
-//#define DHT_DEBUG_TIMING 
+#define DHT_DEBUG_TIMING 
 
 String macToStr(const uint8_t* mac);
 void sendmqttMsg(char* topictosend, String payload);
