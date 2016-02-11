@@ -231,7 +231,7 @@ void printEdgeTiming(class PietteTech_DHT *_d) {
   volatile uint8_t *_e = &_d->_edges[0];
 #endif
 
-  String udppayload = "edges2,device=esp-12-N2,debug=on,DHTLIB_ONE_TIMING=109 ";
+  String udppayload = "edges2,device=esp-12-N2,debug=on,DHTLIB_ONE_TIMING=110 ";
   for (n = 0; n < 41; n++) {
     char buf[2];
     if ( n < 40 ) {
