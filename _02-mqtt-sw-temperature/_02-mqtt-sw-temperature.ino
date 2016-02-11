@@ -34,7 +34,7 @@ extern "C" {
 #endif
 
 #define DEBUG_PRINT 0
-//#define DHT_DEBUG_TIMING 
+#define DHT_DEBUG_TIMING
 
 // ****************
 time_t getNtpTime();
@@ -448,7 +448,7 @@ void loop()
       if (bDHTstarted) {
         if (!DHT.acquiring()) {
           acquireresult = DHT.getStatus();
-#if defined(DHT_DEBUG_TIMING)    
+#if defined(DHT_DEBUG_TIMING)
           printEdgeTiming(&DHT);
 #endif
           if ( acquireresult == 0 ) {
@@ -806,10 +806,10 @@ String macToStr(const uint8_t* mac)
 
 void printEdgeTiming(class PietteTech_DHT *_d) {
   byte n;
-#if defined(DHT_DEBUG_TIMING)  
+#if defined(DHT_DEBUG_TIMING)
   volatile uint8_t *_e = &_d->_edges[0];
 #endif
-  String udppayload = "edges2,device=esp-12-N1,debug=on ";
+  String udppayload = "edges2,device=esp-12-N1,debug=on,DHTLIB_ONE_TIMING=108 ";
   for (n = 0; n < 41; n++) {
     char buf[2];
     if ( n < 40 ) {
@@ -817,18 +817,18 @@ void printEdgeTiming(class PietteTech_DHT *_d) {
       sprintf(buf, "%02d", n);
       udppayload += buf;
       udppayload += "=";
-#if defined(DHT_DEBUG_TIMING)       
+#if defined(DHT_DEBUG_TIMING)
       udppayload += *_e++;
-#endif      
+#endif
       udppayload += "i,";
     } else {
       udppayload += "e";
       sprintf(buf, "%02d", n);
       udppayload += buf;
       udppayload += "=";
-#if defined(DHT_DEBUG_TIMING)        
+#if defined(DHT_DEBUG_TIMING)
       udppayload += *_e++;
-#endif      
+#endif
       udppayload += "i";
     }
   }
