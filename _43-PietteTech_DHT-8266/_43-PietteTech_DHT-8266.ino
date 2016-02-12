@@ -17,6 +17,7 @@
 // system defines
 #define DHTTYPE  DHT22              // Sensor type DHT11/21/22/AM2301/AM2302
 #define DHTPIN   2              // Digital pin for communications
+#define DHT_SAMPLE_INTERVAL   2000
 
 #define REPORT_INTERVAL 5000 // in msec
 
@@ -43,6 +44,8 @@ long lastReconnectAttempt = 0;
 unsigned long startMills;
 float t, h;
 int acquireresult;
+int _sensor_error_count;
+unsigned int DHTnextSampleTime;
 
 WiFiClient wifiClient;
 PubSubClient client(mqtt_server, 1883, wifiClient);
@@ -159,7 +162,12 @@ void setup()
   udp.begin(localPort);
 
   ArduinoOTA.begin();
+
+  _sensor_error_count = 0;
   acquireresult = DHT.acquireAndWait(0);
+  if (acquireresult != 0) {
+    _sensor_error_count++;
+  }
   if ( acquireresult == 0 ) {
     t = DHT.getCelsius();
     h = DHT.getHumidity();
@@ -180,7 +188,12 @@ void loop()
         }
       }
     } else {
-      if (bDHTstarted) {
+      if (millis() > DHTnextSampleTime) {
+        if (!bDHTstarted) {
+          DHT.acquire();
+          bDHTstarted = true;
+        }
+
         if (!DHT.acquiring()) {
           acquireresult = DHT.getStatus();
 #if defined(DHT_DEBUG_TIMING)
@@ -189,13 +202,9 @@ void loop()
           if ( acquireresult == 0 ) {
             t = DHT.getCelsius();
             h = DHT.getHumidity();
-            bDHTstarted = false;
-          } else if ( acquireresult == -1 ) {
-            DHT.acquire();
-            bDHTstarted = true;
-          } else {
-            bDHTstarted = false;
           }
+          bDHTstarted = false;
+          DHTnextSampleTime = millis() + DHT_SAMPLE_INTERVAL;
         }
       }
 
@@ -218,10 +227,6 @@ void loop()
         sendmqttMsg(topic, payload);
 
         startMills = millis();
-        if (!bDHTstarted) {
-          DHT.acquire();
-          bDHTstarted = true;
-        }
       }
       client.loop();
     }
@@ -234,37 +239,38 @@ void loop()
 
 void printEdgeTiming(class PietteTech_DHT *_d) {
   byte n;
+
 #if defined(DHT_DEBUG_TIMING)
   volatile uint8_t *_e = &_d->_edges[0];
 #endif
+  int result = _d->getStatus();
+  if (result != 0) {
+    _sensor_error_count++;
+  }
 
   String udppayload = "edges2,device=esp-12-N2,debug=on,DHTLIB_ONE_TIMING=110 ";
   for (n = 0; n < 41; n++) {
     char buf[2];
-    if ( n < 40 ) {
-      udppayload += "e";
-      sprintf(buf, "%02d", n);
-      udppayload += buf;
-      udppayload += "=";
+    udppayload += "e";
+    sprintf(buf, "%02d", n);
+    udppayload += buf;
+    udppayload += "=";
 #if defined(DHT_DEBUG_TIMING)
-      udppayload += *_e++;
+    udppayload += *_e++;
 #endif
-      udppayload += "i,";
-    } else {
-      udppayload += "e";
-      sprintf(buf, "%02d", n);
-      udppayload += buf;
-      udppayload += "=";
-#if defined(DHT_DEBUG_TIMING)
-      udppayload += *_e++;
-#endif
-      udppayload += "i";
-    }
+    udppayload += "i,";
   }
+  udppayload += "R=";
+  udppayload += result;
+  udppayload += ",E=";
+  udppayload += _sensor_error_count;
+  udppayload += "i,H=";
+  udppayload += _d->getHumidity();
+  udppayload += ",T=";
+  udppayload += _d->getCelsius();
+
   sendUdpmsg(udppayload);
 }
-
-
 
 void sendmqttMsg(char* topictosend, String payload)
 {
