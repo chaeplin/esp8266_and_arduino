@@ -73,6 +73,7 @@ IPAddress time_server = MQTT_SERVER;
 // system defines
 #define DHTTYPE  DHT22              // Sensor type DHT11/21/22/AM2301/AM2302
 #define DHTPIN   2              // Digital pin for communications
+#define DHT_SAMPLE_INTERVAL   2000
 
 // OTHER
 //#define REPORT_INTERVAL 9500 // in msec
@@ -154,10 +155,6 @@ int millisnow;
 //
 int relayIsReady = HIGH;
 
-//////////////////
-int acquireresult;
-bool bDalasstarted;
-float t, h;
 
 //declaration
 void dht_wrapper(); // must be declared before the lib initialization
@@ -167,6 +164,11 @@ PietteTech_DHT DHT(DHTPIN, DHTTYPE, dht_wrapper);
 
 // globals
 bool bDHTstarted;       // flag to indicate we started acquisition
+int acquireresult;
+bool bDalasstarted;
+float t, h;
+int _sensor_error_count;
+unsigned int DHTnextSampleTime;
 
 // This wrapper is in charge of calling
 // must be defined like this for the lib work
@@ -420,7 +422,11 @@ void setup()
 
   ArduinoOTA.begin();
 
+  _sensor_error_count = 0;
   acquireresult = DHT.acquireAndWait(0);
+  if (acquireresult != 0) {
+    _sensor_error_count++;
+  }
   if ( acquireresult == 0 ) {
     t = DHT.getCelsius();
     h = DHT.getHumidity();
@@ -445,7 +451,12 @@ void loop()
         }
       }
     } else {
-      if (bDHTstarted) {
+      if (millis() > DHTnextSampleTime) {
+        if (!bDHTstarted) {
+          DHT.acquire();
+          bDHTstarted = true;
+        }
+
         if (!DHT.acquiring()) {
           acquireresult = DHT.getStatus();
 #if defined(DHT_DEBUG_TIMING)
@@ -454,13 +465,9 @@ void loop()
           if ( acquireresult == 0 ) {
             t = DHT.getCelsius();
             h = DHT.getHumidity();
-            bDHTstarted = false;
-          } else if ( acquireresult == -1 ) {
-            DHT.acquire();
-            bDHTstarted = true;
-          } else {
-            bDHTstarted = false;
           }
+          bDHTstarted = false;
+          DHTnextSampleTime = millis() + DHT_SAMPLE_INTERVAL;
         }
       }
 
@@ -570,11 +577,6 @@ void loop()
         sensors.requestTemperatures();
         sensors.setWaitForConversion(true);
         bDalasstarted = true;
-
-        if (!bDHTstarted) {
-          DHT.acquire();
-          bDHTstarted = true;
-        }
       }
 
       // radio
@@ -816,29 +818,32 @@ void printEdgeTiming(class PietteTech_DHT *_d) {
 #if defined(DHT_DEBUG_TIMING)
   volatile uint8_t *_e = &_d->_edges[0];
 #endif
+  int result = _d->getStatus();
+  if (result != 0) {
+    _sensor_error_count++;
+  }
+
   String udppayload = "edges2,device=esp-12-N1,debug=on,DHTLIB_ONE_TIMING=110 ";
   for (n = 0; n < 41; n++) {
     char buf[2];
-    if ( n < 40 ) {
-      udppayload += "e";
-      sprintf(buf, "%02d", n);
-      udppayload += buf;
-      udppayload += "=";
+    udppayload += "e";
+    sprintf(buf, "%02d", n);
+    udppayload += buf;
+    udppayload += "=";
 #if defined(DHT_DEBUG_TIMING)
-      udppayload += *_e++;
+    udppayload += *_e++;
 #endif
-      udppayload += "i,";
-    } else {
-      udppayload += "e";
-      sprintf(buf, "%02d", n);
-      udppayload += buf;
-      udppayload += "=";
-#if defined(DHT_DEBUG_TIMING)
-      udppayload += *_e++;
-#endif
-      udppayload += "i";
-    }
+    udppayload += "i,";
   }
+  udppayload += "R=";
+  udppayload += result;
+  udppayload += ",E=";
+  udppayload += _sensor_error_count;
+  udppayload += "i,H=";
+  udppayload += _d->getHumidity();
+  udppayload += ",T=";
+  udppayload += _d->getCelsius();
+
   sendUdpmsg(udppayload);
 }
 
