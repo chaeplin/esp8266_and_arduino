@@ -20,7 +20,7 @@
 
 #define REPORT_INTERVAL 5000 // in msec
 
-#define DHT_DEBUG_TIMING 
+#define DHT_DEBUG_TIMING
 
 String macToStr(const uint8_t* mac);
 void sendmqttMsg(char* topictosend, String payload);
@@ -183,14 +183,19 @@ void loop()
       if (bDHTstarted) {
         if (!DHT.acquiring()) {
           acquireresult = DHT.getStatus();
-#if defined(DHT_DEBUG_TIMING)           
+#if defined(DHT_DEBUG_TIMING)
           printEdgeTiming(&DHT);
-#endif          
+#endif
           if ( acquireresult == 0 ) {
             t = DHT.getCelsius();
             h = DHT.getHumidity();
+            bDHTstarted = false;
+          } else if ( acquireresult == -1 ) {
+            DHT.acquire();
+            bDHTstarted = true;
+          } else {
+            bDHTstarted = false;
           }
-          bDHTstarted = false;
         }
       }
 
@@ -213,8 +218,10 @@ void loop()
         sendmqttMsg(topic, payload);
 
         startMills = millis();
-        DHT.acquire();
-        bDHTstarted = true;
+        if (!bDHTstarted) {
+          DHT.acquire();
+          bDHTstarted = true;
+        }
       }
       client.loop();
     }
@@ -227,7 +234,7 @@ void loop()
 
 void printEdgeTiming(class PietteTech_DHT *_d) {
   byte n;
-#if defined(DHT_DEBUG_TIMING)    
+#if defined(DHT_DEBUG_TIMING)
   volatile uint8_t *_e = &_d->_edges[0];
 #endif
 
@@ -239,18 +246,18 @@ void printEdgeTiming(class PietteTech_DHT *_d) {
       sprintf(buf, "%02d", n);
       udppayload += buf;
       udppayload += "=";
-#if defined(DHT_DEBUG_TIMING)        
+#if defined(DHT_DEBUG_TIMING)
       udppayload += *_e++;
-#endif         
+#endif
       udppayload += "i,";
     } else {
       udppayload += "e";
       sprintf(buf, "%02d", n);
       udppayload += buf;
       udppayload += "=";
-#if defined(DHT_DEBUG_TIMING)        
+#if defined(DHT_DEBUG_TIMING)
       udppayload += *_e++;
-#endif         
+#endif
       udppayload += "i";
     }
   }

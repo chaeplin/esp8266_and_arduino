@@ -454,8 +454,13 @@ void loop()
           if ( acquireresult == 0 ) {
             t = DHT.getCelsius();
             h = DHT.getHumidity();
+            bDHTstarted = false;
+          } else if ( acquireresult == -1 ) {
+            DHT.acquire();
+            bDHTstarted = true;
+          } else {
+            bDHTstarted = false;
           }
-          bDHTstarted = false;
         }
       }
 
@@ -566,8 +571,10 @@ void loop()
         sensors.setWaitForConversion(true);
         bDalasstarted = true;
 
-        DHT.acquire();
-        bDHTstarted = true;
+        if (!bDHTstarted) {
+          DHT.acquire();
+          bDHTstarted = true;
+        }
       }
 
       // radio

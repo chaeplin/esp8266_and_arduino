@@ -164,7 +164,7 @@ void wifi_connect() {
 }
 
 boolean reconnect() {
-  //if (!client.connected()) {
+  if (!client.connected()) {
   if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
     client.publish(willTopic, "1", true);
     if ( ResetInfo == LOW) {
@@ -183,7 +183,8 @@ boolean reconnect() {
       Serial.println(client.state());
     }
   }
-  //}
+  }
+  client.loop();
   //timemillis = millis();
   return client.connected();
 }
@@ -331,7 +332,7 @@ void loop()
         Serial.print(client.state());
       }
       unsigned long now = millis();
-      if (now - lastReconnectAttempt > 1000) {
+      if (now - lastReconnectAttempt > 200) {
         lastReconnectAttempt = now;
         if (reconnect()) {
           lastReconnectAttempt = 0;
@@ -420,7 +421,6 @@ void loop()
         oldrevValue = revValue ;
         oldrevMills = revMills ;
       }
-
       client.loop();
     }
     ArduinoOTA.handle();
