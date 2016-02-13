@@ -1,4 +1,4 @@
-// 80MHz / 4M / 1M / ESP-01 (flash chip is changed)
+// 80MHz / 4M / 1M / ESP-01 (flash chip is changed) / esp-lcd
 #include <TimeLib.h>
 #include <pgmspace.h>
 #include <ESP8266WiFi.h>
@@ -56,7 +56,7 @@ IPAddress time_server = MQTT_SERVER;
 //
 //RtcDS3231 Rtc;
 
-#define DEBUG_PRINT 1
+#define DEBUG_PRINT 0
 
 char* topic = "esp8266/arduino/s03";
 char* subtopic = "#";
@@ -230,8 +230,8 @@ void parseMqttMsg(String receivedpayload, String receivedtopic) {
     Serial.println(ESP.getFreeHeap());
   }
 
-  char json[] = "{\"VIrms\":595,\"revValue\":718.56,\"revMills\":8350,\"powerAvg\":656.78,\"Stddev\":66.70,\"calcIrmsmillis\":153,\"revCounts\":126,\"FreeHeap\":46336,\"RSSI\":-61,\"millis\":1076571}";
-  //{"Humidity":43.90,"Temperature":22.00,"DS18B20":22.00,"PIRSTATUS":0,"FreeHeap":43552,"acquireresult":0,"acquirestatus":0,"DHTnextSampleTime":2121587,"bDHTstarted":0,"RSSI":-48,"millis":2117963}
+  //char json[] = "{\"VIrms\":595,\"revValue\":718.56,\"revMills\":8350,\"powerAvg\":656.78,\"Stddev\":66.70,\"calcIrmsmillis\":153,\"revCounts\":126,\"FreeHeap\":46336,\"RSSI\":-61,\"millis\":1076571}";
+  char json[] = "{\"Humidity\":43.90,\"Temperature\":22.00,\"DS18B20\":22.00,\"PIRSTATUS\":0,\"FreeHeap\":43552,\"acquireresult\":0,\"acquirestatus\":0,\"DHTnextSampleTime\":2121587,\"bDHTstarted\":0,\"RSSI\":-48,\"millis\":2117963}";
 
   receivedpayload.toCharArray(json, 400);
   StaticJsonBuffer<400> jsonBuffer;
