@@ -189,12 +189,7 @@ void loop()
         }
       }
     } else {
-      if (millis() > DHTnextSampleTime) {
-        if (!bDHTstarted) {
-          DHT.acquire();
-          bDHTstarted = true;
-        }
-
+      if (bDHTstarted) {
         if (!DHT.acquiring()) {
           acquireresult = DHT.getStatus();
 #if defined(DHT_DEBUG_TIMING)
@@ -203,11 +198,8 @@ void loop()
           if ( acquireresult == 0 ) {
             t = DHT.getCelsius();
             h = DHT.getHumidity();
-            DHTnextSampleTime = millis() + (DHT_SAMPLE_INTERVAL * 1);
-          } else {
-            DHTnextSampleTime = millis() + DHT_SAMPLE_INTERVAL;
           }
-          bDHTstarted = false; 
+          bDHTstarted = false;
         }
       }
 
@@ -221,6 +213,9 @@ void loop()
         payload += h;
         payload += ",\"acquireresult\":";
         payload += acquireresult;
+        // to check DHT.acquiring()
+        payload += ",\"acquirestatus\":";
+        payload += DHT.acquiring();
         payload += ",\"FreeHeap\":";
         payload += ESP.getFreeHeap();
         payload += ",\"RSSI\":";
@@ -230,6 +225,12 @@ void loop()
         sendmqttMsg(topic, payload);
 
         startMills = millis();
+      
+        if (!bDHTstarted) {
+          DHT.acquire();
+          bDHTstarted = true;
+        }
+
       }
       client.loop();
     }
@@ -240,7 +241,7 @@ void loop()
 }
 
 
-void printEdgeTiming(class PietteTech_DHT *_d) {
+void printEdgeTiming(class PietteTech_DHT * _d) {
   byte n;
 
 #if defined(DHT_DEBUG_TIMING)

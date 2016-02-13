@@ -73,7 +73,7 @@ IPAddress time_server = MQTT_SERVER;
 // system defines
 #define DHTTYPE  DHT22              // Sensor type DHT11/21/22/AM2301/AM2302
 #define DHTPIN   2              // Digital pin for communications
-#define DHT_SAMPLE_INTERVAL   2000
+#define DHT_SAMPLE_INTERVAL   2100
 
 // OTHER
 //#define REPORT_INTERVAL 9500 // in msec
@@ -433,6 +433,7 @@ void setup()
   } else {
     t = h = 0;
   }
+  DHTnextSampleTime = 2000;
 }
 
 void loop()
@@ -451,12 +452,7 @@ void loop()
         }
       }
     } else {
-      if (millis() > DHTnextSampleTime) {
-        if (!bDHTstarted) {
-          DHT.acquire();
-          bDHTstarted = true;
-        }
-
+      if (bDHTstarted) {
         if (!DHT.acquiring()) {
           acquireresult = DHT.getStatus();
 #if defined(DHT_DEBUG_TIMING)
@@ -465,9 +461,6 @@ void loop()
           if ( acquireresult == 0 ) {
             t = DHT.getCelsius();
             h = DHT.getHumidity();
-            DHTnextSampleTime = millis() + (DHT_SAMPLE_INTERVAL * 1);
-          } else {
-            DHTnextSampleTime = millis() + DHT_SAMPLE_INTERVAL;
           }
           bDHTstarted = false;
         }
@@ -557,6 +550,11 @@ void loop()
       payload += ESP.getFreeHeap();
       payload += ",\"acquireresult\":";
       payload += acquireresult;
+      // to check DHT.acquiring()
+      payload += ",\"acquirestatus\":";
+      payload += DHT.acquiring();
+      payload += ",\"bDHTstarted\":";
+      payload += bDHTstarted;
       payload += ",\"RSSI\":";
       payload += WiFi.RSSI();
       payload += ",\"millis\":";
@@ -579,6 +577,11 @@ void loop()
         sensors.requestTemperatures();
         sensors.setWaitForConversion(true);
         bDalasstarted = true;
+
+        if (!bDHTstarted) {
+          DHT.acquire();
+          bDHTstarted = true;
+        }
       }
 
       // radio

@@ -1,3 +1,4 @@
+// 80MHz / 512K / ESP-01
 #include <TimeLib.h>
 #include <pgmspace.h>
 #include <ESP8266WiFi.h>
@@ -53,7 +54,7 @@ IPAddress time_server = MQTT_SERVER;
 //
 //RtcDS3231 Rtc;
 
-#define DEBUG_PRINT 0
+#define DEBUG_PRINT 1
 
 char* topic = "esp8266/arduino/s03";
 char* subtopic = "#";
@@ -228,10 +229,10 @@ void parseMqttMsg(String receivedpayload, String receivedtopic) {
   }
 
   char json[] = "{\"VIrms\":595,\"revValue\":718.56,\"revMills\":8350,\"powerAvg\":656.78,\"Stddev\":66.70,\"calcIrmsmillis\":153,\"revCounts\":126,\"FreeHeap\":46336,\"RSSI\":-61,\"millis\":1076571}";
-  //char json[] = "{\"Humidity\":41.90,\"Temperature\":25.90,\"DS18B20\":26.25,\"SENSORTEMP\":29.31,\"PIRSTATUS\":0,\"FreeHeap\":40608,\"RSSI\":-47,\"millis\":3831709269}";
+  //{"Humidity":43.90,"Temperature":22.00,"DS18B20":22.00,"PIRSTATUS":0,"FreeHeap":43552,"acquireresult":0,"acquirestatus":0,"DHTnextSampleTime":2121587,"bDHTstarted":0,"RSSI":-48,"millis":2117963}
 
-  receivedpayload.toCharArray(json, 300);
-  StaticJsonBuffer<300> jsonBuffer;
+  receivedpayload.toCharArray(json, 400);
+  StaticJsonBuffer<400> jsonBuffer;
   JsonObject& root = jsonBuffer.parseObject(json);
 
   if (!root.success()) {
@@ -341,7 +342,9 @@ void wifi_connect() {
   while (WiFi.status() != WL_CONNECTED) {
     delay(100);
     Attempt++;
-    Serial.print(".");
+    if (DEBUG_PRINT) {
+      Serial.print(".");
+    }
     if (Attempt == 300)
     {
       if (DEBUG_PRINT) {
@@ -371,7 +374,23 @@ boolean reconnect() {
       } else {
         client.publish(hellotopic, "hello again 1 from ESP8266 s03");
       }
-      client.subscribe(subtopic);
+      /*
+        client.subscribe(subtopic);
+      */
+      client.loop();
+      client.subscribe("esp8266/arduino/s02");
+      client.loop();
+      client.subscribe("esp8266/arduino/s04");
+      client.loop();
+      client.subscribe("esp8266/arduino/s06");
+      client.loop();
+      client.subscribe("esp8266/arduino/s07");
+      client.loop();
+      client.subscribe("raspberrypi/doorpir");
+      client.loop();
+      client.subscribe("home/check/checkhwmny");
+      client.loop();
+
       if (DEBUG_PRINT) {
         Serial.println("connected");
       }
@@ -541,120 +560,120 @@ void loop()
           lastReconnectAttempt = 0;
         }
       }
+    } else {
+      if (timeStatus() != timeNotSet) {
+        if (now() != prevDisplay) { //update the display only if time has changed
+          prevDisplay = now();
+          if (DEBUG_PRINT) {
+            Serial.print("-> digitalClockDisplay free Heap : ");
+            Serial.println(ESP.getFreeHeap());
+          }
+          digitalClockDisplay();
+          requestSharp();
+          HO = unihost + rsphost;
+          HL = unitot + rsptot;
+        }
+      }
+
+      if ( sleepmode != o_sleepmode )
+      {
+        displaysleepmode(sleepmode);
+        o_sleepmode = sleepmode;
+      }
+
+      if (( HO != OLD_HO ) || ( HL != OLD_HL))
+      {
+        displayHost(HO, HL);
+        OLD_HO = HO;
+        OLD_HL = HL;
+      }
+
+      if (( PW != OLD_PW ) && ( 0 <= PW < 10000 ))
+      {
+        displaypowerAvg(PW);
+        OLD_PW = PW;
+      }
+
+      if ( NW != OLD_NW )
+      {
+        displayNemoWeight(NW);
+        OLD_NW = NW;
+      }
+
+      if ( PIR != OLD_PIR )
+      {
+        displayPIR();
+        OLD_PIR = PIR;
+      }
+
+      if ((T1 != OLD_T1 ) || (T2 != OLD_T2 ) || (OT != OLD_OT) || ( H != OLD_H ))
+      {
+        displayTemperature();
+        OLD_T1 = T1;
+        OLD_T2 = T2;
+        OLD_OT = OT;
+        OLD_H = H;
+      }
+
+      if ( dustDensity != OLD_dustDensity )
+      {
+        displaydustDensity();
+        OLD_dustDensity = dustDensity ;
+      }
+
+      if (DEBUG_PRINT) {
+        Serial.print("=====> ");
+        Serial.print(T1);
+        Serial.print(" ===> ");
+        Serial.print(T2);
+        Serial.print(" ===> ");
+        Serial.print(OT);
+        Serial.print(" ===> ");
+        Serial.print(H);
+        Serial.print(" ===> ");
+        Serial.print(dustDensity);
+        Serial.print(" ===> ");
+        Serial.print(PIR);
+        Serial.print(" ===> ");
+        Serial.print(PW);
+        Serial.print(" ===> ");
+        Serial.print(HO);
+        Serial.print(" ===> ");
+        Serial.print(NW);
+        Serial.print(" ===> ");
+        Serial.println(moisture);
+      }
+
+      /*
+        if ( ( second() % 3 ) == 0 ) {
+      */
+      if ((millis() - sentMills) > REPORT_INTERVAL ) {
+        if (DEBUG_PRINT) {
+          Serial.print("-> senddustDensity free Heap : ");
+          Serial.println(ESP.getFreeHeap());
+        }
+
+        payload = " {\"dustDensity\":";
+        payload += dustDensity;
+        payload += ",\"moisture\":";
+        payload += moisture;
+        payload += ",\"FreeHeap\":";
+        payload += ESP.getFreeHeap();
+        payload += ",\"RSSI\":";
+        payload += WiFi.RSSI();
+        payload += ",\"millis\":";
+        payload += (millis() - startMills);
+        payload += "}";
+
+        sendmqttMsg(payload);
+        sentMills = millis();
+      }
+
+      client.loop();
     }
   } else {
     wifi_connect();
   }
-
-  if (timeStatus() != timeNotSet) {
-    if (now() != prevDisplay) { //update the display only if time has changed
-      prevDisplay = now();
-      if (DEBUG_PRINT) {
-        Serial.print("-> digitalClockDisplay free Heap : ");
-        Serial.println(ESP.getFreeHeap());
-      }
-      digitalClockDisplay();
-      requestSharp();
-      HO = unihost + rsphost;
-      HL = unitot + rsptot;
-    }
-  }
-
-  if ( sleepmode != o_sleepmode )
-  {
-    displaysleepmode(sleepmode);
-    o_sleepmode = sleepmode;
-  }
-
-  if (( HO != OLD_HO ) || ( HL != OLD_HL))
-  {
-    displayHost(HO, HL);
-    OLD_HO = HO;
-    OLD_HL = HL;
-  }
-
-  if (( PW != OLD_PW ) && ( 0 <= PW < 10000 ))
-  {
-    displaypowerAvg(PW);
-    OLD_PW = PW;
-  }
-
-  if ( NW != OLD_NW )
-  {
-    displayNemoWeight(NW);
-    OLD_NW = NW;
-  }
-
-  if ( PIR != OLD_PIR )
-  {
-    displayPIR();
-    OLD_PIR = PIR;
-  }
-
-  if ((T1 != OLD_T1 ) || (T2 != OLD_T2 ) || (OT != OLD_OT) || ( H != OLD_H ))
-  {
-    displayTemperature();
-    OLD_T1 = T1;
-    OLD_T2 = T2;
-    OLD_OT = OT;
-    OLD_H = H;
-  }
-
-  if ( dustDensity != OLD_dustDensity )
-  {
-    displaydustDensity();
-    OLD_dustDensity = dustDensity ;
-  }
-
-  if (DEBUG_PRINT) {
-    Serial.print("=====> ");
-    Serial.print(T1);
-    Serial.print(" ===> ");
-    Serial.print(T2);
-    Serial.print(" ===> ");
-    Serial.print(OT);
-    Serial.print(" ===> ");
-    Serial.print(H);
-    Serial.print(" ===> ");
-    Serial.print(dustDensity);
-    Serial.print(" ===> ");
-    Serial.print(PIR);
-    Serial.print(" ===> ");
-    Serial.print(PW);
-    Serial.print(" ===> ");
-    Serial.print(HO);
-    Serial.print(" ===> ");
-    Serial.print(NW);
-    Serial.print(" ===> ");
-    Serial.println(moisture);
-  }
-
-  /*
-    if ( ( second() % 3 ) == 0 ) {
-  */
-  if ((millis() - sentMills) > REPORT_INTERVAL ) {
-    if (DEBUG_PRINT) {
-      Serial.print("-> senddustDensity free Heap : ");
-      Serial.println(ESP.getFreeHeap());
-    }
-
-    payload = " {\"dustDensity\":";
-    payload += dustDensity;
-    payload += ",\"moisture\":";
-    payload += moisture;
-    payload += ",\"FreeHeap\":";
-    payload += ESP.getFreeHeap();
-    payload += ",\"RSSI\":";
-    payload += WiFi.RSSI();
-    payload += ",\"millis\":";
-    payload += (millis() - startMills);
-    payload += "}";
-
-    sendmqttMsg(payload);
-    sentMills = millis();
-  }
-
-  client.loop();
 }
 
 void checkDisplayValue() {
