@@ -1,9 +1,11 @@
-// 80MHz / 512K / ESP-01
+// 80MHz / 4M / 1M / ESP-01 (flash chip is changed)
 #include <TimeLib.h>
 #include <pgmspace.h>
 #include <ESP8266WiFi.h>
 #include <LiquidCrystal_I2C.h>
 #include <ArduinoJson.h>
+#include <ESP8266mDNS.h>
+#include <ArduinoOTA.h>
 #include <WiFiUdp.h>
 #include <Wire.h>
 //#include <RtcDS3231.h>
@@ -46,7 +48,7 @@ void sendmqttMsg(String payloadtosend);
 //
 const char* ssid = WIFI_SSID;
 const char* password = WIFI_PASSWORD;
-int32_t channel = WIFI_CHANNEL;
+const char* otapassword = OTA_PASSWORD;
 
 //
 IPAddress mqtt_server = MQTT_SERVER;
@@ -539,6 +541,37 @@ void setup() {
   lcd.setCursor(6, 2);
   lcd.print("%");
 
+  //OTA
+  // Port defaults to 8266
+  //ArduinoOTA.setPort(8266);
+
+  // Hostname defaults to esp8266-[ChipID]
+  ArduinoOTA.setHostname("esp-lcd");
+
+  // No authentication by default
+  ArduinoOTA.setPassword(otapassword);
+
+  ArduinoOTA.onStart([]() {
+    //Serial.println("Start");
+  });
+  ArduinoOTA.onEnd([]() {
+    //Serial.println("\nEnd");
+  });
+  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+    //Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
+  });
+  ArduinoOTA.onError([](ota_error_t error) {
+    //ESP.restart();
+    if (error == OTA_AUTH_ERROR) abort();
+    else if (error == OTA_BEGIN_ERROR) abort();
+    else if (error == OTA_CONNECT_ERROR) abort();
+    else if (error == OTA_RECEIVE_ERROR) abort();
+    else if (error == OTA_END_ERROR) abort();
+
+  });
+
+  ArduinoOTA.begin();
+
 }
 
 
@@ -671,6 +704,7 @@ void loop()
 
       client.loop();
     }
+    ArduinoOTA.handle();
   } else {
     wifi_connect();
   }
