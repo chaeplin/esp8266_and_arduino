@@ -1,4 +1,4 @@
-// 80M CPU / 4M / 1M SPIFFS / esp-swtemp
+// 160M CPU / 4M / 1M SPIFFS / esp-swtemp
 // with #define DHT_DEBUG_TIMING on / PietteTech_DHT-8266
 #include <TimeLib.h>
 //#include <SPI.h>
@@ -168,6 +168,7 @@ int acquireresult;
 bool bDalasstarted;
 float t, h;
 int _sensor_error_count;
+unsigned long _sensor_report_count;
 unsigned int DHTnextSampleTime;
 
 // This wrapper is in charge of calling
@@ -292,7 +293,6 @@ void callback(char* intopic, byte* inpayload, unsigned int length)
 
 void setup()
 {
-  yield();
   if (DEBUG_PRINT) {
     Serial.begin(115200);
   }
@@ -422,7 +422,7 @@ void setup()
 
   ArduinoOTA.begin();
 
-  _sensor_error_count = 0;
+  _sensor_error_count = _sensor_report_count = 0;
   acquireresult = DHT.acquireAndWait(0);
   if (acquireresult != 0) {
     _sensor_error_count++;
@@ -465,11 +465,11 @@ void loop()
           if ( acquireresult == 0 ) {
             t = DHT.getCelsius();
             h = DHT.getHumidity();
-            DHTnextSampleTime = millis() + (DHT_SAMPLE_INTERVAL * 2);
+            DHTnextSampleTime = millis() + (DHT_SAMPLE_INTERVAL * 1);
           } else {
             DHTnextSampleTime = millis() + DHT_SAMPLE_INTERVAL;
           }
-          bDHTstarted = false; 
+          bDHTstarted = false;
         }
       }
 
@@ -825,6 +825,8 @@ void printEdgeTiming(class PietteTech_DHT *_d) {
     _sensor_error_count++;
   }
 
+  _sensor_report_count++;
+
   String udppayload = "edges2,device=esp-12-N1,debug=on,DHTLIB_ONE_TIMING=110 ";
   for (n = 0; n < 41; n++) {
     char buf[2];
@@ -837,7 +839,9 @@ void printEdgeTiming(class PietteTech_DHT *_d) {
 #endif
     udppayload += "i,";
   }
-  udppayload += "R=";
+  udppayload += "C=";
+  udppayload += _sensor_report_count;
+  udppayload += "i,R=";
   udppayload += result;
   udppayload += ",E=";
   udppayload += _sensor_error_count;

@@ -44,6 +44,7 @@ long lastReconnectAttempt = 0;
 unsigned long startMills;
 float t, h;
 int acquireresult;
+unsigned long _sensor_report_count;
 int _sensor_error_count;
 unsigned int DHTnextSampleTime;
 
@@ -163,7 +164,7 @@ void setup()
 
   ArduinoOTA.begin();
 
-  _sensor_error_count = 0;
+  _sensor_error_count = _sensor_report_count = 0;
   acquireresult = DHT.acquireAndWait(0);
   if (acquireresult != 0) {
     _sensor_error_count++;
@@ -202,11 +203,11 @@ void loop()
           if ( acquireresult == 0 ) {
             t = DHT.getCelsius();
             h = DHT.getHumidity();
-            DHTnextSampleTime = millis() + (DHT_SAMPLE_INTERVAL * 2);
+            DHTnextSampleTime = millis() + (DHT_SAMPLE_INTERVAL * 1);
           } else {
             DHTnextSampleTime = millis() + DHT_SAMPLE_INTERVAL;
           }
-          bDHTstarted = false;
+          bDHTstarted = false; 
         }
       }
 
@@ -249,6 +250,7 @@ void printEdgeTiming(class PietteTech_DHT *_d) {
   if (result != 0) {
     _sensor_error_count++;
   }
+  _sensor_report_count++;
 
   String udppayload = "edges2,device=esp-12-N2,debug=on,DHTLIB_ONE_TIMING=110 ";
   for (n = 0; n < 41; n++) {
@@ -262,7 +264,9 @@ void printEdgeTiming(class PietteTech_DHT *_d) {
 #endif
     udppayload += "i,";
   }
-  udppayload += "R=";
+  udppayload += "C=";
+  udppayload += _sensor_report_count;
+  udppayload += "i,R=";
   udppayload += result;
   udppayload += ",E=";
   udppayload += _sensor_error_count;
