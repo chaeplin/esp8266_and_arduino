@@ -59,11 +59,20 @@ IPAddress time_server = MQTT_SERVER;
 #define DEBUG_PRINT 0
 
 char* topic = "esp8266/arduino/s03";
-char* subtopic = "#";
+//char* subtopic = "#";
 char* hellotopic = "HELLO";
 
 char* willTopic = "clients/dust";
 char* willMessage = "0";
+
+const char subtopic_0[] = "esp8266/arduino/s02";
+const char subtopic_1[] = "esp8266/arduino/s04";
+const char subtopic_2[] = "esp8266/arduino/s07";
+const char subtopic_3[] = "esp8266/arduino/s06";
+const char subtopic_4[] = "raspberrypi/doorpir";
+const char subtopic_5[] = "home/check/checkhwmny";
+
+const char* substopic[6] = { subtopic_0, subtopic_1, subtopic_2, subtopic_3, subtopic_4, subtopic_5} ;
 
 LiquidCrystal_I2C lcd(0x27, 20, 4);
 
@@ -81,10 +90,9 @@ int ResetInfo = LOW;
 
 PubSubClient client(mqtt_server, 1883, callback, wifiClient);
 
-float H  , T1 , T2 , OT , PW ;
-int NW , PIR  , HO  , HL;
-
-int unihost, rsphost, unitot, rsptot;
+volatile float H  , T1 , T2 , OT , PW ;
+volatile int NW , PIR  , HO  , HL, unihost, rsphost, unitot, rsptot;;
+volatile bool msgcallback;
 
 int sleepmode = LOW ;
 int o_sleepmode = LOW ;
@@ -92,100 +100,18 @@ int o_sleepmode = LOW ;
 float dustDensity ;
 int moisture ;
 
-float OLD_H  , OLD_T1 , OLD_T2 , OLD_OT , OLD_PW ;
-int OLD_NW , OLD_PIR  , OLD_HO  , OLD_HL  ;
-
-float OLD_dustDensity ;
-int OLD_x ;
-
 unsigned long startMills;
 unsigned long sentMills ;
 
 long lastReconnectAttempt = 0;
 
-byte termometru[8] =
-{
-  B00100,
-  B01010,
-  B01010,
-  B01110,
-  B01110,
-  B11111,
-  B11111,
-  B01110,
-};
-
-byte picatura[8] =
-{
-  B00100,
-  B00100,
-  B01010,
-  B01010,
-  B10001,
-  B10001,
-  B10001,
-  B01110,
-};
-
-byte dustDensityicon[8] =
-{
-  B11111,
-  B11111,
-  B11011,
-  B10001,
-  B10001,
-  B11011,
-  B11111,
-  B11111,
-};
-
-byte dustDensityfill[8] =
-{
-  B11111,
-  B11111,
-  B11111,
-  B11111,
-  B11111,
-  B11111,
-  B11111,
-  B11111,
-};
-
-byte pirfill[8] =
-{
-  B00111,
-  B00111,
-  B00111,
-  B00111,
-  B00111,
-  B00111,
-  B00111,
-  B00111,
-};
-
-byte powericon[8] =
-{
-  B11111,
-  B11011,
-  B10001,
-  B11011,
-  B11111,
-  B11000,
-  B11000,
-  B11000,
-};
-
-byte nemoicon[8] =
-{
-  B11011,
-  B11011,
-  B00100,
-  B11111,
-  B10101,
-  B11111,
-  B01010,
-  B11011,
-};
+byte termometru[8]      = { B00100, B01010, B01010, B01110, B01110, B11111, B11111, B01110, };
+byte picatura[8]        = { B00100, B00100, B01010, B01010, B10001, B10001, B10001, B01110, };
+byte dustDensityicon[8] = { B11111, B11111, B11011, B10001, B10001, B11011, B11111, B11111, };
+byte dustDensityfill[8] = { B11111, B11111, B11111, B11111, B11111, B11111, B11111, B11111, };
+byte pirfill[8]         = { B00111, B00111, B00111, B00111, B00111, B00111, B00111, B00111, };
+byte powericon[8]       = { B11111, B11011, B10001, B11011, B11111, B11000, B11000, B11000, };
+byte nemoicon[8]        = { B11011, B11011, B00100, B11111, B10101, B11111, B01010, B11011, };
 
 void callback(char* intopic, byte* inpayload, unsigned int length)
 {
@@ -193,7 +119,7 @@ void callback(char* intopic, byte* inpayload, unsigned int length)
   String receivedtopic = intopic;
   String receivedpayload ;
 
-  if ( receivedtopic == "esp8266/arduino/s03" ) {
+  if ( receivedtopic == "esp8266/arduino/s03" || receivedtopic == "clients/dust" ) {
     return;
   }
 
@@ -258,7 +184,7 @@ void parseMqttMsg(String receivedpayload, String receivedtopic) {
     Serial.println(ESP.getFreeHeap());
   }
 
-  if ( receivedtopic == "esp8266/arduino/s02" ) {
+  if ( receivedtopic == substopic[0] ) {
     if (root.containsKey("Humidity")) {
       H   = root["Humidity"];
     }
@@ -270,32 +196,32 @@ void parseMqttMsg(String receivedpayload, String receivedtopic) {
     }
   }
 
-  if ( receivedtopic == "esp8266/arduino/s04" ) {
+  if ( receivedtopic == substopic[1] ) {
     if (root.containsKey("OUTSIDE")) {
       OT  = root["OUTSIDE"];
     }
   }
 
-  if ( receivedtopic == "esp8266/arduino/s07" ) {
+  if ( receivedtopic == substopic[2] ) {
     if (root.containsKey("powerAvg")) {
       PW  = root["powerAvg"];
     }
   }
 
-  if ( receivedtopic == "esp8266/arduino/s06" ) {
+  if ( receivedtopic == substopic[3] ) {
     if (root.containsKey("WeightAvg")) {
       NW  = root["WeightAvg"];
     }
   }
 
-  if ( receivedtopic == "raspberrypi/doorpir" )
+  if ( receivedtopic == substopic[4] )
   {
     if (root.containsKey("DOORPIR")) {
       PIR = root["DOORPIR"];
     }
   }
 
-  if ( receivedtopic == "home/check/checkhwmny" )
+  if ( receivedtopic == substopic[5] )
   {
     if (root.containsKey("unihost")) {
       const char* tempunihost =  root["unihost"].asString();
@@ -318,10 +244,7 @@ void parseMqttMsg(String receivedpayload, String receivedtopic) {
     }
   }
 
-  // display callback
-  lcd.setCursor(19, 0);
-  lcd.write(5);
-
+  msgcallback = !msgcallback;
 }
 
 void wifi_connect() {
@@ -376,23 +299,28 @@ boolean reconnect() {
       } else {
         client.publish(hellotopic, "hello again 1 from ESP8266 s03");
       }
-      /*
-        client.subscribe(subtopic);
-      */
-      client.loop();
-      client.subscribe("esp8266/arduino/s02");
-      client.loop();
-      client.subscribe("esp8266/arduino/s04");
-      client.loop();
-      client.subscribe("esp8266/arduino/s06");
-      client.loop();
-      client.subscribe("esp8266/arduino/s07");
-      client.loop();
-      client.subscribe("raspberrypi/doorpir");
-      client.loop();
-      client.subscribe("home/check/checkhwmny");
-      client.loop();
 
+      if (DEBUG_PRINT) {
+        Serial.println("");
+      }
+
+      client.loop();
+      for (int i = 0; i < 6; ++i) {
+        if (DEBUG_PRINT) {
+          Serial.print("subscribe to : ");
+          Serial.print(i);
+          Serial.print(" : ");
+        }
+        client.subscribe(substopic[i]);
+        client.loop();
+        if (DEBUG_PRINT) {
+          Serial.println(substopic[i]);
+        }
+      }
+
+      if (DEBUG_PRINT) {
+        Serial.println("sdone subscribe");
+      }
       if (DEBUG_PRINT) {
         Serial.println("connected");
       }
@@ -433,12 +361,9 @@ void setup() {
   delay(20);
 
   //--
-  H = T1 =  T2 =  OT = PW = NW =  dustDensity = -1000 ;
+  H = T1 =  T2 =  OT = PW = NW =  dustDensity = 0 ;
   PIR = HO = HL = moisture = unihost = rsphost = unitot = rsptot = 0;
-
-  OLD_H  = OLD_T1 = OLD_T2 = OLD_OT = OLD_PW = OLD_NW = OLD_dustDensity = -1000 ;
-  OLD_PIR = OLD_HO = OLD_HL = OLD_x = 0 ;
-
+  msgcallback = false;
   lastReconnectAttempt = 0;
 
   getResetInfo = "hello from ESP8266 s03 ";
@@ -605,53 +530,23 @@ void loop()
           requestSharp();
           HO = unihost + rsphost;
           HL = unitot + rsptot;
+
+          displaysleepmode(sleepmode);
+          displayHost(HO, HL);
+          displaypowerAvg(PW);
+          displayNemoWeight(NW);
+          displayPIR();
+          displayTemperature();
+          displaydustDensity();
+          
+          if (msgcallback) {
+            lcd.setCursor(19, 0);
+            lcd.write(5);
+          } else {
+            lcd.setCursor(19, 0);
+            lcd.print(" ");
+          }
         }
-      }
-
-      if ( sleepmode != o_sleepmode )
-      {
-        displaysleepmode(sleepmode);
-        o_sleepmode = sleepmode;
-      }
-
-      if (( HO != OLD_HO ) || ( HL != OLD_HL))
-      {
-        displayHost(HO, HL);
-        OLD_HO = HO;
-        OLD_HL = HL;
-      }
-
-      if (( PW != OLD_PW ) && ( 0 <= PW < 10000 ))
-      {
-        displaypowerAvg(PW);
-        OLD_PW = PW;
-      }
-
-      if ( NW != OLD_NW )
-      {
-        displayNemoWeight(NW);
-        OLD_NW = NW;
-      }
-
-      if ( PIR != OLD_PIR )
-      {
-        displayPIR();
-        OLD_PIR = PIR;
-      }
-
-      if ((T1 != OLD_T1 ) || (T2 != OLD_T2 ) || (OT != OLD_OT) || ( H != OLD_H ))
-      {
-        displayTemperature();
-        OLD_T1 = T1;
-        OLD_T2 = T2;
-        OLD_OT = OT;
-        OLD_H = H;
-      }
-
-      if ( dustDensity != OLD_dustDensity )
-      {
-        displaydustDensity();
-        OLD_dustDensity = dustDensity ;
       }
 
       if (DEBUG_PRINT) {
@@ -677,9 +572,6 @@ void loop()
         Serial.println(moisture);
       }
 
-      /*
-        if ( ( second() % 3 ) == 0 ) {
-      */
       if ((millis() - sentMills) > REPORT_INTERVAL ) {
         if (DEBUG_PRINT) {
           Serial.print("-> senddustDensity free Heap : ");
@@ -701,86 +593,11 @@ void loop()
         sendmqttMsg(payload);
         sentMills = millis();
       }
-
       client.loop();
     }
     ArduinoOTA.handle();
   } else {
     wifi_connect();
-  }
-}
-
-void checkDisplayValue() {
-  if ( sleepmode != o_sleepmode )
-  {
-    displaysleepmode(sleepmode);
-    o_sleepmode = sleepmode;
-  }
-
-  HO = unihost + rsphost;
-  HL = unitot + rsptot;
-
-  if (( HO != OLD_HO ) || ( HL != OLD_HL))
-  {
-    displayHost(HO, HL);
-    OLD_HO = HO;
-    OLD_HL = HL;
-  }
-
-  if (( PW != OLD_PW ) && ( 0 <= PW < 10000 ))
-  {
-    displaypowerAvg(PW);
-    OLD_PW = PW;
-  }
-
-  if ( NW != OLD_NW )
-  {
-    displayNemoWeight(NW);
-    OLD_NW = NW;
-  }
-
-  if ( PIR != OLD_PIR )
-  {
-    displayPIR();
-    OLD_PIR = PIR;
-  }
-
-  if ((T1 != OLD_T1 ) || (T2 != OLD_T2 ) || (OT != OLD_OT) || ( H != OLD_H ))
-  {
-    displayTemperature();
-    OLD_T1 = T1;
-    OLD_T2 = T2;
-    OLD_OT = OT;
-    OLD_H = H;
-  }
-
-  if ( dustDensity != OLD_dustDensity )
-  {
-    displaydustDensity();
-    OLD_dustDensity = dustDensity ;
-  }
-
-  if (DEBUG_PRINT) {
-    Serial.print("=====> ");
-    Serial.print(T1);
-    Serial.print(" ===> ");
-    Serial.print(T2);
-    Serial.print(" ===> ");
-    Serial.print(OT);
-    Serial.print(" ===> ");
-    Serial.print(H);
-    Serial.print(" ===> ");
-    Serial.print(dustDensity);
-    Serial.print(" ===> ");
-    Serial.print(PIR);
-    Serial.print(" ===> ");
-    Serial.print(PW);
-    Serial.print(" ===> ");
-    Serial.print(HO);
-    Serial.print(" ===> ");
-    Serial.print(NW);
-    Serial.print(" ===> ");
-    Serial.println(moisture);
   }
 }
 
@@ -809,7 +626,6 @@ void displaysleepmode(int sleepmode)
     lcd.setCursor(16, 2);
     lcd.print(" ");
   }
-
 }
 
 void displaypowerAvg(float Power)
@@ -973,13 +789,12 @@ void requestSharp()
     moisture = y;
   }
 
-  if (( 1 < x ) && ( x < 1024 ) && ( x != OLD_x ))
+  if (( 1 < x ) && ( x < 1024 ))
   {
     float calcVoltage = x * (5.0 / 1024.0);
     if ( (0.17 * calcVoltage - 0.1) > 0 )
     {
       dustDensity = 0.17 * calcVoltage - 0.1;
-      OLD_x = x ;
     }
   }
 
@@ -1039,10 +854,6 @@ String macToStr(const uint8_t* mac)
 
 void digitalClockDisplay()
 {
-  // display callback
-  lcd.setCursor(19, 0);
-  lcd.print(" ");
-
   // digital clock display of the time
   lcd.setCursor(0, 0);
   lcd.print(year());
