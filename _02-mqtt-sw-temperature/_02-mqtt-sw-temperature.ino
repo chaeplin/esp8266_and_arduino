@@ -21,6 +21,9 @@
 #define DEVICE_ID 1
 #define CHANNEL 100 //MAX 127
 
+#define SYS_CPU_80MHz 80   
+#define SYS_CPU_160MHz 160
+
 extern "C" {
 #include "user_interface.h"
 }
@@ -154,7 +157,6 @@ int millisnow;
 
 //
 int relayIsReady = HIGH;
-
 
 //declaration
 void dht_wrapper(); // must be declared before the lib initialization
@@ -293,6 +295,7 @@ void callback(char* intopic, byte* inpayload, unsigned int length)
 
 void setup()
 {
+  system_update_cpu_freq(SYS_CPU_160MHz);
   if (DEBUG_PRINT) {
     Serial.begin(115200);
   }
