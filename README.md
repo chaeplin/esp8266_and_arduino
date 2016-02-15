@@ -52,7 +52,7 @@
 
 
 #### _02-mqtt-sw ####
-- esp-12
+- esp-12 + nrf24l01p
 - power(5v + 3.3V), fuse(10A + 73°C thermal), 1CH relay, SW(top + lamp), PIR, DS18B20(in + out), DHT22
 - on/off lamp using mqtt, pub temp(inside of box + outside)/humidity/pir
 
@@ -87,6 +87,11 @@
 - optical isolator
 - add timer to LG air conditioner remote
 - 30 min run, 60 min off
+
+### _15-esp8266-dash-deepsleep-reset ###
+- esp-12
+- dash like button
+- to control lamp sw
 
 #### _29-attiny85-nrf24-5pin-pin-change-int / _30-attiny85-nrf24-5pin-pin-change-int ####
 - attiny 85 + nrf24l01p
