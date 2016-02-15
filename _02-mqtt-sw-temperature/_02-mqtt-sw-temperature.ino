@@ -21,7 +21,7 @@
 #define DEVICE_ID 1
 #define CHANNEL 100 //MAX 127
 
-#define SYS_CPU_80MHz 80   
+#define SYS_CPU_80MHz 80
 #define SYS_CPU_160MHz 160
 
 extern "C" {
@@ -571,22 +571,6 @@ void loop()
         //startMills = millis();
       }
 
-      if ((millis() - startMills) > REPORT_INTERVAL )
-      {
-        sendmqttMsg(topic, payload);
-        //getdalastempstatus = getdht22tempstatus = 0;
-        startMills = millis();
-        sensors.setWaitForConversion(false);
-        sensors.requestTemperatures();
-        sensors.setWaitForConversion(true);
-        bDalasstarted = true;
-
-        if (!bDHTstarted) {
-          DHT.acquire();
-          bDHTstarted = true;
-        }
-      }
-
       // radio
       if (radio.available()) {
         // from attiny 85 data size is 11
@@ -690,6 +674,23 @@ void loop()
           }
         }
       }
+      if ((millis() - startMills) > REPORT_INTERVAL )
+      {
+        sendmqttMsg(topic, payload);
+        //getdalastempstatus = getdht22tempstatus = 0;
+        startMills = millis();
+        sensors.setWaitForConversion(false);
+        sensors.requestTemperatures();
+        sensors.setWaitForConversion(true);
+        bDalasstarted = true;
+
+        if (!bDHTstarted) {
+          DHT.acquire();
+          bDHTstarted = true;
+        }
+      }
+
+
       client.loop();
     }
     ArduinoOTA.handle();
@@ -846,7 +847,7 @@ void printEdgeTiming(class PietteTech_DHT *_d) {
     udppayload += "i,";
   }
   udppayload += "F=";
-  udppayload += ESP.getCpuFreqMHz();  
+  udppayload += ESP.getCpuFreqMHz();
   udppayload += "i,C=";
   udppayload += _sensor_report_count;
   udppayload += "i,R=";
