@@ -21,6 +21,9 @@
 #define DEVICE_ID 1
 #define CHANNEL 100 //MAX 127
 
+#define SYS_CPU_80MHz 80   
+#define SYS_CPU_160MHz 160
+
 extern "C" {
 #include "user_interface.h"
 }
@@ -154,7 +157,6 @@ int millisnow;
 
 //
 int relayIsReady = HIGH;
-
 
 //declaration
 void dht_wrapper(); // must be declared before the lib initialization
@@ -293,6 +295,7 @@ void callback(char* intopic, byte* inpayload, unsigned int length)
 
 void setup()
 {
+  system_update_cpu_freq(SYS_CPU_160MHz);
   if (DEBUG_PRINT) {
     Serial.begin(115200);
   }
@@ -423,7 +426,7 @@ void setup()
   ArduinoOTA.begin();
 
   _sensor_error_count = _sensor_report_count = 0;
-  acquireresult = DHT.acquireAndWait(0);
+  acquireresult = DHT.acquireAndWait(100);
   if (acquireresult != 0) {
     _sensor_error_count++;
   }
@@ -842,7 +845,9 @@ void printEdgeTiming(class PietteTech_DHT *_d) {
 #endif
     udppayload += "i,";
   }
-  udppayload += "C=";
+  udppayload += "F=";
+  udppayload += ESP.getCpuFreqMHz();  
+  udppayload += "i,C=";
   udppayload += _sensor_report_count;
   udppayload += "i,R=";
   udppayload += result;
