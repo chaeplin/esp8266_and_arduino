@@ -165,7 +165,7 @@ void setup()
   ArduinoOTA.begin();
 
   _sensor_error_count = _sensor_report_count = 0;
-  acquireresult = DHT.acquireAndWait(0);
+  acquireresult = DHT.acquireAndWait(1000);
   if (acquireresult != 0) {
     _sensor_error_count++;
   }

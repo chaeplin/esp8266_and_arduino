@@ -104,3 +104,8 @@
 - ir send and receiver
 - to check roll
 
+#### _41-promini-nrf24-ads1115 ###
+- pro mini(3.3V) + nrf24l01p + µCurrent GOLD
+- to report current measure 
+
+
