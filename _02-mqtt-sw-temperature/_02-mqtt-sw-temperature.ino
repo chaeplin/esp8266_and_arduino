@@ -423,7 +423,7 @@ void setup()
   ArduinoOTA.begin();
 
   _sensor_error_count = _sensor_report_count = 0;
-  acquireresult = DHT.acquireAndWait(0);
+  acquireresult = DHT.acquireAndWait(100);
   if (acquireresult != 0) {
     _sensor_error_count++;
   }
@@ -842,7 +842,9 @@ void printEdgeTiming(class PietteTech_DHT *_d) {
 #endif
     udppayload += "i,";
   }
-  udppayload += "C=";
+  udppayload += "F=";
+  udppayload += ESP.getCpuFreqMHz();  
+  udppayload += "i,C=";
   udppayload += _sensor_report_count;
   udppayload += "i,R=";
   udppayload += result;
