@@ -62,12 +62,19 @@ const char* otapassword = OTA_PASSWORD;
 IPAddress influxdbudp = MQTT_SERVER;
 IPAddress mqtt_server = MQTT_SERVER;
 IPAddress time_server = MQTT_SERVER;
-//
-//RtcDS3231 Rtc;
 
+//
 #define INFO_PRINT 0
 #define DEBUG_PRINT 1
 
+// rtc
+#define SquareWavePin 1
+volatile unsigned long SquareWaveCount;
+unsigned long old_SquareWaveCount;
+
+RtcDS1307 Rtc;
+
+//---------
 char* topic = "esp8266/arduino/s03";
 char* hellotopic = "HELLO";
 
@@ -141,15 +148,6 @@ int acquireresult;
 int _sensor_error_count;
 unsigned long _sensor_report_count;
 unsigned int DHTnextSampleTime;
-
-
-// rtc
-#define SquareWavePin 1
-volatile unsigned long SquareWaveCount;
-unsigned long old_SquareWaveCount;
-
-RtcDS1307 Rtc;
-
 
 // This wrapper is in charge of calling
 // must be defined like this for the lib work
@@ -315,10 +313,6 @@ void check_SquareWaveCount() {
 }
 
 void lcdInitialize() {
-  lcd.init();
-  lcd.backlight();
-  lcd.clear();
-
   lcd.createChar(1, termometru);
   lcd.createChar(2, picatura);
   lcd.createChar(3, dustDensityicon);
@@ -355,6 +349,12 @@ void lcdInitialize() {
 }
 
 void setup() {
+  delay(20);
+
+  lcd.init();
+  lcd.backlight();
+  lcd.clear();
+
   system_update_cpu_freq(SYS_CPU_80MHz);
   startMills = sentMills = millis();
   Wire.begin(0, 2);
@@ -362,11 +362,12 @@ void setup() {
   T2 =  OT = PW = NW =  dustDensity = SquareWaveCount = old_SquareWaveCount = 0 ;
   PIR = HO = HL = moisture = unihost = rsphost = unitot = rsptot = 0;
   msgcallback = false;
-  lastReconnectAttempt = 0;
 
   Rtc.Begin();
   Rtc.SetIsRunning(true);
   Rtc.SetSquareWavePin(DS1307SquareWaveOut_1Hz);
+
+  lastReconnectAttempt = 0;
 
   pinMode(SquareWavePin, INPUT_PULLUP);
   attachInterrupt(SquareWavePin, check_SquareWaveCount, FALLING);
@@ -381,8 +382,6 @@ void setup() {
   clientName += " - ";
   clientName += String(micros() & 0xff, 16);
 
-  lcdInitialize();
-
   WiFiClient::setLocalPortStart(analogRead(A0));
   wifi_connect();
 
@@ -392,6 +391,9 @@ void setup() {
   if (timeStatus() == timeNotSet) {
     setSyncProvider(getNtpTime);
   }
+
+  // lcd
+  lcdInitialize();
 
   //OTA
   // Port defaults to 8266
@@ -573,7 +575,7 @@ void printSquareWaveCount() {
   udppayload += " SquareWaveCount=";
   udppayload += SquareWaveCount;
   udppayload += "i";
-  
+
   sendUdpmsg(udppayload);
 }
 
@@ -705,9 +707,9 @@ void displayTemperature() {
 
     lcd.setCursor(14, 1);
     if ( tempdiff > 0 ) {
-      lcd.print(" + ");
+      lcd.print("+");
     } else if ( tempdiff < 0 ) {
-      lcd.print(" - ");
+      lcd.print("-");
     }
 
     String str_tempdiff = String(int abs(tempdiff));
@@ -831,9 +833,9 @@ void digitalClockDisplay() {
   // digital clock display of the time
   lcd.setCursor(0, 0);
   lcd.print(year());
-  lcd.print(" / ");
+  lcd.print("/");
   printDigitsnocolon(month());
-  lcd.print(" / ");
+  lcd.print("/");
   printDigitsnocolon(day());
   lcd.print(" ");
   printDigitsnocolon(hour());
@@ -851,7 +853,7 @@ void printDigitsnocolon(int digits) {
 
 void printDigits(int digits) {
   // utility for digital clock display: prints preceding colon and leading 0
-  lcd.print(": ");
+  lcd.print(":");
   if (digits < 10) {
     lcd.print('0');
   }
