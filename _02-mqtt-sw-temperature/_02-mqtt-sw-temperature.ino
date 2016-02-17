@@ -29,7 +29,7 @@ extern "C" {
 #include "ap_setting.h"
 #endif
 
-#define INFO_PRINT 1
+#define INFO_PRINT 0
 #define DEBUG_PRINT 1
 
 // ****************
@@ -188,11 +188,11 @@ boolean reconnect()
         client.publish(hellotopic, "hello again 1 from ESP8266 s02");
       }
       client.subscribe(subtopic);
-      if (INFO_PRINT) {
+      if (DEBUG_PRINT) {
         sendUdpSyslog("---> mqttconnected");
       }
     } else {
-      if (INFO_PRINT) {
+      if (DEBUG_PRINT) {
         syslogPayload = "failed, rc=";
         syslogPayload += client.state();
         sendUdpSyslog(syslogPayload);
@@ -454,7 +454,7 @@ void radio_publish() {
 void loop() {
   if (WiFi.status() == WL_CONNECTED) {
     if (!client.connected()) {
-      if (INFO_PRINT) {
+      if (DEBUG_PRINT) {
         syslogPayload = "failed, rc= ";
         syslogPayload += client.state();
         sendUdpSyslog(syslogPayload);
@@ -741,7 +741,7 @@ void sendmqttMsg(char* topictosend, String payload)
   memcpy(p, (char*) payload.c_str(), msg_length);
 
   if (client.publish(topictosend, p, msg_length, 1)) {
-    if (DEBUG_PRINT) {
+    if (INFO_PRINT) {
       syslogPayload = topictosend;
       syslogPayload += " - ";
       syslogPayload += payload;
