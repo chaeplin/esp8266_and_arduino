@@ -12,9 +12,6 @@
 #include <ESP8266mDNS.h>
 #include <ArduinoOTA.h>
 #include <WiFiUdp.h>
-// for esp8266
-// https://github.com/chaeplin/PietteTech_DHT-8266
-//#include "PietteTech_DHT.h"
 
 // radio
 #define DEVICE_ID 1
@@ -35,8 +32,8 @@ extern "C" {
 #include "ap_setting.h"
 #endif
 
+#define INFO_PRINT 0
 #define DEBUG_PRINT 0
-//#define DHT_DEBUG_TIMING
 
 // ****************
 time_t getNtpTime();
@@ -46,15 +43,13 @@ void run_lightcmd();
 void changelight();
 void sendmqttMsg(char* topictosend, String payload);
 void runTimerDoLightOff();
-//void getdalastemp();
-//void getdht22temp();
 void sendNTPpacket(IPAddress & address);
-//void printEdgeTiming(class PietteTech_DHT *_d);
+void sendUdpSyslog(String msgtosend);
 
 static unsigned long  numberOfSecondsSinceEpochUTC(uint16_t y, uint8_t m, uint8_t d, uint8_t h, uint8_t mm, uint8_t s);
 long DateToMjd (uint16_t y, uint8_t m, uint8_t d);
 void sendUdpmsg(String msgtosend);
-
+void check_radio();
 
 // ****************
 const char* ssid = WIFI_SSID;
@@ -71,17 +66,8 @@ IPAddress time_server = MQTT_SERVER;
 #define RELAYPIN 4
 #define TOPBUTTONPIN 5
 
-/*
-// system defines
-#define DHTTYPE  DHT22              // Sensor type DHT11/21/22/AM2301/AM2302
-#define DHTPIN   2              // Digital pin for communications
-#define DHT_SAMPLE_INTERVAL   2100
-*/
-
 // OTHER
-//#define REPORT_INTERVAL 9500 // in msec
 #define REPORT_INTERVAL 5000 // in msec
-
 #define BETWEEN_RELAY_ACTIVE 5000
 
 // DS18B20
@@ -95,6 +81,7 @@ DeviceAddress outsideThermometer;
 
 // radio
 RF24 radio(3, 15);
+#define radiointPin 2
 
 // Topology
 const uint64_t pipes[3] = { 0xFFFFFFFFFFLL, 0xCCCCCCCCCCLL, 0xFFFFFFFFCCLL };
@@ -158,30 +145,7 @@ int millisnow;
 //
 int relayIsReady = HIGH;
 
-/*
-//declaration
-void dht_wrapper(); // must be declared before the lib initialization
-
-// Lib instantiate
-PietteTech_DHT DHT(DHTPIN, DHTTYPE, dht_wrapper);
-*/
-
-// globals
-//bool bDHTstarted;       // flag to indicate we started acquisition
-//int acquireresult;
 bool bDalasstarted;
-//float t, h;
-//int _sensor_error_count;
-//unsigned long _sensor_report_count;
-//unsigned int DHTnextSampleTime;
-
-/*
-// This wrapper is in charge of calling
-// must be defined like this for the lib work
-void dht_wrapper() {
-  DHT.isrCallback();
-}
-*/
 
 /////////////
 WiFiClient wifiClient;
@@ -193,14 +157,12 @@ long lastReconnectAttempt = 0;
 void wifi_connect()
 {
   // WIFI
-  if (DEBUG_PRINT) {
-    Serial.println();
-    Serial.println();
-    Serial.print("Connecting to ");
-    Serial.println(ssid);
+  if (INFO_PRINT) {
+    sendUdpSyslog("Connecting to ");
+    sendUdpSyslog(ssid);
   }
 
-  //wifi_set_phy_mode(PHY_MODE_11N);
+  wifi_set_phy_mode(PHY_MODE_11N);
   //wifi_set_channel(channel);
 
   WiFi.mode(WIFI_STA);
@@ -210,24 +172,22 @@ void wifi_connect()
   while (WiFi.status() != WL_CONNECTED) {
     delay(100);
     Attempt++;
-    if (DEBUG_PRINT) {
-      Serial.print(".");
+    if (INFO_PRINT) {
+      sendUdpSyslog(".");
     }
     if (Attempt == 300)
     {
-      if (DEBUG_PRINT) {
-        Serial.println();
-        Serial.println("Could not connect to WIFI");
+      if (INFO_PRINT) {
+        sendUdpSyslog("Could not connect to WIFI");
       }
       ESP.restart();
     }
   }
 
-  if (DEBUG_PRINT) {
-    Serial.println("");
-    Serial.println("WiFi connected");
-    Serial.println("IP address: ");
-    Serial.println(WiFi.localIP());
+  if (INFO_PRINT) {
+    sendUdpSyslog("WiFi connected");
+    sendUdpSyslog("IP address: ");
+    sendUdpSyslog(WiFi.localIP().toString().c_str());
   }
 }
 
@@ -243,13 +203,13 @@ boolean reconnect()
         client.publish(hellotopic, "hello again 1 from ESP8266 s02");
       }
       client.subscribe(subtopic);
-      if (DEBUG_PRINT) {
-        Serial.println("connected");
+      if (INFO_PRINT) {
+        sendUdpSyslog("connected");
       }
     } else {
-      if (DEBUG_PRINT) {
-        Serial.print("failed, rc=");
-        Serial.println(client.state());
+      if (INFO_PRINT) {
+        sendUdpSyslog("failed, rc=");
+        sendUdpSyslog(String(client.state()));
       }
     }
   }
@@ -265,10 +225,10 @@ void callback(char* intopic, byte* inpayload, unsigned int length)
     receivedpayload += (char)inpayload[i];
   }
 
-  if (DEBUG_PRINT) {
-    Serial.print(intopic);
-    Serial.print(" => ");
-    Serial.println(receivedpayload);
+  if (INFO_PRINT) {
+    sendUdpSyslog(intopic);
+    sendUdpSyslog(" => ");
+    sendUdpSyslog(receivedpayload);
   }
 
   unsigned long now = millis();
@@ -290,25 +250,23 @@ void callback(char* intopic, byte* inpayload, unsigned int length)
     }
   }
 
-  if (DEBUG_PRINT) {
-    Serial.print("");
-    Serial.print(" => relaystatus => ");
-    Serial.println(relaystatus);
+  if (INFO_PRINT) {
+    sendUdpSyslog(" => relaystatus => ");
+    sendUdpSyslog(String(relaystatus));
   }
 }
 
 void setup()
 {
   system_update_cpu_freq(SYS_CPU_80MHz);
-  if (DEBUG_PRINT) {
-    Serial.begin(115200);
-  }
+  // wifi_status_led_uninstall();
+  Serial.end();
 
   delay(20);
-  if (DEBUG_PRINT) {
-    Serial.println("Sensor and Relay");
-    Serial.println("ESP.getFlashChipSize() : ");
-    Serial.println(ESP.getFlashChipSize());
+  if (INFO_PRINT) {
+    sendUdpSyslog("Sensor and Relay");
+    sendUdpSyslog("ESP.getFlashChipSize() : ");
+    sendUdpSyslog(String(ESP.getFlashChipSize()));
   }
   delay(20);
 
@@ -318,6 +276,7 @@ void setup()
   pinMode(pir, INPUT);
   pinMode(RELAYPIN, OUTPUT);
   pinMode(TOPBUTTONPIN, INPUT_PULLUP);
+  pinMode(radiointPin, INPUT_PULLUP);
   digitalWrite(RELAYPIN, relaystatus);
 
   wifi_connect();
@@ -336,35 +295,34 @@ void setup()
   getResetInfo = "hello from ESP8266 s02 ";
   getResetInfo += ESP.getResetInfo().substring(0, 30);
 
-  if (DEBUG_PRINT) {
-    Serial.println("Starting UDP");
+  if (INFO_PRINT) {
+    sendUdpSyslog("Starting UDP");
   }
   udp.begin(localPort);
-  if (DEBUG_PRINT) {
-    Serial.print("Local port: ");
-    Serial.println(udp.localPort());
+  if (INFO_PRINT) {
+    sendUdpSyslog("Local port: ");
+    sendUdpSyslog(String(udp.localPort()));
   }
   delay(1000);
   setSyncProvider(getNtpTime);
 
   if (timeStatus() == timeNotSet) {
-    if (DEBUG_PRINT) {
-      Serial.println("waiting for sync message");
+    if (INFO_PRINT) {
+      sendUdpSyslog("waiting for sync message");
       setSyncProvider(getNtpTime);
     }
   }
 
-  //
-  //attachInterrupt(16, motion_detection, RISING);
   attachInterrupt(5, run_lightcmd, CHANGE);
+  attachInterrupt(2, check_radio, FALLING);
 
   pirSent = LOW ;
   pirValue = oldpirValue = digitalRead(pir);
 
   sensors.begin();
   if (!sensors.getAddress(outsideThermometer, 0)) {
-    if (DEBUG_PRINT) {
-      Serial.println("Unable to find address for Device 0");
+    if (INFO_PRINT) {
+      sendUdpSyslog("Unable to find address for Device 0");
     }
   }
 
@@ -373,8 +331,8 @@ void setup()
   tempCoutside = sensors.getTempC(outsideThermometer);
 
   if ( isnan(tempCoutside) ) {
-    if (DEBUG_PRINT) {
-      Serial.println("Failed to read from DS18B20 sensor!");
+    if (INFO_PRINT) {
+      sendUdpSyslog("Failed to read from DS18B20 sensor!");
     }
     //return;
   }
@@ -384,7 +342,7 @@ void setup()
 
   radio.begin();
   radio.setChannel(CHANNEL);
-  radio.setPALevel(RF24_PA_HIGH);
+  radio.setPALevel(RF24_PA_MAX);
   //  radio.setDataRate(RF24_250KBPS);
   radio.setDataRate(RF24_1MBPS);
   //radio.setAutoAck(1);
@@ -392,6 +350,7 @@ void setup()
   //radio.setCRCLength(RF24_CRC_8);
   //radio.setPayloadSize(11);
   radio.enableDynamicPayloads();
+  radio.maskIRQ(1, 1, 0);
   radio.openReadingPipe(1, pipes[0]);
   radio.openReadingPipe(2, pipes[2]);
   //radio.openWritingPipe(pipes[1]);
@@ -409,13 +368,13 @@ void setup()
   ArduinoOTA.setPassword(otapassword);
 
   ArduinoOTA.onStart([]() {
-    //Serial.println("Start");
+    //sendUdpSyslog("Start");
   });
   ArduinoOTA.onEnd([]() {
-    //Serial.println("\nEnd");
+    //sendUdpSyslog("\nEnd");
   });
   ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
-    //Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
+    //sendUdpSyslog("Progress: %u%%\r", (progress / (total / 100)));
   });
   ArduinoOTA.onError([](ota_error_t error) {
     //ESP.restart();
@@ -429,29 +388,153 @@ void setup()
 
   ArduinoOTA.begin();
 
-/*
-  _sensor_error_count = _sensor_report_count = 0;
-  acquireresult = DHT.acquireAndWait(100);
-  if (acquireresult != 0) {
-    _sensor_error_count++;
+  if (DEBUG_PRINT) {
+    sendUdpSyslog("------------------> unit started");
+    sendUdpSyslog(String(digitalRead(2)));
   }
-  if ( acquireresult == 0 ) {
-    t = DHT.getCelsius();
-    h = DHT.getHumidity();
-  } else {
-    t = h = 0;
-  }
-  DHTnextSampleTime = 2000;
-*/  
 }
 
-void loop()
-{
+/*
+  void check_radio() {
+  bool tx, fail, rx;
+  radio.whatHappened(tx, fail, rx);                   // What happened?
+
+  if (DEBUG_PRINT) {
+    sendUdpSyslog(" radio called  : ");
+    sendUdpSyslog(String(rx));
+  }
+  }
+*/
+
+
+void check_radio() {
+  bool tx, fail, rx;
+  radio.whatHappened(tx, fail, rx);  // What happened?
+
+  // If data is available, handle it accordingly
+  if ( rx ) {
+
+    if (radio.getDynamicPayloadSize() < 1) {
+      // Corrupt payload has been flushed
+      return;
+    }
+    // from attiny 85 data size is 11
+    // sensor_data data size = 12
+    uint8_t len = radio.getDynamicPayloadSize();
+
+    if (DEBUG_PRINT) {
+      sendUdpSyslog(" ****** getDynamicPayloadSize ======>  : ");
+      sendUdpSyslog(String(len));
+    }
+
+    // avr 8bit, esp 32bit. esp use 4 byte step.
+    if ( (len + 1 ) != sizeof(sensor_data) ) {
+      if (INFO_PRINT) {
+        sendUdpSyslog(" ****** radio ======> len : ");
+        sendUdpSyslog(String(len));
+        sendUdpSyslog(" : ");
+        sendUdpSyslog(String(sizeof(sensor_data)));
+      }
+      radio.read(0, 0);
+      return;
+    }
+    radio.read(&sensor_data, sizeof(sensor_data));
+
+
+    if (INFO_PRINT) {
+      sendUdpSyslog(" ****** radio ======> size : ");
+      sendUdpSyslog(String(sizeof(sensor_data)));
+      sendUdpSyslog(" _salt : ");
+      sendUdpSyslog(String(sensor_data._salt));
+      sendUdpSyslog(" volt : ");
+      sendUdpSyslog(String(sensor_data.volt));
+      sendUdpSyslog(" data1 : ");
+      sendUdpSyslog(String(sensor_data.data1));
+      sendUdpSyslog(" data2 : ");
+      sendUdpSyslog(String(sensor_data.data2));
+      sendUdpSyslog(" dev_id :");
+      sendUdpSyslog(String(sensor_data.devid));
+    }
+
+    if ( sensor_data.devid != 15 ) {
+
+      String radiopayload = "{\"_salt\":";
+      radiopayload += sensor_data._salt;
+      radiopayload += ",\"volt\":";
+      radiopayload += sensor_data.volt;
+
+      radiopayload += ",\"data1\":";
+      if ( sensor_data.data1 == 0 ) {
+        radiopayload += 0;
+      } else {
+        radiopayload += ((float)sensor_data.data1 / 10);
+      }
+
+      radiopayload += ",\"data2\":";
+      if ( sensor_data.data2 == 0 ) {
+        radiopayload += 0;
+      } else {
+        radiopayload += ((float)sensor_data.data2 / 10);
+      }
+
+      radiopayload += ",\"devid\":";
+      radiopayload += sensor_data.devid;
+      radiopayload += "}";
+
+      if ( (sensor_data.devid > 0) && (sensor_data.devid < 255) )
+      {
+        String newRadiotopic = radiotopic;
+        newRadiotopic += "/";
+        newRadiotopic += sensor_data.devid;
+
+        unsigned int newRadiotopic_length = newRadiotopic.length();
+        char newRadiotopictosend[newRadiotopic_length] ;
+        newRadiotopic.toCharArray(newRadiotopictosend, newRadiotopic_length + 1);
+        sendmqttMsg(newRadiotopictosend, radiopayload);
+      } else {
+        sendmqttMsg(radiofault, radiopayload);
+      }
+    } else {
+      if (timeStatus() != timeNotSet) {
+        timestamp = numberOfSecondsSinceEpochUTC(year(), month(), day(), hour(), minute(), second());
+        millisnow = millisecond();
+        //}
+
+        if ( sensor_data.data1 < 0 ) {
+          sensor_data.data1 = 0;
+        }
+
+        String udppayload = "current,test=current,measureno=";
+        udppayload += sensor_data._salt;
+        udppayload += " devid=";
+        udppayload += sensor_data.devid;
+        udppayload += "i,volt=";
+        udppayload += sensor_data.volt;
+        udppayload += "i,ampere=";
+
+        uint32_t ampere_temp;
+        ampere_temp = sensor_data.data1 * ampereunit[sensor_data.data2];
+        udppayload += ampere_temp;
+        udppayload += " ";
+        udppayload += timestamp;
+
+        char buf[3];
+        sprintf(buf, "%03d", millisnow);
+        udppayload += buf;
+        udppayload += "000000";
+        sendUdpmsg(udppayload);
+      }
+    }
+  }
+}
+
+
+void loop() {
   if (WiFi.status() == WL_CONNECTED) {
     if (!client.connected()) {
-      if (DEBUG_PRINT) {
-        Serial.print("failed, rc=");
-        Serial.print(client.state());
+      if (INFO_PRINT) {
+        sendUdpSyslog("failed, rc=");
+        sendUdpSyslog(String(client.state()));
       }
       unsigned long now = millis();
       if (now - lastReconnectAttempt > 500) {
@@ -461,22 +544,6 @@ void loop()
         }
       }
     } else {
-      /*
-      if (bDHTstarted) {
-        if (!DHT.acquiring()) {
-          acquireresult = DHT.getStatus();
-#if defined(DHT_DEBUG_TIMING)
-          printEdgeTiming(&DHT);
-#endif
-          if ( acquireresult == 0 ) {
-            t = DHT.getCelsius();
-            h = DHT.getHumidity();
-          }
-          bDHTstarted = false;
-        }
-      }
-      */
-
       if (bDalasstarted) {
         if (millis() > (startMills + (750 / (1 << (12 - TEMPERATURE_PRECISION))))) {
           tempCoutside  = sensors.getTempC(outsideThermometer);
@@ -487,16 +554,16 @@ void loop()
 
       if ( relaystatus != oldrelaystatus ) {
 
-        if (DEBUG_PRINT) {
-          Serial.print("call changelight  => relaystatus => ");
-          Serial.println(relaystatus);
+        if (INFO_PRINT) {
+          sendUdpSyslog("call changelight  => relaystatus => ");
+          sendUdpSyslog(String(relaystatus));
         }
 
         changelight();
 
-        if (DEBUG_PRINT) {
-          Serial.print("after changelight  => relaystatus => ");
-          Serial.println(relaystatus);
+        if (INFO_PRINT) {
+          sendUdpSyslog("after changelight  => relaystatus => ");
+          sendUdpSyslog(String(relaystatus));
         }
 
         String lightpayload = "{\"LIGHT\":";
@@ -511,9 +578,9 @@ void loop()
       if ((relayIsReady == LOW ) &&  ( millis() < 15000 ) && ( relaystatus == oldrelaystatus ))
       {
 
-        if (DEBUG_PRINT) {
-          Serial.print("after BETWEEN_RELAY_ACTIVE => relaystatus => ");
-          Serial.println(relaystatus);
+        if (INFO_PRINT) {
+          sendUdpSyslog("after BETWEEN_RELAY_ACTIVE => relaystatus => ");
+          sendUdpSyslog(String(relaystatus));
         }
 
         String lightpayload = "{\"LIGHT\":";
@@ -527,9 +594,9 @@ void loop()
       } else if ((relayIsReady == LOW ) &&  (( millis() - lastRelayActionmillis) > BETWEEN_RELAY_ACTIVE ) && ( relaystatus == oldrelaystatus ))
       {
 
-        if (DEBUG_PRINT) {
-          Serial.print("after BETWEEN_RELAY_ACTIVE => relaystatus => ");
-          Serial.println(relaystatus);
+        if (INFO_PRINT) {
+          sendUdpSyslog("after BETWEEN_RELAY_ACTIVE => relaystatus => ");
+          sendUdpSyslog(String(relaystatus));
         }
 
         String lightpayload = "{\"LIGHT\":";
@@ -549,28 +616,12 @@ void loop()
         oldpirValue = pirValue;
       }
 
-      /*
-      payload = "{\"Humidity\":";
-      payload += h;
-      payload += ",\"Temperature\":";
-      payload += t;
-      payload += ",\"DS18B20\":";
-      */
       payload = "{\"DS18B20\":";
       payload += tempCoutside;
       payload += ",\"PIRSTATUS\":";
       payload += pirValue;
       payload += ",\"FreeHeap\":";
       payload += ESP.getFreeHeap();
-      /*
-      payload += ",\"acquireresult\":";
-      payload += acquireresult;
-      // to check DHT.acquiring()
-      payload += ",\"acquirestatus\":";
-      payload += DHT.acquiring();
-      payload += ",\"bDHTstarted\":";
-      payload += bDHTstarted;
-      */
       payload += ",\"RSSI\":";
       payload += WiFi.RSSI();
       payload += ",\"millis\":";
@@ -584,37 +635,46 @@ void loop()
         //startMills = millis();
       }
 
-      // radio
-      if (radio.available()) {
+      /*
+        // radio
+        if (radio.available()) {
         // from attiny 85 data size is 11
         // sensor_data data size = 12
         uint8_t len = radio.getDynamicPayloadSize();
+
+        if (DEBUG_PRINT) {
+          sendUdpSyslog(" ****** getDynamicPayloadSize ======>  : ");
+          sendUdpSyslog(String(digitalRead(2)));
+          sendUdpSyslog(String(len));
+        }
+
         // avr 8bit, esp 32bit. esp use 4 byte step.
         if ( (len + 1 ) != sizeof(sensor_data) ) {
-          if (DEBUG_PRINT) {
-            Serial.print(" ****** radio ======> len : sizeof(sensor_data) : return : ");
-            Serial.print(len);
-            Serial.print(" : ");
-            Serial.println(sizeof(sensor_data));
+          if (INFO_PRINT) {
+            sendUdpSyslog(" ****** radio ======> len : ");
+            sendUdpSyslog(String(len));
+            sendUdpSyslog(" : ");
+            sendUdpSyslog(String(sizeof(sensor_data)));
           }
           radio.read(0, 0);
           return;
         }
         radio.read(&sensor_data, sizeof(sensor_data));
 
-        if (DEBUG_PRINT) {
-          Serial.print(" ****** radio ======> size : ");
-          Serial.print(sizeof(sensor_data));
-          Serial.print(" _salt : ");
-          Serial.print(sensor_data._salt);
-          Serial.print(" volt : ");
-          Serial.print(sensor_data.volt);
-          Serial.print(" data1 : ");
-          Serial.print(sensor_data.data1);
-          Serial.print(" data2 : ");
-          Serial.print(sensor_data.data2);
-          Serial.print(" dev_id :");
-          Serial.println(sensor_data.devid);
+
+        if (INFO_PRINT) {
+          sendUdpSyslog(" ****** radio ======> size : ");
+          sendUdpSyslog(String(sizeof(sensor_data)));
+          sendUdpSyslog(" _salt : ");
+          sendUdpSyslog(String(sensor_data._salt));
+          sendUdpSyslog(" volt : ");
+          sendUdpSyslog(String(sensor_data.volt));
+          sendUdpSyslog(" data1 : ");
+          sendUdpSyslog(String(sensor_data.data1));
+          sendUdpSyslog(" data2 : ");
+          sendUdpSyslog(String(sensor_data.data2));
+          sendUdpSyslog(" dev_id :");
+          sendUdpSyslog(String(sensor_data.devid));
         }
 
         if ( sensor_data.devid != 15 ) {
@@ -686,7 +746,9 @@ void loop()
             sendUdpmsg(udppayload);
           }
         }
-      }
+        }
+      */
+
       if ((millis() - startMills) > REPORT_INTERVAL )
       {
         sendmqttMsg(topic, payload);
@@ -696,13 +758,6 @@ void loop()
         sensors.requestTemperatures();
         sensors.setWaitForConversion(true);
         bDalasstarted = true;
-
-        /*
-        if (!bDHTstarted) {
-          DHT.acquire();
-          bDHTstarted = true;
-        }
-        */
       }
       client.loop();
     }
@@ -716,10 +771,10 @@ void runTimerDoLightOff()
 {
   if (( relaystatus == HIGH ) && ( hour() == 6 ) && ( minute() == 00 ) && ( second() < 5 ))
   {
-    if (DEBUG_PRINT) {
-      Serial.print(" => ");
-      Serial.print("checking relay status runTimerDoLightOff --> ");
-      Serial.println(relaystatus);
+    if (INFO_PRINT) {
+      sendUdpSyslog(" => ");
+      sendUdpSyslog("checking relay status runTimerDoLightOff --> ");
+      sendUdpSyslog(String(relaystatus));
     }
     relaystatus = LOW;
   }
@@ -727,20 +782,20 @@ void runTimerDoLightOff()
 
 void changelight()
 {
-  if (DEBUG_PRINT) {
-    Serial.print(" => ");
-    Serial.print("checking relay status changelight --> ");
-    Serial.println(relaystatus);
+  if (INFO_PRINT) {
+    sendUdpSyslog(" => ");
+    sendUdpSyslog("checking relay status changelight --> ");
+    sendUdpSyslog(String(relaystatus));
   }
 
   relayIsReady = LOW;
   digitalWrite(RELAYPIN, relaystatus);
   //delay(50);
 
-  if (DEBUG_PRINT) {
-    Serial.print(" => ");
-    Serial.print("changing relay status --> ");
-    Serial.println(relaystatus);
+  if (INFO_PRINT) {
+    sendUdpSyslog(" => ");
+    sendUdpSyslog("changing relay status --> ");
+    sendUdpSyslog(String(relaystatus));
   }
 
   lastRelayActionmillis = millis();
@@ -752,31 +807,32 @@ void sendmqttMsg(char* topictosend, String payload)
 {
 
   if (client.connected()) {
-    if (DEBUG_PRINT) {
-      Serial.print("Sending payload: ");
-      Serial.print(topictosend);
-      Serial.print(" - ");
-      Serial.print(payload);
+
+    if (INFO_PRINT) {
+      sendUdpSyslog("Sending payload: ");
+      sendUdpSyslog(topictosend);
+      sendUdpSyslog(" - ");
+      sendUdpSyslog(payload);
     }
 
     unsigned int msg_length = payload.length();
 
-    if (DEBUG_PRINT) {
-      Serial.print(" length: ");
-      Serial.println(msg_length);
+    if (INFO_PRINT) {
+      sendUdpSyslog(" length: ");
+      sendUdpSyslog(String(msg_length));
     }
 
     byte* p = (byte*)malloc(msg_length);
     memcpy(p, (char*) payload.c_str(), msg_length);
 
     if ( client.publish(topictosend, p, msg_length, 1)) {
-      if (DEBUG_PRINT) {
-        Serial.println("Publish ok");
+      if (INFO_PRINT) {
+        sendUdpSyslog("Publish ok");
       }
       free(p);
     } else {
-      if (DEBUG_PRINT) {
-        Serial.println("Publish failed");
+      if (INFO_PRINT) {
+        sendUdpSyslog("Publish failed");
       }
       free(p);
     }
@@ -790,28 +846,29 @@ void run_lightcmd()
     //relaystatus = topbuttonstatus ;
     relaystatus = !relaystatus;
   }
-  if (DEBUG_PRINT && ( relayIsReady == HIGH  )) {
-    //Serial.print("run_lightcmd  => topbuttonstatus => ");
-    //Serial.print(topbuttonstatus);
-    Serial.print(" => relaystatus => ");
-    Serial.println(relaystatus);
+  if (INFO_PRINT && ( relayIsReady == HIGH  )) {
+    //sendUdpSyslog("run_lightcmd  => topbuttonstatus => ");
+    //sendUdpSyslog(topbuttonstatus);
+    sendUdpSyslog(" => relaystatus => ");
+    sendUdpSyslog(String(relaystatus));
   }
 }
 
 // pin 16 can't be used for Interrupts
-/*
-  void motion_detection()
-  {
-  if (DEBUG_PRINT) {
-    Serial.println("motion_detection called");
-  }
-  //pirValue =
-  pirValue = digitalRead(pir);
-  pirSent = HIGH ;
-  }
-*/
 
-//
+void sendUdpSyslog(String msgtosend)
+{
+  unsigned int msg_length = msgtosend.length();
+  byte* p = (byte*)malloc(msg_length);
+  memcpy(p, (char*) msgtosend.c_str(), msg_length);
+
+  udp.beginPacket(influxdbudp, 514);
+  udp.write("mqtt-sw-temp: ");
+  udp.write(p, msg_length);
+  udp.endPacket();
+  free(p);
+}
+
 void sendUdpmsg(String msgtosend)
 {
   unsigned int msg_length = msgtosend.length();
@@ -835,48 +892,6 @@ String macToStr(const uint8_t* mac)
   return result;
 }
 
-/*
-void printEdgeTiming(class PietteTech_DHT *_d) {
-  byte n;
-#if defined(DHT_DEBUG_TIMING)
-  volatile uint8_t *_e = &_d->_edges[0];
-#endif
-  int result = _d->getStatus();
-  if (result != 0) {
-    _sensor_error_count++;
-  }
-
-  _sensor_report_count++;
-
-  String udppayload = "edges2,device=esp-12-N1,debug=on,DHTLIB_ONE_TIMING=110 ";
-  for (n = 0; n < 41; n++) {
-    char buf[2];
-    udppayload += "e";
-    sprintf(buf, "%02d", n);
-    udppayload += buf;
-    udppayload += "=";
-#if defined(DHT_DEBUG_TIMING)
-    udppayload += *_e++;
-#endif
-    udppayload += "i,";
-  }
-  udppayload += "F=";
-  udppayload += ESP.getCpuFreqMHz();
-  udppayload += "i,C=";
-  udppayload += _sensor_report_count;
-  udppayload += "i,R=";
-  udppayload += result;
-  udppayload += ",E=";
-  udppayload += _sensor_error_count;
-  udppayload += "i,H=";
-  udppayload += _d->getHumidity();
-  udppayload += ",T=";
-  udppayload += _d->getCelsius();
-
-  sendUdpmsg(udppayload);
-}
-*/
-
 /*-------- NTP code ----------*/
 const int NTP_PACKET_SIZE = 48;
 byte packetBuffer[NTP_PACKET_SIZE];
@@ -884,8 +899,8 @@ byte packetBuffer[NTP_PACKET_SIZE];
 time_t getNtpTime()
 {
   while (udp.parsePacket() > 0) ;
-  if (DEBUG_PRINT) {
-    Serial.println("Transmit NTP Request called");
+  if (INFO_PRINT) {
+    sendUdpSyslog("Transmit NTP Request called");
   }
   sendNTPpacket(time_server);
   delay(3000);
@@ -893,8 +908,8 @@ time_t getNtpTime()
   while (millis() - beginWait < 1500) {
     int size = udp.parsePacket();
     if (size >= NTP_PACKET_SIZE) {
-      if (DEBUG_PRINT) {
-        Serial.println("Receive NTP Response");
+      if (INFO_PRINT) {
+        sendUdpSyslog("Receive NTP Response");
       }
       udp.read(packetBuffer, NTP_PACKET_SIZE);
       unsigned long secsSince1900;
@@ -905,17 +920,17 @@ time_t getNtpTime()
       return secsSince1900 - 2208988800UL + timeZone * SECS_PER_HOUR;
     }
   }
-  if (DEBUG_PRINT) {
-    Serial.println(millis() - beginWait);
-    Serial.println("No NTP Response :-(");
+  if (INFO_PRINT) {
+    sendUdpSyslog(String(millis() - beginWait));
+    sendUdpSyslog("No NTP Response :-(");
   }
   return 0;
 }
 
 void sendNTPpacket(IPAddress & address)
 {
-  if (DEBUG_PRINT) {
-    Serial.println("Transmit NTP Request");
+  if (INFO_PRINT) {
+    sendUdpSyslog("Transmit NTP Request");
   }
   memset(packetBuffer, 0, NTP_PACKET_SIZE);
   packetBuffer[0] = 0b11100011;
@@ -929,8 +944,8 @@ void sendNTPpacket(IPAddress & address)
   udp.beginPacket(address, 123);
   udp.write(packetBuffer, NTP_PACKET_SIZE);
   udp.endPacket();
-  if (DEBUG_PRINT) {
-    Serial.println("Transmit NTP Sent");
+  if (INFO_PRINT) {
+    sendUdpSyslog("Transmit NTP Sent");
   }
 }
 
