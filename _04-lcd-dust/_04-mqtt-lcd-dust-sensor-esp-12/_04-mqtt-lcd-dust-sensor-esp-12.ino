@@ -8,10 +8,13 @@
 #include <ArduinoOTA.h>
 #include <WiFiUdp.h>
 #include <Wire.h>
-//#include <RtcDS3231.h>
 #include <PubSubClient.h>
+#include "PietteTech_DHT.h"
 
 #define REPORT_INTERVAL 3000 // in msec
+
+#define SYS_CPU_80MHz 80
+#define SYS_CPU_160MHz 160
 
 extern "C" {
 #include "user_interface.h"
@@ -44,6 +47,8 @@ void sendNTPpacket(IPAddress & address);
 void digitalClockDisplay();
 void requestSharp();
 void sendmqttMsg(String payloadtosend);
+void printEdgeTiming(class PietteTech_DHT *_d);
+void sendUdpmsg(String msgtosend);
 
 //
 const char* ssid = WIFI_SSID;
@@ -51,12 +56,14 @@ const char* password = WIFI_PASSWORD;
 const char* otapassword = OTA_PASSWORD;
 
 //
+IPAddress influxdbudp = MQTT_SERVER;
 IPAddress mqtt_server = MQTT_SERVER;
 IPAddress time_server = MQTT_SERVER;
 //
 //RtcDS3231 Rtc;
 
 #define DEBUG_PRINT 0
+#define DHT_DEBUG_TIMING
 
 char* topic = "esp8266/arduino/s03";
 //char* subtopic = "#";
@@ -91,8 +98,8 @@ int ResetInfo = LOW;
 
 PubSubClient client(mqtt_server, 1883, callback, wifiClient);
 
-volatile float H  , T1 , T2 , OT , PW ;
-volatile int NW , PIR  , HO  , HL, unihost, rsphost, unitot, rsptot;;
+volatile float H, T1, T2, OT, PW;
+volatile int NW, PIR, HO, HL, unihost, rsphost, unitot, rsptot;
 volatile bool msgcallback;
 
 int sleepmode = LOW ;
@@ -113,6 +120,30 @@ byte dustDensityfill[8] = { B11111, B11111, B11111, B11111, B11111, B11111, B111
 byte pirfill[8]         = { B00111, B00111, B00111, B00111, B00111, B00111, B00111, B00111, };
 byte powericon[8]       = { B11111, B11011, B10001, B11011, B11111, B11000, B11000, B11000, };
 byte nemoicon[8]        = { B11011, B11011, B00100, B11111, B10101, B11111, B01010, B11011, };
+
+// system defines
+#define DHTTYPE  DHT22              // Sensor type DHT11/21/22/AM2301/AM2302
+#define DHTPIN   3              // Digital pin for communications
+#define DHT_SAMPLE_INTERVAL   2100
+
+//declaration
+void dht_wrapper(); // must be declared before the lib initialization
+
+// Lib instantiate
+PietteTech_DHT DHT(DHTPIN, DHTTYPE, dht_wrapper);
+
+// globals
+bool bDHTstarted;       // flag to indicate we started acquisition
+int acquireresult;
+int _sensor_error_count;
+unsigned long _sensor_report_count;
+unsigned int DHTnextSampleTime;
+
+// This wrapper is in charge of calling
+// must be defined like this for the lib work
+void dht_wrapper() {
+  DHT.isrCallback();
+}
 
 void callback(char* intopic, byte* inpayload, unsigned int length)
 {
@@ -176,7 +207,7 @@ void parseMqttMsg(String receivedpayload, String receivedtopic) {
   // esp8266/arduino/s07 : power
   // esp8266/arduino/s04 : OUTSIDE
   // esp8266/arduino/s06 : Scale
-  // esp8266/arduino/s02  : T, H
+  // esp8266/arduino/s02  : ds18b20
   // esp8266/arduino/aircon : ________
   // home/check/checkhwmny : unihost, rsphost, unitot, rsptot
 
@@ -186,12 +217,14 @@ void parseMqttMsg(String receivedpayload, String receivedtopic) {
   }
 
   if ( receivedtopic == substopic[0] ) {
-    if (root.containsKey("Humidity")) {
+    /*
+      if (root.containsKey("Humidity")) {
       H   = root["Humidity"];
-    }
-    if (root.containsKey("Temperature")) {
+      }
+      if (root.containsKey("Temperature")) {
       T1  = root["Temperature"];
-    }
+      }
+    */
     if (root.containsKey("DS18B20")) {
       T2  = root["DS18B20"];
     }
@@ -336,7 +369,7 @@ boolean reconnect() {
 }
 
 void setup() {
-  delay(50);
+  system_update_cpu_freq(SYS_CPU_80MHz);
 
   if (DEBUG_PRINT) {
     Serial.begin(115200);
@@ -362,7 +395,7 @@ void setup() {
   delay(20);
 
   //--
-  H = T1 =  T2 =  OT = PW = NW =  dustDensity = 0 ;
+  T2 =  OT = PW = NW =  dustDensity = 0 ;
   PIR = HO = HL = moisture = unihost = rsphost = unitot = rsptot = 0;
   msgcallback = false;
   lastReconnectAttempt = 0;
@@ -498,6 +531,19 @@ void setup() {
 
   ArduinoOTA.begin();
 
+  _sensor_error_count = _sensor_report_count = 0;
+  acquireresult = DHT.acquireAndWait(100);
+  if (acquireresult != 0) {
+    _sensor_error_count++;
+  }
+  if ( acquireresult == 0 ) {
+    T1 = DHT.getCelsius();
+    H = DHT.getHumidity();
+  } else {
+    T1 = H = 0;
+  }
+  DHTnextSampleTime = 2000;
+
 }
 
 
@@ -520,6 +566,20 @@ void loop()
         }
       }
     } else {
+      if (bDHTstarted) {
+        if (!DHT.acquiring()) {
+          acquireresult = DHT.getStatus();
+#if defined(DHT_DEBUG_TIMING)
+          printEdgeTiming(&DHT);
+#endif
+          if ( acquireresult == 0 ) {
+            T1 = DHT.getCelsius();
+            H  = DHT.getHumidity();
+          }
+          bDHTstarted = false;
+        }
+      }
+
       if (timeStatus() != timeNotSet) {
         if (now() != prevDisplay) { //update the display only if time has changed
           prevDisplay = now();
@@ -539,7 +599,7 @@ void loop()
           displayPIR();
           displayTemperature();
           displaydustDensity();
-          
+
           if (msgcallback) {
             lcd.setCursor(19, 0);
             lcd.write(5);
@@ -579,10 +639,21 @@ void loop()
           Serial.println(ESP.getFreeHeap());
         }
 
-        payload = " {\"dustDensity\":";
+        payload = "{\"dustDensity\":";
         payload += dustDensity;
         payload += ",\"moisture\":";
         payload += moisture;
+        payload += ",\"Humidity\":";
+        payload += H;
+        payload += ",\"Temperature\":";
+        payload += T1;
+        payload += ",\"acquireresult\":";
+        payload += acquireresult;
+        // to check DHT.acquiring()
+        payload += ",\"acquirestatus\":";
+        payload += DHT.acquiring();
+        payload += ",\"bDHTstarted\":";
+        payload += bDHTstarted;
         payload += ",\"FreeHeap\":";
         payload += ESP.getFreeHeap();
         payload += ",\"RSSI\":";
@@ -593,6 +664,12 @@ void loop()
 
         sendmqttMsg(payload);
         sentMills = millis();
+
+        if (!bDHTstarted) {
+          DHT.acquire();
+          bDHTstarted = true;
+        }
+
       }
       client.loop();
     }
@@ -600,6 +677,59 @@ void loop()
   } else {
     wifi_connect();
   }
+}
+
+
+void sendUdpmsg(String msgtosend)
+{
+  unsigned int msg_length = msgtosend.length();
+  byte* p = (byte*)malloc(msg_length);
+  memcpy(p, (char*) msgtosend.c_str(), msg_length);
+
+  udp.beginPacket(influxdbudp, 8089);
+  udp.write(p, msg_length);
+  udp.endPacket();
+  free(p);
+}
+
+void printEdgeTiming(class PietteTech_DHT *_d) {
+  byte n;
+#if defined(DHT_DEBUG_TIMING)
+  volatile uint8_t *_e = &_d->_edges[0];
+#endif
+  int result = _d->getStatus();
+  if (result != 0) {
+    _sensor_error_count++;
+  }
+
+  _sensor_report_count++;
+
+  String udppayload = "edges2,device=esp-12-N1,debug=on,DHTLIB_ONE_TIMING=110 ";
+  for (n = 0; n < 41; n++) {
+    char buf[2];
+    udppayload += "e";
+    sprintf(buf, "%02d", n);
+    udppayload += buf;
+    udppayload += "=";
+#if defined(DHT_DEBUG_TIMING)
+    udppayload += *_e++;
+#endif
+    udppayload += "i,";
+  }
+  udppayload += "F=";
+  udppayload += ESP.getCpuFreqMHz();
+  udppayload += "i,C=";
+  udppayload += _sensor_report_count;
+  udppayload += "i,R=";
+  udppayload += result;
+  udppayload += ",E=";
+  udppayload += _sensor_error_count;
+  udppayload += "i,H=";
+  udppayload += _d->getHumidity();
+  udppayload += ",T=";
+  udppayload += _d->getCelsius();
+
+  sendUdpmsg(udppayload);
 }
 
 void displayHost(int numofhost, int numofall)
