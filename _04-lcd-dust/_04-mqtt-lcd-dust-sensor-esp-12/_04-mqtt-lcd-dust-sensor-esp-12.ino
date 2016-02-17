@@ -66,7 +66,8 @@ char* willTopic = "clients/dust";
 char* willMessage = "0";
 
 const char subtopic_0[] = "esp8266/arduino/s02";
-const char subtopic_1[] = "esp8266/arduino/s04";
+//const char subtopic_1[] = "esp8266/arduino/s04";
+const char subtopic_1[] = "radio/test/2";
 const char subtopic_2[] = "esp8266/arduino/s07";
 const char subtopic_3[] = "esp8266/arduino/s06";
 const char subtopic_4[] = "raspberrypi/doorpir";
@@ -197,8 +198,8 @@ void parseMqttMsg(String receivedpayload, String receivedtopic) {
   }
 
   if ( receivedtopic == substopic[1] ) {
-    if (root.containsKey("OUTSIDE")) {
-      OT  = root["OUTSIDE"];
+    if (root.containsKey("data1")) {
+      OT  = root["data1"];
     }
   }
 

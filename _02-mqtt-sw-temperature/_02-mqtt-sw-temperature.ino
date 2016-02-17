@@ -1,4 +1,4 @@
-// 160M CPU / 4M / 1M SPIFFS / esp-swtemp
+// 80M CPU / 4M / 1M SPIFFS / esp-swtemp
 // with #define DHT_DEBUG_TIMING on / PietteTech_DHT-8266
 #include <TimeLib.h>
 //#include <SPI.h>
@@ -12,10 +12,9 @@
 #include <ESP8266mDNS.h>
 #include <ArduinoOTA.h>
 #include <WiFiUdp.h>
-//#include "DHT.h"
 // for esp8266
 // https://github.com/chaeplin/PietteTech_DHT-8266
-#include "PietteTech_DHT.h"
+//#include "PietteTech_DHT.h"
 
 // radio
 #define DEVICE_ID 1
@@ -37,7 +36,7 @@ extern "C" {
 #endif
 
 #define DEBUG_PRINT 0
-#define DHT_DEBUG_TIMING
+//#define DHT_DEBUG_TIMING
 
 // ****************
 time_t getNtpTime();
@@ -50,7 +49,7 @@ void runTimerDoLightOff();
 //void getdalastemp();
 //void getdht22temp();
 void sendNTPpacket(IPAddress & address);
-void printEdgeTiming(class PietteTech_DHT *_d);
+//void printEdgeTiming(class PietteTech_DHT *_d);
 
 static unsigned long  numberOfSecondsSinceEpochUTC(uint16_t y, uint8_t m, uint8_t d, uint8_t h, uint8_t mm, uint8_t s);
 long DateToMjd (uint16_t y, uint8_t m, uint8_t d);
@@ -69,14 +68,15 @@ IPAddress time_server = MQTT_SERVER;
 
 // pin
 #define pir 16
-//#define DHTPIN 2
 #define RELAYPIN 4
 #define TOPBUTTONPIN 5
 
+/*
 // system defines
 #define DHTTYPE  DHT22              // Sensor type DHT11/21/22/AM2301/AM2302
 #define DHTPIN   2              // Digital pin for communications
 #define DHT_SAMPLE_INTERVAL   2100
+*/
 
 // OTHER
 //#define REPORT_INTERVAL 9500 // in msec
@@ -158,26 +158,30 @@ int millisnow;
 //
 int relayIsReady = HIGH;
 
+/*
 //declaration
 void dht_wrapper(); // must be declared before the lib initialization
 
 // Lib instantiate
 PietteTech_DHT DHT(DHTPIN, DHTTYPE, dht_wrapper);
+*/
 
 // globals
-bool bDHTstarted;       // flag to indicate we started acquisition
-int acquireresult;
+//bool bDHTstarted;       // flag to indicate we started acquisition
+//int acquireresult;
 bool bDalasstarted;
-float t, h;
-int _sensor_error_count;
-unsigned long _sensor_report_count;
-unsigned int DHTnextSampleTime;
+//float t, h;
+//int _sensor_error_count;
+//unsigned long _sensor_report_count;
+//unsigned int DHTnextSampleTime;
 
+/*
 // This wrapper is in charge of calling
 // must be defined like this for the lib work
 void dht_wrapper() {
   DHT.isrCallback();
 }
+*/
 
 /////////////
 WiFiClient wifiClient;
@@ -295,7 +299,7 @@ void callback(char* intopic, byte* inpayload, unsigned int length)
 
 void setup()
 {
-  system_update_cpu_freq(SYS_CPU_160MHz);
+  system_update_cpu_freq(SYS_CPU_80MHz);
   if (DEBUG_PRINT) {
     Serial.begin(115200);
   }
@@ -425,6 +429,7 @@ void setup()
 
   ArduinoOTA.begin();
 
+/*
   _sensor_error_count = _sensor_report_count = 0;
   acquireresult = DHT.acquireAndWait(100);
   if (acquireresult != 0) {
@@ -437,6 +442,7 @@ void setup()
     t = h = 0;
   }
   DHTnextSampleTime = 2000;
+*/  
 }
 
 void loop()
@@ -455,6 +461,7 @@ void loop()
         }
       }
     } else {
+      /*
       if (bDHTstarted) {
         if (!DHT.acquiring()) {
           acquireresult = DHT.getStatus();
@@ -468,6 +475,7 @@ void loop()
           bDHTstarted = false;
         }
       }
+      */
 
       if (bDalasstarted) {
         if (millis() > (startMills + (750 / (1 << (12 - TEMPERATURE_PRECISION))))) {
@@ -541,16 +549,20 @@ void loop()
         oldpirValue = pirValue;
       }
 
+      /*
       payload = "{\"Humidity\":";
       payload += h;
       payload += ",\"Temperature\":";
       payload += t;
       payload += ",\"DS18B20\":";
+      */
+      payload = "{\"DS18B20\":";
       payload += tempCoutside;
       payload += ",\"PIRSTATUS\":";
       payload += pirValue;
       payload += ",\"FreeHeap\":";
       payload += ESP.getFreeHeap();
+      /*
       payload += ",\"acquireresult\":";
       payload += acquireresult;
       // to check DHT.acquiring()
@@ -558,6 +570,7 @@ void loop()
       payload += DHT.acquiring();
       payload += ",\"bDHTstarted\":";
       payload += bDHTstarted;
+      */
       payload += ",\"RSSI\":";
       payload += WiFi.RSSI();
       payload += ",\"millis\":";
@@ -684,13 +697,13 @@ void loop()
         sensors.setWaitForConversion(true);
         bDalasstarted = true;
 
+        /*
         if (!bDHTstarted) {
           DHT.acquire();
           bDHTstarted = true;
         }
+        */
       }
-
-
       client.loop();
     }
     ArduinoOTA.handle();
@@ -822,6 +835,7 @@ String macToStr(const uint8_t* mac)
   return result;
 }
 
+/*
 void printEdgeTiming(class PietteTech_DHT *_d) {
   byte n;
 #if defined(DHT_DEBUG_TIMING)
@@ -861,6 +875,7 @@ void printEdgeTiming(class PietteTech_DHT *_d) {
 
   sendUdpmsg(udppayload);
 }
+*/
 
 /*-------- NTP code ----------*/
 const int NTP_PACKET_SIZE = 48;
