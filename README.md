@@ -53,8 +53,8 @@
 
 #### _02-mqtt-sw ####
 - esp-12 + nrf24l01p
-- power(5v + 3.3V), fuse(10A + 73°C thermal), 1CH relay, SW(top + lamp), PIR, DS18B20(in + out), DHT22
-- on/off lamp using mqtt, pub temp(inside of box + outside)/humidity/pir
+- power(5v + 3.3V), fuse(10A + 73°C thermal), 1CH relay, SW(top + lamp), PIR, DS18B20(out)
+- on/off lamp using mqtt, pub temp outside/pir
 
 
 #### _03-hx711-scale ####
@@ -65,7 +65,7 @@
 
 #### _04-mqtt-lcd-dust-sensor ####
 - esp-01 +(i2c) nano
-- lcd(i2c), rtc(i2c), level convertor, Sharp dust sensor, IR sned/recv
+- lcd(i2c), rtc(i2c), level convertor, Sharp dust sensor, IR sned/recv, dht22
 - display clock, temp/humidity(mqtt sub), dust
 - control LG_AC using Apple remote
 
