@@ -1,4 +1,4 @@
-// 80M CPU / 4M / 1M SPIFFS / esp-swtemp
+// 160M CPU / 4M / 1M SPIFFS / esp-swtemp
 #include <TimeLib.h>
 #include "nRF24L01.h"
 #include "RF24.h"
@@ -156,8 +156,7 @@ WiFiUDP udp;
 
 long lastReconnectAttempt = 0;
 
-void wifi_connect()
-{
+void wifi_connect() {
   //wifi_set_phy_mode(PHY_MODE_11N);
   //wifi_set_channel(channel);
 
@@ -176,8 +175,7 @@ void wifi_connect()
   }
 }
 
-boolean reconnect()
-{
+boolean reconnect() {
   if (!client.connected()) {
     if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
       client.publish(willTopic, "1", true);
@@ -202,8 +200,7 @@ boolean reconnect()
   return client.connected();
 }
 
-void callback(char* intopic, byte* inpayload, unsigned int length)
-{
+void callback(char* intopic, byte* inpayload, unsigned int length) {
   String receivedtopic = intopic;
   String receivedpayload ;
 
@@ -244,9 +241,8 @@ void callback(char* intopic, byte* inpayload, unsigned int length)
   }
 }
 
-void setup()
-{
-  system_update_cpu_freq(SYS_CPU_80MHz);
+void setup() {
+  system_update_cpu_freq(SYS_CPU_160MHz);
   // wifi_status_led_uninstall();
 
   startMills = timemillis = lastRelayActionmillis = millis();
@@ -361,23 +357,23 @@ void check_radio() {
   radio.whatHappened(tx, fail, rx);  // What happened?
 
   // If data is available, handle it accordingly
-  if ( rx ) {
+  //if ( rx ) {
 
-    if (radio.getDynamicPayloadSize() < 1) {
-      // Corrupt payload has been flushed
-      return;
-    }
-    // from attiny 85 data size is 11
-    // sensor_data data size = 12
-    uint8_t len = radio.getDynamicPayloadSize();
-    // avr 8bit, esp 32bit. esp use 4 byte step.
-    if ( (len + 1 ) != sizeof(sensor_data) ) {
-      radio.read(0, 0);
-      return;
-    }
-    radio.read(&sensor_data, sizeof(sensor_data));
-    radioiswait = true;
+  if (radio.getDynamicPayloadSize() < 1) {
+    // Corrupt payload has been flushed
+    return;
   }
+  // from attiny 85 data size is 11
+  // sensor_data data size = 12
+  uint8_t len = radio.getDynamicPayloadSize();
+  // avr 8bit, esp 32bit. esp use 4 byte step.
+  if ( (len + 1 ) != sizeof(sensor_data) ) {
+    radio.read(0, 0);
+    return;
+  }
+  radio.read(&sensor_data, sizeof(sensor_data));
+  radioiswait = true;
+  //}
 }
 
 void radio_publish() {
@@ -697,8 +693,7 @@ void loop() {
   }
 }
 
-void runTimerDoLightOff()
-{
+void runTimerDoLightOff() {
   if (( relaystatus == HIGH ) && ( hour() == 6 ) && ( minute() == 00 ) && ( second() < 5 ))
   {
     if (INFO_PRINT) {
@@ -710,8 +705,7 @@ void runTimerDoLightOff()
   }
 }
 
-void changelight()
-{
+void changelight() {
   if (INFO_PRINT) {
     syslogPayload = "checking => relaystatus => change light ";
     syslogPayload += relaystatus;
@@ -733,8 +727,7 @@ void changelight()
   //relayIsReady = LOW;
 }
 
-void sendmqttMsg(char* topictosend, String payload)
-{
+void sendmqttMsg(char* topictosend, String payload) {
   unsigned int msg_length = payload.length();
 
   byte* p = (byte*)malloc(msg_length);
@@ -762,8 +755,7 @@ void sendmqttMsg(char* topictosend, String payload)
   client.loop();
 }
 
-void run_lightcmd()
-{
+void run_lightcmd() {
   if ( relayIsReady == HIGH  ) {
     relaystatus = !relaystatus;
   }
@@ -771,8 +763,7 @@ void run_lightcmd()
 
 // pin 16 can't be used for Interrupts
 
-void sendUdpSyslog(String msgtosend)
-{
+void sendUdpSyslog(String msgtosend) {
   unsigned int msg_length = msgtosend.length();
   byte* p = (byte*)malloc(msg_length);
   memcpy(p, (char*) msgtosend.c_str(), msg_length);
@@ -784,8 +775,7 @@ void sendUdpSyslog(String msgtosend)
   free(p);
 }
 
-void sendUdpmsg(String msgtosend)
-{
+void sendUdpmsg(String msgtosend) {
   unsigned int msg_length = msgtosend.length();
   byte* p = (byte*)malloc(msg_length);
   memcpy(p, (char*) msgtosend.c_str(), msg_length);
@@ -796,8 +786,7 @@ void sendUdpmsg(String msgtosend)
   free(p);
 }
 
-String macToStr(const uint8_t* mac)
-{
+String macToStr(const uint8_t* mac) {
   String result;
   for (int i = 0; i < 6; ++i) {
     result += String(mac[i], 16);
@@ -811,8 +800,7 @@ String macToStr(const uint8_t* mac)
 const int NTP_PACKET_SIZE = 48;
 byte packetBuffer[NTP_PACKET_SIZE];
 
-time_t getNtpTime()
-{
+time_t getNtpTime() {
   while (udp.parsePacket() > 0) ;
   sendNTPpacket(time_server);
   delay(3000);
@@ -832,8 +820,7 @@ time_t getNtpTime()
   return 0;
 }
 
-void sendNTPpacket(IPAddress & address)
-{
+void sendNTPpacket(IPAddress & address) {
   memset(packetBuffer, 0, NTP_PACKET_SIZE);
   packetBuffer[0] = 0b11100011;
   packetBuffer[1] = 0;
@@ -849,8 +836,7 @@ void sendNTPpacket(IPAddress & address)
 }
 
 
-long DateToMjd (uint16_t y, uint8_t m, uint8_t d)
-{
+long DateToMjd (uint16_t y, uint8_t m, uint8_t d) {
   return
     367 * y
     - 7 * (y + (m + 9) / 12) / 4
@@ -861,10 +847,8 @@ long DateToMjd (uint16_t y, uint8_t m, uint8_t d)
     - 2400000;
 }
 
-static unsigned long  numberOfSecondsSinceEpochUTC(uint16_t y, uint8_t m, uint8_t d, uint8_t h, uint8_t mm, uint8_t s)
-{
+static unsigned long  numberOfSecondsSinceEpochUTC(uint16_t y, uint8_t m, uint8_t d, uint8_t h, uint8_t mm, uint8_t s) {
   long Days;
-
   Days = DateToMjd(y, m, d) - DateToMjd(1970, 1, 1);
   return (uint16_t)Days * 86400 + h * 3600L + mm * 60L + s - (timeZone * SECS_PER_HOUR);
 }
