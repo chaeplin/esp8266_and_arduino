@@ -30,7 +30,7 @@
 ### Library ###
 - https://github.com/knolleary/pubsubclient
 - https://github.com/milesburton/Arduino-Temperature-Control-Library
-- https://github.com/adafruit/DHT-sensor-library
+- https://github.com/chaeplin/PietteTech_DHT-8266
 - https://github.com/bogde/HX711
 - https://github.com/Makuna/Rtc
 - LiquidCrystal_I2C.h

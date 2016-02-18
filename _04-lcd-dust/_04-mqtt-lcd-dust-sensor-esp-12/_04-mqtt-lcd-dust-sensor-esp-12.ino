@@ -312,48 +312,8 @@ void check_SquareWaveCount() {
   SquareWaveCount++;
 }
 
-void lcdInitialize() {
-  lcd.createChar(1, termometru);
-  lcd.createChar(2, picatura);
-  lcd.createChar(3, dustDensityicon);
-  lcd.createChar(4, dustDensityfill);
-  lcd.createChar(5, pirfill);
-  lcd.createChar(6, powericon);
-  lcd.createChar(7, nemoicon);
-
-  lcd.setCursor(0, 1);
-  lcd.write(1);
-
-  lcd.setCursor(0, 2);
-  lcd.write(2);
-
-  lcd.setCursor(8, 2);  // power
-  lcd.write(6);
-
-  lcd.setCursor(0, 3);  // nemo
-  lcd.write(7);
-
-  lcd.setCursor(8, 3); // dust
-  lcd.write(3);
-
-  //
-
-  lcd.setCursor(6, 1);
-  lcd.print((char)223);
-
-  lcd.setCursor(12, 1);
-  lcd.print((char)223);
-
-  lcd.setCursor(6, 2);
-  lcd.print("%");
-}
-
 void setup() {
   delay(20);
-
-  lcd.init();
-  lcd.backlight();
-  lcd.clear();
 
   system_update_cpu_freq(SYS_CPU_80MHz);
   startMills = sentMills = millis();
@@ -393,7 +353,43 @@ void setup() {
   }
 
   // lcd
-  lcdInitialize();
+  lcd.init();
+  lcd.backlight();
+  lcd.clear();
+
+  lcd.createChar(1, termometru);
+  lcd.createChar(2, picatura);
+  lcd.createChar(3, dustDensityicon);
+  lcd.createChar(4, dustDensityfill);
+  lcd.createChar(5, pirfill);
+  lcd.createChar(6, powericon);
+  lcd.createChar(7, nemoicon);
+
+  lcd.setCursor(0, 1);
+  lcd.write(1);
+
+  lcd.setCursor(0, 2);
+  lcd.write(2);
+
+  lcd.setCursor(8, 2);  // power
+  lcd.write(6);
+
+  lcd.setCursor(0, 3);  // nemo
+  lcd.write(7);
+
+  lcd.setCursor(8, 3); // dust
+  lcd.write(3);
+
+  //
+
+  lcd.setCursor(6, 1);
+  lcd.print((char)223);
+
+  lcd.setCursor(12, 1);
+  lcd.print((char)223);
+
+  lcd.setCursor(6, 2);
+  lcd.print("%");
 
   //OTA
   // Port defaults to 8266
@@ -729,9 +725,7 @@ void displayTemperature() {
     lcd.print(" ");
     lcd.print(H, 1);
   }
-
 }
-
 
 void displaydustDensity() {
   int n = int(dustDensity / 0.05) ;
