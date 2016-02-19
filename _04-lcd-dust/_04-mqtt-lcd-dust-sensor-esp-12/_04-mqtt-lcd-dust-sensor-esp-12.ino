@@ -10,7 +10,7 @@
 #include <Wire.h>
 #include <PubSubClient.h>
 #include "PietteTech_DHT.h"
-#include <RtcDS1307.h>
+//#include <RtcDS1307.h>
 
 #define REPORT_INTERVAL 5000 // in msec
 
@@ -68,11 +68,13 @@ IPAddress time_server = MQTT_SERVER;
 #define DEBUG_PRINT 1
 
 // rtc
+/*
 #define SquareWavePin 1
 volatile unsigned long SquareWaveCount;
 unsigned long old_SquareWaveCount;
 
 RtcDS1307 Rtc;
+*/
 
 //---------
 char* topic = "esp8266/arduino/s03";
@@ -132,8 +134,8 @@ byte powericon[8]       = { B11111, B11011, B10001, B11011, B11111, B11000, B110
 byte nemoicon[8]        = { B11011, B11011, B00100, B11111, B10101, B11111, B01010, B11011, };
 
 // system defines
-#define DHTTYPE  DHT22              // Sensor type DHT11/21/22/AM2301/AM2302
-#define DHTPIN   3              // Digital pin for communications
+#define DHTTYPE  DHT22        // Sensor type DHT11/21/22/AM2301/AM2302
+#define DHTPIN   3            // Digital pin for communications
 #define DHT_SAMPLE_INTERVAL   2100
 
 //declaration
@@ -166,7 +168,6 @@ void callback(char* intopic, byte* inpayload, unsigned int length) {
   for (int i = 0; i < length; i++) {
     receivedpayload += (char)inpayload[i];
   }
-
   parseMqttMsg(receivedpayload, receivedtopic);
 }
 
@@ -244,7 +245,6 @@ void parseMqttMsg(String receivedpayload, String receivedtopic) {
       rsptot = atoi(temprsptot);
     }
   }
-
   msgcallback = !msgcallback;
 }
 
@@ -308,9 +308,11 @@ boolean reconnect() {
   return client.connected();
 }
 
+/*
 void check_SquareWaveCount() {
   SquareWaveCount++;
 }
+*/
 
 void setup() {
   delay(20);
@@ -319,18 +321,23 @@ void setup() {
   startMills = sentMills = millis();
   Wire.begin(0, 2);
 
-  T2 =  OT = PW = NW =  dustDensity = SquareWaveCount = old_SquareWaveCount = 0 ;
+//T2 =  OT = PW = NW =  dustDensity = SquareWaveCount = old_SquareWaveCount = 0 ;
+  T2 =  OT = PW = NW =  dustDensity = 0 ;
   PIR = HO = HL = moisture = unihost = rsphost = unitot = rsptot = 0;
   msgcallback = false;
 
+/*
   Rtc.Begin();
   Rtc.SetIsRunning(true);
   Rtc.SetSquareWavePin(DS1307SquareWaveOut_1Hz);
+*/
 
   lastReconnectAttempt = 0;
 
+/*
   pinMode(SquareWavePin, INPUT_PULLUP);
   attachInterrupt(SquareWavePin, check_SquareWaveCount, FALLING);
+*/
 
   getResetInfo = "hello from ESP8266 s03 ";
   getResetInfo += ESP.getResetInfo().substring(0, 30);
@@ -456,10 +463,12 @@ void loop() {
         }
       }
     } else {
+      /*
       if ( SquareWaveCount > old_SquareWaveCount ) {
         printSquareWaveCount();
         old_SquareWaveCount = SquareWaveCount;
       }
+      */
 
       if (bDHTstarted) {
         if (!DHT.acquiring()) {
@@ -510,17 +519,20 @@ void loop() {
         payload += H;
         payload += ",\"Temperature\":";
         payload += T1;
+        /*
         payload += ",\"SquareWaveCount\":";
         payload += SquareWaveCount;
+        */
+        // to check DHT.acquiring()
         payload += ",\"acquireresult\":";
         payload += acquireresult;
-        // to check DHT.acquiring()
         payload += ",\"acquirestatus\":";
         payload += DHT.acquiring();
         payload += ",\"bDHTstarted\":";
         payload += bDHTstarted;
         payload += ",\"FreeHeap\":";
         payload += ESP.getFreeHeap();
+        //
         payload += ",\"RSSI\":";
         payload += WiFi.RSSI();
         payload += ",\"millis\":";
@@ -566,6 +578,7 @@ void sendUdpmsg(String msgtosend) {
   free(p);
 }
 
+/*
 void printSquareWaveCount() {
   String udppayload = "SquareWave,device=esp-1 ";
   udppayload += " SquareWaveCount=";
@@ -574,6 +587,7 @@ void printSquareWaveCount() {
 
   sendUdpmsg(udppayload);
 }
+*/
 
 void printEdgeTiming(class PietteTech_DHT *_d) {
   byte n;
