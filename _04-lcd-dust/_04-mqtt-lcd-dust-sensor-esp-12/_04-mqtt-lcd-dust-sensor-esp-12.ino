@@ -12,7 +12,7 @@
 #include "PietteTech_DHT.h"
 #include <RtcDS1307.h>
 
-#define REPORT_INTERVAL 3000 // in msec
+#define REPORT_INTERVAL 5000 // in msec
 
 #define SYS_CPU_80MHz 80
 #define SYS_CPU_160MHz 160
@@ -640,8 +640,7 @@ void displaysleepmode(int sleepmode) {
   }
 }
 
-void displaypowerAvg(float Power)
-{
+void displaypowerAvg(float Power) {
   String str_Power = String(int(Power));
   int length_Power = str_Power.length();
 
@@ -653,8 +652,7 @@ void displaypowerAvg(float Power)
 
 }
 
-void displayNemoWeight(int nemoWeight)
-{
+void displayNemoWeight(int nemoWeight) {
   String str_nemoWeight = String(nemoWeight);
   int length_nemoWeight = str_nemoWeight.length();
 
