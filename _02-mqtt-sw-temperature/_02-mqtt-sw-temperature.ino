@@ -1,4 +1,4 @@
-// 160M CPU / 4M / 1M SPIFFS / esp-swtemp
+// 80M CPU / 4M / 1M SPIFFS / esp-swtemp
 #include <TimeLib.h>
 #include "nRF24L01.h"
 #include "RF24.h"
@@ -29,7 +29,7 @@ extern "C" {
 #include "ap_setting.h"
 #endif
 
-#define INFO_PRINT 0
+#define INFO_PRINT 1
 #define DEBUG_PRINT 1
 
 // ****************
@@ -242,7 +242,7 @@ void callback(char* intopic, byte* inpayload, unsigned int length) {
 }
 
 void setup() {
-  system_update_cpu_freq(SYS_CPU_160MHz);
+  system_update_cpu_freq(SYS_CPU_80MHz);
   // wifi_status_led_uninstall();
 
   startMills = timemillis = lastRelayActionmillis = millis();
@@ -298,6 +298,7 @@ void setup() {
   sensors.setResolution(outsideThermometer, TEMPERATURE_PRECISION);
   sensors.requestTemperatures();
   tempCoutside = sensors.getTempC(outsideThermometer);
+  sensors.setWaitForConversion(false);
 
   if ( isnan(tempCoutside) ) {
     if (INFO_PRINT) {
@@ -470,8 +471,16 @@ void loop() {
 
       if (bDalasstarted) {
         if (millis() > (startMills + (750 / (1 << (12 - TEMPERATURE_PRECISION))))) {
+          unsigned long getTempCstart =  micros();
           tempCoutside  = sensors.getTempC(outsideThermometer);
+          unsigned long getTempCstop =  micros();
           bDalasstarted = false;
+
+          if (DEBUG_PRINT) {
+            syslogPayload = "getTempC delay : ";
+            syslogPayload += (getTempCstop - getTempCstart) ;
+            sendUdpSyslog(syslogPayload);
+          }
         }
       }
 
@@ -562,128 +571,23 @@ void loop() {
         //startMills = millis();
       }
 
-      /*
-        // radio
-        if (radio.available()) {
-        // from attiny 85 data size is 11
-        // sensor_data data size = 12
-        uint8_t len = radio.getDynamicPayloadSize();
-
-        if (DEBUG_PRINT) {
-          sendUdpSyslog(" ****** getDynamicPayloadSize ======>  : ");
-          sendUdpSyslog(String(digitalRead(2)));
-          sendUdpSyslog(String(len));
-        }
-
-        // avr 8bit, esp 32bit. esp use 4 byte step.
-        if ( (len + 1 ) != sizeof(sensor_data) ) {
-          if (INFO_PRINT) {
-            sendUdpSyslog(" ****** radio ======> len : ");
-            sendUdpSyslog(String(len));
-            sendUdpSyslog(" : ");
-            sendUdpSyslog(String(sizeof(sensor_data)));
-          }
-          radio.read(0, 0);
-          return;
-        }
-        radio.read(&sensor_data, sizeof(sensor_data));
-
-
-        if (INFO_PRINT) {
-          sendUdpSyslog(" ****** radio ======> size : ");
-          sendUdpSyslog(String(sizeof(sensor_data)));
-          sendUdpSyslog(" _salt : ");
-          sendUdpSyslog(String(sensor_data._salt));
-          sendUdpSyslog(" volt : ");
-          sendUdpSyslog(String(sensor_data.volt));
-          sendUdpSyslog(" data1 : ");
-          sendUdpSyslog(String(sensor_data.data1));
-          sendUdpSyslog(" data2 : ");
-          sendUdpSyslog(String(sensor_data.data2));
-          sendUdpSyslog(" dev_id :");
-          sendUdpSyslog(String(sensor_data.devid));
-        }
-
-        if ( sensor_data.devid != 15 ) {
-
-          String radiopayload = "{\"_salt\":";
-          radiopayload += sensor_data._salt;
-          radiopayload += ",\"volt\":";
-          radiopayload += sensor_data.volt;
-
-          radiopayload += ",\"data1\":";
-          if ( sensor_data.data1 == 0 ) {
-            radiopayload += 0;
-          } else {
-            radiopayload += ((float)sensor_data.data1 / 10);
-          }
-
-          radiopayload += ",\"data2\":";
-          if ( sensor_data.data2 == 0 ) {
-            radiopayload += 0;
-          } else {
-            radiopayload += ((float)sensor_data.data2 / 10);
-          }
-
-          radiopayload += ",\"devid\":";
-          radiopayload += sensor_data.devid;
-          radiopayload += "}";
-
-          if ( (sensor_data.devid > 0) && (sensor_data.devid < 255) )
-          {
-            String newRadiotopic = radiotopic;
-            newRadiotopic += "/";
-            newRadiotopic += sensor_data.devid;
-
-            unsigned int newRadiotopic_length = newRadiotopic.length();
-            char newRadiotopictosend[newRadiotopic_length] ;
-            newRadiotopic.toCharArray(newRadiotopictosend, newRadiotopic_length + 1);
-            sendmqttMsg(newRadiotopictosend, radiopayload);
-          } else {
-            sendmqttMsg(radiofault, radiopayload);
-          }
-        } else {
-          if (timeStatus() != timeNotSet) {
-            timestamp = numberOfSecondsSinceEpochUTC(year(), month(), day(), hour(), minute(), second());
-            millisnow = millisecond();
-            //}
-
-            if ( sensor_data.data1 < 0 ) {
-              sensor_data.data1 = 0;
-            }
-
-            String udppayload = "current,test=current,measureno=";
-            udppayload += sensor_data._salt;
-            udppayload += " devid=";
-            udppayload += sensor_data.devid;
-            udppayload += "i,volt=";
-            udppayload += sensor_data.volt;
-            udppayload += "i,ampere=";
-
-            uint32_t ampere_temp;
-            ampere_temp = sensor_data.data1 * ampereunit[sensor_data.data2];
-            udppayload += ampere_temp;
-            udppayload += " ";
-            udppayload += timestamp;
-
-            char buf[3];
-            sprintf(buf, "%03d", millisnow);
-            udppayload += buf;
-            udppayload += "000000";
-            sendUdpmsg(udppayload);
-          }
-        }
-        }
-      */
-
       if ((millis() - startMills) > REPORT_INTERVAL )
       {
         sendmqttMsg(topic, payload);
-        sensors.setWaitForConversion(false);
+
+        unsigned long requestTemperaturesstart =  micros();
+        //sensors.setWaitForConversion(false);
         sensors.requestTemperatures();
-        sensors.setWaitForConversion(true);
+        //sensors.setWaitForConversion(true);
+        unsigned long requestTemperaturesstop =  micros();
         bDalasstarted = true;
         startMills = millis();
+
+        if (DEBUG_PRINT) {
+          syslogPayload = "requestTemperatures delay : ";
+          syslogPayload += (requestTemperaturesstop - requestTemperaturesstart) ;
+          sendUdpSyslog(syslogPayload);
+        }
       }
       client.loop();
     }
