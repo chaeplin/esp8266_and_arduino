@@ -1,4 +1,4 @@
-// 80M CPU / 4M / 1M SPIFFS / esp-swtemp
+// 160M CPU / 4M / 1M SPIFFS / esp-swtemp
 #include <TimeLib.h>
 #include "nRF24L01.h"
 #include "RF24.h"
@@ -242,7 +242,7 @@ void callback(char* intopic, byte* inpayload, unsigned int length) {
 }
 
 void setup() {
-  system_update_cpu_freq(SYS_CPU_80MHz);
+  system_update_cpu_freq(SYS_CPU_160MHz);
   // wifi_status_led_uninstall();
 
   startMills = timemillis = lastRelayActionmillis = millis();
@@ -282,6 +282,8 @@ void setup() {
 
   attachInterrupt(5, run_lightcmd, CHANGE);
   attachInterrupt(2, check_radio, FALLING);
+  // ONLOW HAS ERROR
+  //attachInterrupt(2, check_radio, ONLOW);
 
   radioiswait = false;
 
@@ -464,10 +466,12 @@ void loop() {
         }
       }
     } else {
+      
       if (radioiswait) {
         radio_publish();
         radioiswait = false;
       }
+      
 
       if (bDalasstarted) {
         if (millis() > (startMills + (750 / (1 << (12 - TEMPERATURE_PRECISION))))) {
@@ -476,11 +480,13 @@ void loop() {
           unsigned long getTempCstop =  micros();
           bDalasstarted = false;
 
+          /*
           if (DEBUG_PRINT) {
             syslogPayload = "getTempC delay : ";
             syslogPayload += (getTempCstop - getTempCstart) ;
             sendUdpSyslog(syslogPayload);
           }
+          */
         }
       }
 
@@ -583,11 +589,13 @@ void loop() {
         bDalasstarted = true;
         startMills = millis();
 
+        /*
         if (DEBUG_PRINT) {
           syslogPayload = "requestTemperatures delay : ";
           syslogPayload += (requestTemperaturesstop - requestTemperaturesstart) ;
           sendUdpSyslog(syslogPayload);
         }
+        */
       }
       client.loop();
     }
@@ -638,6 +646,7 @@ void sendmqttMsg(char* topictosend, String payload) {
   memcpy(p, (char*) payload.c_str(), msg_length);
 
   if (client.publish(topictosend, p, msg_length, 1)) {
+    /*
     if (INFO_PRINT) {
       syslogPayload = topictosend;
       syslogPayload += " - ";
@@ -645,6 +654,7 @@ void sendmqttMsg(char* topictosend, String payload) {
       syslogPayload += " : Publish ok";
       sendUdpSyslog(syslogPayload);
     }
+    */
     free(p);
   } else {
     if (DEBUG_PRINT) {

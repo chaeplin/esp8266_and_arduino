@@ -10,7 +10,7 @@
 #include <Wire.h>
 #include <PubSubClient.h>
 #include "PietteTech_DHT.h"
-//#include <RtcDS1307.h>
+#include <RtcDS1307.h>
 
 #define REPORT_INTERVAL 5000 // in msec
 
@@ -68,13 +68,12 @@ IPAddress time_server = MQTT_SERVER;
 #define DEBUG_PRINT 1
 
 // rtc
-/*
+
 #define SquareWavePin 1
 volatile unsigned long SquareWaveCount;
 unsigned long old_SquareWaveCount;
 
 RtcDS1307 Rtc;
-*/
 
 //---------
 char* topic = "esp8266/arduino/s03";
@@ -136,7 +135,6 @@ byte nemoicon[8]        = { B11011, B11011, B00100, B11111, B10101, B11111, B010
 // system defines
 #define DHTTYPE  DHT22        // Sensor type DHT11/21/22/AM2301/AM2302
 #define DHTPIN   3            // Digital pin for communications
-#define DHT_SAMPLE_INTERVAL   2100
 
 //declaration
 void dht_wrapper(); // must be declared before the lib initialization
@@ -149,7 +147,6 @@ bool bDHTstarted;       // flag to indicate we started acquisition
 int acquireresult;
 int _sensor_error_count;
 unsigned long _sensor_report_count;
-unsigned int DHTnextSampleTime;
 
 // This wrapper is in charge of calling
 // must be defined like this for the lib work
@@ -308,11 +305,10 @@ boolean reconnect() {
   return client.connected();
 }
 
-/*
+
 void check_SquareWaveCount() {
   SquareWaveCount++;
 }
-*/
 
 void setup() {
   delay(20);
@@ -321,23 +317,22 @@ void setup() {
   startMills = sentMills = millis();
   Wire.begin(0, 2);
 
-//T2 =  OT = PW = NW =  dustDensity = SquareWaveCount = old_SquareWaveCount = 0 ;
-  T2 =  OT = PW = NW =  dustDensity = 0 ;
+  T2 =  OT = PW = NW =  dustDensity = SquareWaveCount = old_SquareWaveCount = 0 ;
+  //T2 =  OT = PW = NW =  dustDensity = 0 ;
   PIR = HO = HL = moisture = unihost = rsphost = unitot = rsptot = 0;
   msgcallback = false;
 
-/*
+
   Rtc.Begin();
   Rtc.SetIsRunning(true);
   Rtc.SetSquareWavePin(DS1307SquareWaveOut_1Hz);
-*/
 
   lastReconnectAttempt = 0;
 
-/*
   pinMode(SquareWavePin, INPUT_PULLUP);
   attachInterrupt(SquareWavePin, check_SquareWaveCount, FALLING);
-*/
+  // call check_SquareWaveCount every loop, so not use ONLOW
+  // attachInterrupt(SquareWavePin, check_SquareWaveCount, ONLOW);
 
   getResetInfo = "hello from ESP8266 s03 ";
   getResetInfo += ESP.getResetInfo().substring(0, 30);
@@ -436,7 +431,6 @@ void setup() {
   } else {
     T1 = H = 0;
   }
-  DHTnextSampleTime = 2000;
 
   if (DEBUG_PRINT) {
     syslogPayload = "------------------> unit started : pin 1 status : ";
@@ -463,12 +457,10 @@ void loop() {
         }
       }
     } else {
-      /*
       if ( SquareWaveCount > old_SquareWaveCount ) {
         printSquareWaveCount();
         old_SquareWaveCount = SquareWaveCount;
       }
-      */
 
       if (bDHTstarted) {
         if (!DHT.acquiring()) {
@@ -519,10 +511,10 @@ void loop() {
         payload += H;
         payload += ",\"Temperature\":";
         payload += T1;
-        /*
+    
         payload += ",\"SquareWaveCount\":";
         payload += SquareWaveCount;
-        */
+        
         // to check DHT.acquiring()
         payload += ",\"acquireresult\":";
         payload += acquireresult;
@@ -536,7 +528,7 @@ void loop() {
         payload += ",\"RSSI\":";
         payload += WiFi.RSSI();
         payload += ",\"millis\":";
-        payload += (millis() - startMills);
+        payload += millis();
         payload += "}";
 
         sendmqttMsg(payload);
@@ -578,7 +570,6 @@ void sendUdpmsg(String msgtosend) {
   free(p);
 }
 
-/*
 void printSquareWaveCount() {
   String udppayload = "SquareWave,device=esp-1 ";
   udppayload += " SquareWaveCount=";
@@ -587,7 +578,6 @@ void printSquareWaveCount() {
 
   sendUdpmsg(udppayload);
 }
-*/
 
 void printEdgeTiming(class PietteTech_DHT *_d) {
   byte n;
