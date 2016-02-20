@@ -21,6 +21,10 @@ extern "C" {
 #include "ap_setting.h"
 #endif
 
+
+#define SYS_CPU_80MHz 80
+#define SYS_CPU_160MHz 160
+
 #define RTC_MAGIC 12345678
 
 typedef struct _tagPoint {
@@ -30,7 +34,8 @@ typedef struct _tagPoint {
 
 RTC_REVCOUNT rtc_mem_revcount;
 
-#define DEBUG_PRINT 0
+#define INFO_PRINT 1
+#define DEBUG_PRINT 1
 
 // ****************
 void sendmqttMsg(char* topictosend, String payloadtosend);
@@ -39,16 +44,18 @@ String macToStr(const uint8_t* mac);
 void IRCHECKING_START();
 void DOORCHECKING();
 void count_powermeter();
+void sendUdpSyslog(String msgtosend);
 
 // ****************
 const char* ssid = WIFI_SSID;
 const char* password = WIFI_PASSWORD;
-byte mqtt_server[] = MQTT_SERVER;
 const char* otapassword = OTA_PASSWORD;
 
 //
+IPAddress influxdbudp = MQTT_SERVER;
+IPAddress mqtt_server = MQTT_SERVER;
 
-// ********** change MQTT_KEEPALIVE to 60 at PubSubClient.h *****************
+//
 EnergyMonitor emon1;
 Average<float> ave(4);
 
@@ -66,7 +73,6 @@ char* subtopic = "esp8266/check";
 #define IRPIN 4
 #define DOORPIN 5
 
-//#define REPORT_INTERVAL 60000 // in msec
 #define REPORT_INTERVAL 1000 // in msec
 
 volatile unsigned long startMills ;
@@ -94,6 +100,7 @@ int olddoorStatus ;
 String clientName ;
 String payload ;
 String doorpayload ;
+String syslogPayload;
 
 // send reset info
 String getResetInfo ;
@@ -102,40 +109,22 @@ int ResetInfo = LOW;
 int average = 0;
 
 WiFiClient wifiClient;
+WiFiUDP udp;
 PubSubClient client(mqtt_server, 1883, callback, wifiClient);
 
 long lastReconnectAttempt = 0;
 long calcIrmsmillis = 0;
 
-void rtc_check()
-{
+void ICACHE_RAM_ATTR rtc_check() {
   // system_rtc_mem_read(64... not work, use > 64
   system_rtc_mem_read(100, &rtc_mem_revcount, sizeof(rtc_mem_revcount));
-  if (DEBUG_PRINT) {
-    Serial.print("=================> rtc mem mgic / salt :  ");
-    Serial.print(rtc_mem_revcount.magic);
-    Serial.print(" / ");
-    Serial.println(rtc_mem_revcount.salt);
-  }
-
   if (rtc_mem_revcount.magic != RTC_MAGIC) {
-    if (DEBUG_PRINT) {
-      Serial.println("===============> rtc mem init...");
-    }
     rtc_mem_revcount.magic = RTC_MAGIC;
     rtc_mem_revcount.salt = 5255;
   }
 }
 
 void wifi_connect() {
-  // WIFI
-  if (DEBUG_PRINT) {
-    Serial.println();
-    Serial.println();
-    Serial.print("Connecting to ");
-    Serial.println(ssid);
-  }
-
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
 
@@ -143,23 +132,10 @@ void wifi_connect() {
   while (WiFi.status() != WL_CONNECTED) {
     delay(100);
     Attempt++;
-    if (DEBUG_PRINT) {
-      Serial.print(".");
-    }
     if (Attempt == 200)
     {
-      if (DEBUG_PRINT) {
-        Serial.println();
-        Serial.println("Could not connect to WIFI");
-      }
       ESP.restart();
     }
-  }
-  if (DEBUG_PRINT) {
-    Serial.println("");
-    Serial.println("WiFi connected");
-    Serial.println("IP address: ");
-    Serial.println(WiFi.localIP());
   }
 }
 
@@ -171,26 +147,25 @@ boolean reconnect() {
       client.publish(hellotopic, (char*) getResetInfo.c_str());
       ResetInfo = HIGH;
     } else {
-      client.publish(hellotopic, "hello again 1 from ESP8266 s07");
+      client.publish(hellotopic, "hello again 1 from esp-power");
     }
     client.subscribe(subtopic);
-    if (DEBUG_PRINT) {
-      Serial.println("---------------> connected");
-    }
+      if (DEBUG_PRINT) {
+        sendUdpSyslog("---> mqttconnected");
+      }
   } else {
-    if (DEBUG_PRINT) {
-      Serial.print("----------------> failed, rc=");
-      Serial.println(client.state());
-    }
+      if (DEBUG_PRINT) {
+        syslogPayload = "failed, rc=";
+        syslogPayload += client.state();
+        sendUdpSyslog(syslogPayload);
+      }
   }
   }
   client.loop();
-  //timemillis = millis();
   return client.connected();
 }
 
-void callback(char* intopic, byte* inpayload, unsigned int length)
-{
+void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int length) {
   String receivedtopic = intopic;
   String receivedpayload ;
 
@@ -198,10 +173,11 @@ void callback(char* intopic, byte* inpayload, unsigned int length)
     receivedpayload += (char)inpayload[i];
   }
 
-  if (DEBUG_PRINT) {
-    Serial.print(intopic);
-    Serial.print(" => ");
-    Serial.println(receivedpayload);
+  if (INFO_PRINT) {
+    syslogPayload = intopic;
+    syslogPayload += " ====> ";
+    syslogPayload += receivedpayload;
+    sendUdpSyslog(syslogPayload);
   }
 
   if ( receivedpayload == "{\"DOOR\":\"CHECKING\"}") {
@@ -220,83 +196,11 @@ void callback(char* intopic, byte* inpayload, unsigned int length)
 }
 
 void setup() {
-  if (DEBUG_PRINT) {
-    Serial.begin(115200);
-  }
+  system_update_cpu_freq(SYS_CPU_80MHz);
   delay(20);
 
   rtc_check();
 
-  if (DEBUG_PRINT) {
-    Serial.println("power meter test!");
-
-    Serial.print("ESP.getChipId() : ");
-    Serial.println(ESP.getChipId());
-
-    Serial.print("ESP.getFlashChipId() : ");
-    Serial.println(ESP.getFlashChipId());
-
-    Serial.print("ESP.getFlashChipSize() : ");
-    Serial.println(ESP.getFlashChipSize());
-  }
-
-  delay(5000);
-  wifi_connect();
-
-  clientName += "esp8266-";
-  uint8_t mac[6];
-  WiFi.macAddress(mac);
-  clientName += macToStr(mac);
-  clientName += "-";
-  clientName += String(micros() & 0xff, 16);
-
-  lastReconnectAttempt = 0;
-  revCounts = rtc_mem_revcount.salt ;
-
-  getResetInfo = "hello from ESP8266 s07 ";
-  getResetInfo += ESP.getResetInfo().substring(0, 30);
-
-  startMills = millis();
-  sentMills = millis();
-  timemillis = millis();
-  revMills  = 0 ;
-  revValue  = 0 ;
-  oldrevMills = 0 ;
-  oldrevValue = 0 ;
-
-
-  //OTA
-  // Port defaults to 8266
-  //ArduinoOTA.setPort(8266);
-
-  // Hostname defaults to esp8266-[ChipID]
-  ArduinoOTA.setHostname("esp-power");
-
-
-  // No authentication by default
-  ArduinoOTA.setPassword(otapassword);
-
-  ArduinoOTA.onStart([]() {
-    //Serial.println("Start");
-  });
-  ArduinoOTA.onEnd([]() {
-    //Serial.println("\nEnd");
-  });
-  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
-    //Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
-  });
-  ArduinoOTA.onError([](ota_error_t error) {
-    //ESP.restart();
-    /*
-      if (error == OTA_AUTH_ERROR) abort();
-      else if (error == OTA_BEGIN_ERROR) abort();
-      else if (error == OTA_CONNECT_ERROR) abort();
-      else if (error == OTA_RECEIVE_ERROR) abort();
-      else if (error == OTA_END_ERROR) abort();
-    */
-  });
-
-  ArduinoOTA.begin();
 
   pinMode(IRPIN, INPUT_PULLUP);
   pinMode(DOORPIN, INPUT_PULLUP);
@@ -307,6 +211,53 @@ void setup() {
   attachInterrupt(4, IRCHECKING_START, RISING);
   attachInterrupt(5, DOORCHECKING, CHANGE);
 
+  wifi_connect();
+
+  lastReconnectAttempt = 0;
+  revCounts = rtc_mem_revcount.salt ;
+
+  getResetInfo = "hello from ESP8266 s07 ";
+  getResetInfo += ESP.getResetInfo().substring(0, 30);
+
+  startMills = sentMills = timemillis = millis();
+  revMills  = revValue = oldrevMills = oldrevValue = 0 ;
+
+
+  clientName += "esp8266-";
+  uint8_t mac[6];
+  WiFi.macAddress(mac);
+  clientName += macToStr(mac);
+  clientName += "-";
+  clientName += String(micros() & 0xff, 16);
+
+
+  //OTA
+  ArduinoOTA.setPort(8266);
+  ArduinoOTA.setHostname("esp-power");
+  ArduinoOTA.setPassword(otapassword);
+  ArduinoOTA.onStart([]() {
+    sendUdpSyslog("ArduinoOTA Start");
+  });
+  ArduinoOTA.onEnd([]() {
+    sendUdpSyslog("ArduinoOTA End");
+  });
+  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+    syslogPayload = "Progress: ";
+    syslogPayload += (progress / (total / 100));
+    sendUdpSyslog(syslogPayload);
+  });
+  ArduinoOTA.onError([](ota_error_t error) {
+    //ESP.restart();
+    if (error == OTA_AUTH_ERROR) abort();
+    else if (error == OTA_BEGIN_ERROR) abort();
+    else if (error == OTA_CONNECT_ERROR) abort();
+    else if (error == OTA_RECEIVE_ERROR) abort();
+    else if (error == OTA_END_ERROR) abort();
+
+  });
+
+  ArduinoOTA.begin();
+
   //emon1.current(A0, 60.6);
   emon1.current(A0, 85);
   oldirStatus = LOW ;
@@ -316,20 +267,20 @@ void DOORCHECKING() {
   doorStatus = digitalRead(DOORPIN);
 }
 
-void IRCHECKING_START() {
+void ICACHE_RAM_ATTR IRCHECKING_START() {
   detachInterrupt(4);
   attachInterrupt(4, count_powermeter, RISING);
   startMills = millis();
   oldirStatus = HIGH ;
 }
 
-void loop()
-{
+void loop() {
   if (WiFi.status() == WL_CONNECTED) {
     if (!client.connected()) {
       if (DEBUG_PRINT) {
-        Serial.print("------------> failed, rc=");
-        Serial.print(client.state());
+        syslogPayload = "failed, rc= ";
+        syslogPayload += client.state();
+        sendUdpSyslog(syslogPayload);
       }
       unsigned long now = millis();
       if (now - lastReconnectAttempt > 200) {
@@ -408,18 +359,21 @@ void loop()
         rtc_mem_revcount.salt = revCounts;
         if (system_rtc_mem_write(100, &rtc_mem_revcount, sizeof(rtc_mem_revcount))) {
           if (DEBUG_PRINT) {
-            Serial.println("rtc mem write is ok");
+            //
           }
         } else {
           if (DEBUG_PRINT) {
-            Serial.println("rtc mem write is fail");
+            sendUdpSyslog("rtc mem write is fail");
           }
         }
+
         sendmqttMsg(topic, payload);
+
         sentMills = millis();
         oldirStatus = irStatus ;
         oldrevValue = revValue ;
         oldrevMills = revMills ;
+
       }
       client.loop();
     }
@@ -429,39 +383,50 @@ void loop()
   }
 }
 
-void sendmqttMsg(char* topictosend, String payloadtosend)
-{
+void ICACHE_RAM_ATTR sendUdpSyslog(String msgtosend) {
+  unsigned int msg_length = msgtosend.length();
+  byte* p = (byte*)malloc(msg_length);
+  memcpy(p, (char*) msgtosend.c_str(), msg_length);
 
-  if (client.connected()) {
-    if (DEBUG_PRINT) {
-      Serial.print("Sending payload: ");
-      Serial.print(payloadtosend);
-    }
-    unsigned int msg_length = payloadtosend.length();
-    if (DEBUG_PRINT) {
-      Serial.print(" length: ");
-      Serial.println(msg_length);
-    }
-    byte* p = (byte*)malloc(msg_length);
-    memcpy(p, (char*) payloadtosend.c_str(), msg_length);
+  udp.beginPacket(influxdbudp, 514);
+  udp.write("mqtt-power: ");
+  udp.write(p, msg_length);
+  udp.endPacket();
+  free(p);
+}
 
-    if ( client.publish(topictosend, p, msg_length, 1)) {
-      if (DEBUG_PRINT) {
-        Serial.println("Publish ok");
-      }
-      free(p);
-    } else {
-      if (DEBUG_PRINT) {
-        Serial.println("Publish failed");
-      }
-      free(p);
+void ICACHE_RAM_ATTR sendmqttMsg(char* topictosend, String payload) {
+  unsigned int msg_length = payload.length();
+
+  byte* p = (byte*)malloc(msg_length);
+  memcpy(p, (char*) payload.c_str(), msg_length);
+
+  if (client.publish(topictosend, p, msg_length, 1)) {
+    /*
+    if (INFO_PRINT) {
+      syslogPayload = topictosend;
+      syslogPayload += " - ";
+      syslogPayload += payload;
+      syslogPayload += " : Publish ok";
+      sendUdpSyslog(syslogPayload);
     }
+    */
+    free(p);
+  } else {
+    if (DEBUG_PRINT) {
+      syslogPayload = topictosend;
+      syslogPayload += " - ";
+      syslogPayload += payload;
+      syslogPayload += " : Publish fail";
+      sendUdpSyslog(syslogPayload);
+    }
+    free(p);
   }
+  client.loop();
 }
 
 
-void count_powermeter()
-{
+void ICACHE_RAM_ATTR count_powermeter() {
   // 600 rev/kWh --> 1 rev 6 sec 1kW
   // max A : 40
   // 220 V * 45A = 9900,

@@ -200,7 +200,7 @@ boolean reconnect() {
   return client.connected();
 }
 
-void callback(char* intopic, byte* inpayload, unsigned int length) {
+void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int length) {
   String receivedtopic = intopic;
   String receivedpayload ;
 
@@ -355,7 +355,7 @@ void setup() {
   }
 }
 
-void check_radio() {
+void ICACHE_RAM_ATTR check_radio() {
   bool tx, fail, rx;
   radio.whatHappened(tx, fail, rx);  // What happened?
 
@@ -379,7 +379,7 @@ void check_radio() {
   //}
 }
 
-void radio_publish() {
+void ICACHE_RAM_ATTR radio_publish() {
   if ( sensor_data.devid != 15 ) {
 
     String radiopayload = "{\"_salt\":";
@@ -639,7 +639,7 @@ void changelight() {
   //relayIsReady = LOW;
 }
 
-void sendmqttMsg(char* topictosend, String payload) {
+void ICACHE_RAM_ATTR sendmqttMsg(char* topictosend, String payload) {
   unsigned int msg_length = payload.length();
 
   byte* p = (byte*)malloc(msg_length);
@@ -677,7 +677,7 @@ void run_lightcmd() {
 
 // pin 16 can't be used for Interrupts
 
-void sendUdpSyslog(String msgtosend) {
+void ICACHE_RAM_ATTR sendUdpSyslog(String msgtosend) {
   unsigned int msg_length = msgtosend.length();
   byte* p = (byte*)malloc(msg_length);
   memcpy(p, (char*) msgtosend.c_str(), msg_length);
@@ -689,7 +689,7 @@ void sendUdpSyslog(String msgtosend) {
   free(p);
 }
 
-void sendUdpmsg(String msgtosend) {
+void ICACHE_RAM_ATTR sendUdpmsg(String msgtosend) {
   unsigned int msg_length = msgtosend.length();
   byte* p = (byte*)malloc(msg_length);
   memcpy(p, (char*) msgtosend.c_str(), msg_length);
