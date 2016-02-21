@@ -10,9 +10,11 @@
 #include <Wire.h>
 #include <PubSubClient.h>
 #include "PietteTech_DHT.h"
-#include <RtcDS1307.h>
+/* rtc
+  #include <RtcDS1307.h>
+*/
 
-#define REPORT_INTERVAL 5000 // in msec
+#define REPORT_INTERVAL 3000 // in msec
 
 #define SYS_CPU_80MHz 80
 #define SYS_CPU_160MHz 160
@@ -65,7 +67,7 @@ IPAddress time_server = MQTT_SERVER;
 
 //
 #define INFO_PRINT 0
-#define DEBUG_PRINT 1
+#define DEBUG_PRINT 0
 
 // rtc
 
@@ -73,7 +75,9 @@ IPAddress time_server = MQTT_SERVER;
 volatile unsigned long SquareWaveCount;
 unsigned long old_SquareWaveCount;
 
-RtcDS1307 Rtc;
+/* rtc
+  RtcDS1307 Rtc;
+*/
 
 //---------
 char* topic = "esp8266/arduino/s03";
@@ -137,7 +141,7 @@ byte nemoicon[8]        = { B11011, B11011, B00100, B11111, B10101, B11111, B010
 #define DHTPIN   3            // Digital pin for communications
 
 //declaration
-void ICACHE_RAM_ATTR dht_wrapper(); // must be declared before the lib initialization
+void  dht_wrapper(); // must be declared before the lib initialization
 
 // Lib instantiate
 PietteTech_DHT DHT(DHTPIN, DHTTYPE, dht_wrapper);
@@ -145,16 +149,17 @@ PietteTech_DHT DHT(DHTPIN, DHTTYPE, dht_wrapper);
 // globals
 bool bDHTstarted;       // flag to indicate we started acquisition
 int acquireresult;
+int acquirestatus;
 int _sensor_error_count;
 unsigned long _sensor_report_count;
 
 // This wrapper is in charge of calling
 // must be defined like this for the lib work
-void ICACHE_RAM_ATTR dht_wrapper() {
+void  dht_wrapper() {
   DHT.isrCallback();
 }
 
-void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int length) {
+void  callback(char* intopic, byte* inpayload, unsigned int length) {
   String receivedtopic = intopic;
   String receivedpayload ;
 
@@ -168,7 +173,7 @@ void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int lengt
   parseMqttMsg(receivedpayload, receivedtopic);
 }
 
-void ICACHE_RAM_ATTR parseMqttMsg(String receivedpayload, String receivedtopic) {
+void  parseMqttMsg(String receivedpayload, String receivedtopic) {
   //char json[] = "{\"VIrms\":595,\"revValue\":718.56,\"revMills\":8350,\"powerAvg\":656.78,\"Stddev\":66.70,\"calcIrmsmillis\":153,\"revCounts\":126,\"FreeHeap\":46336,\"RSSI\":-61,\"millis\":1076571}";
   char json[] = "{\"Humidity\":43.90,\"Temperature\":22.00,\"DS18B20\":22.00,\"PIRSTATUS\":0,\"FreeHeap\":43552,\"acquireresult\":0,\"acquirestatus\":0,\"DHTnextSampleTime\":2121587,\"bDHTstarted\":0,\"RSSI\":-48,\"millis\":2117963}";
 
@@ -306,13 +311,14 @@ boolean reconnect() {
 }
 
 
-void ICACHE_RAM_ATTR check_SquareWaveCount() {
+void  check_SquareWaveCount() {
   SquareWaveCount++;
 }
 
 void setup() {
   delay(20);
 
+  Serial.swap();
   system_update_cpu_freq(SYS_CPU_80MHz);
   startMills = sentMills = millis();
   Wire.begin(0, 2);
@@ -320,17 +326,33 @@ void setup() {
   T2 =  OT = PW = NW =  dustDensity = SquareWaveCount = old_SquareWaveCount = 0 ;
   //T2 =  OT = PW = NW =  dustDensity = 0 ;
   PIR = HO = HL = moisture = unihost = rsphost = unitot = rsptot = 0;
+  acquirestatus = 0;
   msgcallback = false;
 
 
-  Rtc.Begin();
-  Rtc.SetIsRunning(true);
-  Rtc.SetSquareWavePin(DS1307SquareWaveOut_1Hz);
+  /*
+    enum DS1307SquareWaveOut
+    {
+    DS1307SquareWaveOut_1Hz  =  0b00010000,
+    DS1307SquareWaveOut_4kHz =  0b00010001,
+    DS1307SquareWaveOut_8kHz =  0b00010010,
+    DS1307SquareWaveOut_32kHz = 0b00010011,
+    DS1307SquareWaveOut_High =  0b10000000,
+    DS1307SquareWaveOut_Low =   0b00000000,
+    };
+  */
+  /* rtc
+    Rtc.Begin();
+    Rtc.SetIsRunning(true);
+    Rtc.SetSquareWavePin(DS1307SquareWaveOut_1Hz);
+  */
 
   lastReconnectAttempt = 0;
 
   pinMode(SquareWavePin, INPUT_PULLUP);
-  attachInterrupt(SquareWavePin, check_SquareWaveCount, FALLING);
+  /* rtc
+    attachInterrupt(SquareWavePin, check_SquareWaveCount, FALLING);
+  */
   // call check_SquareWaveCount every loop, so not use ONLOW
   // attachInterrupt(SquareWavePin, check_SquareWaveCount, ONLOW);
 
@@ -457,13 +479,16 @@ void loop() {
         }
       }
     } else {
-      if ( SquareWaveCount > old_SquareWaveCount ) {
+      /* rtc
+        if ( SquareWaveCount > old_SquareWaveCount ) {
         printSquareWaveCount();
         old_SquareWaveCount = SquareWaveCount;
-      }
+        }
+      */
 
       if (bDHTstarted) {
-        if (!DHT.acquiring()) {
+        acquirestatus = DHT.acquiring();
+        if (!acquirestatus) {
           acquireresult = DHT.getStatus();
 #if defined(DHT_DEBUG_TIMING)
           printEdgeTiming(&DHT);
@@ -511,15 +536,19 @@ void loop() {
         payload += H;
         payload += ",\"Temperature\":";
         payload += T1;
-    
+
         payload += ",\"SquareWaveCount\":";
         payload += SquareWaveCount;
-        
+
         // to check DHT.acquiring()
         payload += ",\"acquireresult\":";
         payload += acquireresult;
         payload += ",\"acquirestatus\":";
-        payload += DHT.acquiring();
+        payload += acquirestatus;
+
+        /*
+          payload += DHT.acquiring();
+        */
         payload += ",\"bDHTstarted\":";
         payload += bDHTstarted;
         payload += ",\"FreeHeap\":";
@@ -533,6 +562,10 @@ void loop() {
 
         sendmqttMsg(payload);
         sentMills = millis();
+
+        if (acquirestatus == 1) {
+          DHT.reset();
+        }
 
         if (!bDHTstarted) {
           DHT.acquire();
