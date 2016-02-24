@@ -19,6 +19,7 @@
 #include "RF24.h"
 #include <Wire.h>
 #include <Adafruit_ADS1015.h>
+//#include <printf.h>
 
 #define adc_disable() (ADCSRA &= ~(1<<ADEN)) // disable ADC
 #define adc_enable()  (ADCSRA |=  (1<<ADEN)) // re-enable ADC
@@ -63,6 +64,7 @@ void record() {
 
 void setup() {
   //Serial.begin(115200);
+  //printf_begin();
   delay(20);
   adc_disable();
   pinMode(doRecordPin, INPUT);
@@ -92,6 +94,7 @@ void setup() {
   radio.setPALevel(RF24_PA_HIGH);
   //radio.setDataRate(RF24_250KBPS);
   radio.setDataRate(RF24_1MBPS);
+  //radio.setDataRate(RF24_2MBPS);
   //radio.setAutoAck(1);
   radio.setRetries(15, 15);
   //radio.setPayloadSize(11);
@@ -99,6 +102,7 @@ void setup() {
   radio.openWritingPipe(pipes[2]);
   radio.stopListening();
 
+  
   payload._salt = 0;
   payload.devid = DEVICE_ID;
   payload.volt  = 0;
@@ -116,6 +120,10 @@ void setup() {
     }
     delay(100);
   }
+
+  
+  //radio.printDetails();
+  
   attachInterrupt(digitalPinToInterrupt(3), record, RISING);
 }
 

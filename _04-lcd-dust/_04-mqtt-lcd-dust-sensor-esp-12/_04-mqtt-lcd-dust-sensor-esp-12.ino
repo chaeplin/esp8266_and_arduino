@@ -14,6 +14,8 @@
   #include <RtcDS1307.h>
 */
 
+#define DHT_DEBUG_TIMING
+
 #define REPORT_INTERVAL 3000 // in msec
 
 #define SYS_CPU_80MHz 80
@@ -141,7 +143,7 @@ byte nemoicon[8]        = { B11011, B11011, B00100, B11111, B10101, B11111, B010
 #define DHTPIN   3            // Digital pin for communications
 
 //declaration
-void  dht_wrapper(); // must be declared before the lib initialization
+void ICACHE_RAM_ATTR dht_wrapper(); // must be declared before the lib initialization
 
 // Lib instantiate
 PietteTech_DHT DHT(DHTPIN, DHTTYPE, dht_wrapper);
@@ -155,11 +157,11 @@ unsigned long _sensor_report_count;
 
 // This wrapper is in charge of calling
 // must be defined like this for the lib work
-void  dht_wrapper() {
+void ICACHE_RAM_ATTR dht_wrapper() {
   DHT.isrCallback();
 }
 
-void  callback(char* intopic, byte* inpayload, unsigned int length) {
+void callback(char* intopic, byte* inpayload, unsigned int length) {
   String receivedtopic = intopic;
   String receivedpayload ;
 
@@ -173,7 +175,7 @@ void  callback(char* intopic, byte* inpayload, unsigned int length) {
   parseMqttMsg(receivedpayload, receivedtopic);
 }
 
-void  parseMqttMsg(String receivedpayload, String receivedtopic) {
+void parseMqttMsg(String receivedpayload, String receivedtopic) {
   //char json[] = "{\"VIrms\":595,\"revValue\":718.56,\"revMills\":8350,\"powerAvg\":656.78,\"Stddev\":66.70,\"calcIrmsmillis\":153,\"revCounts\":126,\"FreeHeap\":46336,\"RSSI\":-61,\"millis\":1076571}";
   char json[] = "{\"Humidity\":43.90,\"Temperature\":22.00,\"DS18B20\":22.00,\"PIRSTATUS\":0,\"FreeHeap\":43552,\"acquireresult\":0,\"acquirestatus\":0,\"DHTnextSampleTime\":2121587,\"bDHTstarted\":0,\"RSSI\":-48,\"millis\":2117963}";
 
@@ -277,7 +279,7 @@ boolean reconnect() {
       client.publish(hellotopic, (char*) getResetInfo.c_str());
       ResetInfo = HIGH;
     } else {
-      client.publish(hellotopic, "hello again 1 from ESP8266 s03");
+      client.publish(hellotopic, "hello again 1 from lcd ");
     }
 
     client.loop();
@@ -310,10 +312,11 @@ boolean reconnect() {
   return client.connected();
 }
 
-
-void  check_SquareWaveCount() {
+/* rtc
+  void ICACHE_RAM_ATTR check_SquareWaveCount() {
   SquareWaveCount++;
-}
+  }
+*/
 
 void setup() {
   delay(20);
@@ -349,14 +352,14 @@ void setup() {
 
   lastReconnectAttempt = 0;
 
-  pinMode(SquareWavePin, INPUT_PULLUP);
   /* rtc
+    pinMode(SquareWavePin, INPUT_PULLUP);
     attachInterrupt(SquareWavePin, check_SquareWaveCount, FALLING);
   */
   // call check_SquareWaveCount every loop, so not use ONLOW
   // attachInterrupt(SquareWavePin, check_SquareWaveCount, ONLOW);
 
-  getResetInfo = "hello from ESP8266 s03 ";
+  getResetInfo = "hello from ESP8266 lcd ";
   getResetInfo += ESP.getResetInfo().substring(0, 30);
 
   clientName += "esp8266 - ";
@@ -537,8 +540,10 @@ void loop() {
         payload += ",\"Temperature\":";
         payload += T1;
 
-        payload += ",\"SquareWaveCount\":";
-        payload += SquareWaveCount;
+        /*
+          payload += ",\"SquareWaveCount\":";
+          payload += SquareWaveCount;
+        */
 
         // to check DHT.acquiring()
         payload += ",\"acquireresult\":";

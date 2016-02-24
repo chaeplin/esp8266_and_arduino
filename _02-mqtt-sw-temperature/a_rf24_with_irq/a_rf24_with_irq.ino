@@ -29,8 +29,8 @@ extern "C" {
 #include "ap_setting.h"
 #endif
 
-#define INFO_PRINT 0
-#define DEBUG_PRINT 0
+#define INFO_PRINT 1
+#define DEBUG_PRINT 1
 
 // ****************
 time_t getNtpTime();
@@ -251,9 +251,7 @@ void setup() {
   pinMode(pir, INPUT);
   pinMode(RELAYPIN, OUTPUT);
   pinMode(TOPBUTTONPIN, INPUT_PULLUP);
-  /*
-    pinMode(radiointPin, INPUT_PULLUP);
-  */
+  pinMode(radiointPin, INPUT_PULLUP);
   digitalWrite(RELAYPIN, relaystatus);
 
   wifi_connect();
@@ -283,9 +281,7 @@ void setup() {
   }
 
   attachInterrupt(5, run_lightcmd, CHANGE);
-  /*
-    attachInterrupt(2, check_radio, FALLING);
-  */
+  attachInterrupt(2, check_radio, FALLING);
   // ONLOW HAS ERROR
   //attachInterrupt(2, check_radio, ONLOW);
 
@@ -360,8 +356,7 @@ void setup() {
   }
 }
 
-/*
-  void ICACHE_RAM_ATTR check_radio() {
+void ICACHE_RAM_ATTR check_radio() {
   bool tx, fail, rx;
   radio.whatHappened(tx, fail, rx);  // What happened?
 
@@ -383,11 +378,9 @@ void setup() {
   radio.read(&sensor_data, sizeof(sensor_data));
   radioiswait = true;
   //}
-  }
-*/
+}
 
-/*
-  void ICACHE_RAM_ATTR radio_publish() {
+void ICACHE_RAM_ATTR radio_publish() {
   if ( sensor_data.devid != 15 ) {
 
     String radiopayload = "{\"_salt\":";
@@ -455,8 +448,8 @@ void setup() {
       sendUdpmsg(udppayload);
     }
   }
-  }
-*/
+}
+
 
 void loop() {
   if (WiFi.status() == WL_CONNECTED) {
@@ -474,13 +467,12 @@ void loop() {
         }
       }
     } else {
-
-      /*
-        if (radioiswait) {
+      
+      if (radioiswait) {
         radio_publish();
         radioiswait = false;
-        }
-      */
+      }
+      
 
       if (bDalasstarted) {
         if (millis() > (startMills + (750 / (1 << (12 - TEMPERATURE_PRECISION))))) {
@@ -490,11 +482,11 @@ void loop() {
           bDalasstarted = false;
 
           /*
-            if (DEBUG_PRINT) {
+          if (DEBUG_PRINT) {
             syslogPayload = "getTempC delay : ";
             syslogPayload += (getTempCstop - getTempCstart) ;
             sendUdpSyslog(syslogPayload);
-            }
+          }
           */
         }
       }
@@ -586,80 +578,6 @@ void loop() {
         //startMills = millis();
       }
 
-      // radio
-      if (radio.available()) {
-        // from attiny 85 data size is 11
-        // sensor_data data size = 12
-        uint8_t len = radio.getDynamicPayloadSize();
-        // avr 8bit, esp 32bit. esp use 4 byte step.
-        if ( (len + 1 ) != sizeof(sensor_data) ) {
-          radio.read(0, 0);
-          return;
-        }
-        radio.read(&sensor_data, sizeof(sensor_data));
-
-        if ( sensor_data.devid != 15 ) {
-          String radiopayload = "{\"_salt\":";
-          radiopayload += sensor_data._salt;
-          radiopayload += ",\"volt\":";
-          radiopayload += sensor_data.volt;
-          radiopayload += ",\"data1\":";
-          if ( sensor_data.data1 == 0 ) {
-            radiopayload += 0;
-          } else {
-            radiopayload += ((float)sensor_data.data1 / 10);
-          }
-          radiopayload += ",\"data2\":";
-          if ( sensor_data.data2 == 0 ) {
-            radiopayload += 0;
-          } else {
-            radiopayload += ((float)sensor_data.data2 / 10);
-          }
-          radiopayload += ",\"devid\":";
-          radiopayload += sensor_data.devid;
-          radiopayload += "}";
-          if ( (sensor_data.devid > 0) && (sensor_data.devid < 255) )
-          {
-            String newRadiotopic = radiotopic;
-            newRadiotopic += "/";
-            newRadiotopic += sensor_data.devid;
-            unsigned int newRadiotopic_length = newRadiotopic.length();
-            char newRadiotopictosend[newRadiotopic_length] ;
-            newRadiotopic.toCharArray(newRadiotopictosend, newRadiotopic_length + 1);
-            sendmqttMsg(newRadiotopictosend, radiopayload);
-          } else {
-            sendmqttMsg(radiofault, radiopayload);
-          }
-        } else {
-          if (timeStatus() != timeNotSet) {
-            timestamp = numberOfSecondsSinceEpochUTC(year(), month(), day(), hour(), minute(), second());
-            millisnow = millisecond();
-          }
-
-          if ( sensor_data.data1 < 0 ) {
-            sensor_data.data1 = 0;
-          }
-          
-          String udppayload = "current,test=current,measureno=";
-          udppayload += sensor_data._salt;
-          udppayload += " devid=";
-          udppayload += sensor_data.devid;
-          udppayload += "i,volt=";
-          udppayload += sensor_data.volt;
-          udppayload += "i,ampere=";
-          uint32_t ampere_temp;
-          ampere_temp = sensor_data.data1 * ampereunit[sensor_data.data2];
-          udppayload += ampere_temp;
-          udppayload += " ";
-          udppayload += timestamp;
-          char buf[3];
-          sprintf(buf, "%03d", millisnow);
-          udppayload += buf;
-          udppayload += "000000";
-          sendUdpmsg(udppayload);
-        }
-      }
-
       if ((millis() - startMills) > REPORT_INTERVAL )
       {
         sendmqttMsg(topic, payload);
@@ -671,12 +589,13 @@ void loop() {
         unsigned long requestTemperaturesstop =  micros();
         bDalasstarted = true;
         startMills = millis();
+
         /*
-          if (DEBUG_PRINT) {
+        if (DEBUG_PRINT) {
           syslogPayload = "requestTemperatures delay : ";
           syslogPayload += (requestTemperaturesstop - requestTemperaturesstart) ;
           sendUdpSyslog(syslogPayload);
-          }
+        }
         */
       }
       client.loop();
@@ -729,13 +648,13 @@ void ICACHE_RAM_ATTR sendmqttMsg(char* topictosend, String payload) {
 
   if (client.publish(topictosend, p, msg_length, 1)) {
     /*
-      if (INFO_PRINT) {
+    if (INFO_PRINT) {
       syslogPayload = topictosend;
       syslogPayload += " - ";
       syslogPayload += payload;
       syslogPayload += " : Publish ok";
       sendUdpSyslog(syslogPayload);
-      }
+    }
     */
     free(p);
   } else {
