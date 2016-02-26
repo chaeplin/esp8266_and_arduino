@@ -319,8 +319,6 @@ boolean reconnect() {
 */
 
 void setup() {
-  delay(20);
-
   Serial.swap();
   system_update_cpu_freq(SYS_CPU_80MHz);
   startMills = sentMills = millis();
@@ -629,7 +627,7 @@ void printEdgeTiming(class PietteTech_DHT *_d) {
 
   _sensor_report_count++;
 
-  String udppayload = "edges2,device=esp-12-N1,debug=on,DHTLIB_ONE_TIMING=110 ";
+  String udppayload = "edges2,device=esp-12-N1,debug=on,DHTLIB_ONE_TIMING=104 ";
   for (n = 0; n < 41; n++) {
     char buf[2];
     udppayload += "e";
