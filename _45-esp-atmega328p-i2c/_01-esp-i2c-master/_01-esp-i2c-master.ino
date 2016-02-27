@@ -37,6 +37,11 @@ void setup ()
   delay(20);
   Serial.begin(115200);
   Wire.begin(4, 5);
+  // default
+  //Wire.setClock(100000);
+  //twi_setClock(100000);
+  twi_setClock(400000);
+
   delay(200);
 
   sensor_data._salt = 0;
@@ -53,7 +58,7 @@ void setup ()
 void loop ()
 {
   count++;
-  
+
   sensor_data._salt++;
   sensor_data.pls++;
   sensor_data.ct1++;
@@ -65,16 +70,16 @@ void loop ()
   Wire.beginTransmission(SLAVE_ADDRESS);
   I2C_writeAnything(sensor_data);
   Wire.endTransmission();
-  wtime += ( wtime + (micros() - now));
+  wtime = wtime + (micros() - now);
 
-  delay(1);
+  delay(2);
 
-  now = micros();
+  unsigned long now2 = micros();
   if (Wire.requestFrom(SLAVE_ADDRESS, sizeof(sensor_data_copy)))
   {
     I2C_readAnything(sensor_data_copy);
   }
-  rtime += ( rtime + (micros() - now));
+  rtime = rtime + (micros() - now2);
 
   if ( sensor_data._salt != sensor_data_copy._salt ||
        sensor_data.pls   != sensor_data_copy.pls ||
@@ -86,11 +91,11 @@ void loop ()
     error++;
   }
 
-  if ( error != old_error || count % 100 == 0 ) {
+  if ( error != old_error || count % 1000 == 0 ) {
     Serial.print("wtime/us : ");
-    Serial.print(wtime/count);
+    Serial.print(wtime / count);
     Serial.print(" - rtime/us : ");
-    Serial.print(rtime/count);
+    Serial.print(rtime / count);
     Serial.print(" - pad1 : ");
     Serial.print(sensor_data.pad);
     Serial.print(" - pad2 : ");
@@ -102,5 +107,5 @@ void loop ()
     old_error = error;
   }
 
-  delay(1);
+  delay(5);
 }
