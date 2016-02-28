@@ -1,3 +1,4 @@
+// http://gammon.com.au/i2c
 #include <Wire.h>
 
 const int SLAVE_ADDRESS = 8;
