@@ -15,13 +15,8 @@
 - collect : mqtt2graphite
 - alert : mqttwarn
 - control : slack + rtmbot
+- define MQTT_MAX_PACKET_SIZE 350
 
-
-
-// MQTT_MAX_PACKET_SIZE : Maximum packet size
-#define MQTT_MAX_PACKET_SIZE 250
-// MQTT_KEEPALIVE : keepAlive interval in Seconds
-#define MQTT_KEEPALIVE 15
 
 ### IDE ###
 - CURRENT : Arduino 1.6.7 with git version of https://github.com/esp8266/Arduino
@@ -41,6 +36,56 @@
 - https://github.com/PaulStoffregen/Time
 - https://github.com/z3t0/Arduino-IRremote
 - https://github.com/JChristensen/Timer
+
+
+
+| name | esp | arduino | desc |
+|------|-----|---------|------|
+| _01-door-alarm | esp-12 | pro mini | alarm door status using mqtt. first one to learn esp, don't know how to wake up esp using external intterupt. replaced with _06-power_meter. check _15-esp8266-dash-deepsleep-reset | 
+| _02-mqtt-sw-temperature | esp-12 | | control lamp, pub temp, pub radio data. nrf24l01P |
+| _03-hx711-scale | esp-12 | pro mini | pub measured weight of pet. hx711, 4 * body scale load cell |
+| _04-lcd-dust | esp-01 | nano | display mqtt msg, pub temp/hum, dust, control ir |
+| _05-two-ds18b20 | esp-12 | | pub temp. ds18b20. to check deepsleep and life of 2 * AA battery |
+| _06-power_meter | esp-12 | | pub power usage, door status. using CT sensor and ADC |
+| _07-ac-ir-remote-timer | | pro mini | |
+| _08_hc-sr04 | | | hc-sr04 test |
+| _09_ir_tx_rx | | nano | to control tv using ir |
+| _10-syslog | esp | | udp/syslog example |
+| _11-mqtt-lwt-test | esp | | mqtt lwy test |
+| _12-wifiscan | esp | | wifi scan test |
+| _13-mfrc522-esp8266 | esp | | rfid mfrc522 test |
+| _14-mqtt-reconnect-with-reset | esp | | |
+| _15-esp8266-dash-deepsleep-reset | esp | | to coltrol lamp. dash like button |
+| _16-mqtt-pub-100ms-50ms | esp | | pub test |
+| _17-two-esp-one-pub-50ms-one-sub-pub-50ms | esp | | pub test |
+| _18-adc-test-using-sdk-1.5| esp | | adc test |
+| _19-wifi-test-using-sdk-1.5| esp | | wifi test |
+| _20-esp8266-dash-deepsleep-test | esp | | test of _15-esp8266-dash-deepsleep-reset |
+| _21-sntp | esp | | sntp test |
+| _22-CheckFlashConfig | esp | | CheckFlashConfig |
+| _23-attiny85-ir | | tiny85 | ir tx test |
+| _24-attiny85-wdt-sleep | | tiny85 | sleep test |
+| _25-attiny85-nrf24-ds18b20 | | tiny85 | temp sensor |
+| _26-attiny85-nrf24-pin-change-int | | tiny85 | pc int test |
+| _27-attiny85-two-85-boost | | tiny85 | distance test |
+| _28-attiny85-nrf24-3pin-ir | | tiny85 | distance using ir. checking toilet paper roll |
+| _29-attiny85-nrf24-5pin-pin-change-int | | tiny85 | check door bell |
+| _30-attiny85-nrf24-5pin-pin-change-int | | tiny85 | check door bell. last one |
+| _31-esp-12-gps-ntpd | esp | | gps + ntpd test |
+| _32-esp-12-BasicOTA | esp | | ota test |
+| _33-esp-12-WiFiClientSecure-mqtt-ssl | esp | | mqtt tlsv1.1 with ip |
+| _34-esp-12-WiFiClientSecure-mqtt-ssl-using-dns | esp | | mqtt tlsv1.1 with name |
+| _35-esp-12-wpa2-enterprise | esp | | wpa2-enterprise  |
+| _36-esp-rtc-mem-test | esp | | rtc mem test |
+| _37-wifi-off-modem-sleep | esp | | modem off test |
+| _38-wifi-off-light-sleep | esp | | light sleep test |
+| _39_esp12-random-test | esp | | andom number gen |
+| _40_esp12-random-test-udp-report | esp | | andom number gen |
+| _41-promini-nrf24-ads1115 | | pro mini | |
+| _42-promini-nrf24-32byte | | pro mini | nrf24 32byte test|
+| _43-PietteTech_DHT-8266 | esp | | interrup driven dht22 test |
+| _44-esp-atmega328p-spi | esp | atmega328p | spi multi byte test |
+| _45-esp-atmega328p-i2c | esp | atmega328p | i2c multi byte test |
 
 
 
@@ -112,5 +157,4 @@
 #### _41-promini-nrf24-ads1115 ###
 - pro mini(3.3V) + nrf24l01p + µCurrent GOLD
 - to report current measure 
-
 
