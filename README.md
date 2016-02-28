@@ -89,13 +89,6 @@
 
 
 
-
-#### _01-door-alarm ####
-- esp-12 +(gpio) pro mini
-- active buzzer, magnetic door sw, capacitor, battery
-- pub door status, using pro mini as external interrupt
-
-
 #### _02-mqtt-sw ####
 - esp-12 + nrf24l01p
 - power(5v + 3.3V), fuse(10A + 73°C thermal), 1CH relay, SW(top + lamp), PIR, DS18B20(out)
@@ -115,23 +108,11 @@
 - control LG_AC using Apple remote
 
 
-#### _05-two-ds18b20 ####
-- esp-12
-- 2 x DS18B20, battery
-- pub temp(inside + outside)
-
-
 #### _06-power-meter ####
 - esp-12
 - CT sensor, line tracker
 - pub power usage
 
-
-#### _07-ac-ir-remote-time ####
-- pro mini
-- optical isolator
-- add timer to LG air conditioner remote
-- 30 min run, 60 min off
 
 ### _15-esp8266-dash-deepsleep-reset ###
 - esp-12
