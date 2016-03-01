@@ -325,7 +325,8 @@ void setup() {
   tempCoutside = sensors.getTempC(outsideThermometer);
   sensors.setWaitForConversion(false);
 
-  if ( isnan(tempCoutside) ) {
+  //if ( isnan(tempCoutside) ) {
+  if ( tempCoutside < -30 ) {
     if (INFO_PRINT) {
       sendUdpSyslog("Failed to read from DS18B20 sensor!");
     }
@@ -509,8 +510,11 @@ void loop() {
       payload += ",\"acquirestatus\":";
       payload += acquirestatus;
 
-      payload += ",\"DS18B20\":";
-      payload += tempCoutside;
+      if ( tempCoutside > -30 ) {
+        payload += ",\"DS18B20\":";
+        payload += tempCoutside;
+      }
+
       payload += ",\"PIRSTATUS\":";
       payload += pirValue;
       payload += ",\"FreeHeap\":";
