@@ -79,14 +79,14 @@
 | _36-esp-rtc-mem-test | esp | | rtc mem test |
 | _37-wifi-off-modem-sleep | esp | | modem off test |
 | _38-wifi-off-light-sleep | esp | | light sleep test |
-| _39_esp12-random-test | esp | | andom number gen |
-| _40_esp12-random-test-udp-report | esp | | andom number gen |
-| _41-promini-nrf24-ads1115 | | pro mini | |
+| _39_esp12-random-test | esp | | random number gen |
+| _40_esp12-random-test-udp-report | esp | | random number gen |
+| _41-promini-nrf24-ads1115 | | pro mini | i2c adc ads1115 |
 | _42-promini-nrf24-32byte | | pro mini | nrf24 32byte test|
 | _43-PietteTech_DHT-8266 | esp | | interrup driven dht22 test |
 | _44-esp-atmega328p-spi | esp | atmega328p | spi multi byte test |
 | _45-esp-atmega328p-i2c | esp | atmega328p | i2c multi byte test |
-
+| _46-esp-atmega328p-spi-i2c | esp | atmega328p | spi and i2c multi byte test |
 
 
 #### _02-mqtt-sw ####
