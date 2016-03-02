@@ -191,6 +191,8 @@ void wifi_connect() {
   //WiFiClient::setLocalPortStart(micros());
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
+  WiFi.hostname("esp-swtemp");
+
 
   int Attempt = 0;
   while (WiFi.status() != WL_CONNECTED) {

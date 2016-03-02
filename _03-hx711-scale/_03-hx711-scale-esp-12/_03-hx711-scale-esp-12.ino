@@ -1,4 +1,4 @@
-// flash 4M, CPU 160Mhz
+// flash 4M, CPU 80Mhz
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
 #include <Average.h>
@@ -76,9 +76,9 @@ WiFiClient wifiClient;
 PubSubClient client(mqtt_server, 1883, wifiClient);
 
 /*
-void callback(char* topic, byte* payload, unsigned int length) {
+  void callback(char* topic, byte* payload, unsigned int length) {
   // handle message arrived
-}
+  }
 */
 
 unsigned long startMills;
@@ -96,6 +96,7 @@ void wifi_connect() {
 
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
+  WiFi.hostname("esp-scale");
 
   int Attempt = 0;
   while (WiFi.status() != WL_CONNECTED) {
@@ -137,7 +138,7 @@ boolean reconnect() {
         ResetInfo = HIGH;
       } else {
         client.publish(hellotopic, "hello again 1 from ESP8266 s06");
-      }      
+      }
       if (DEBUG_PRINT) {
         Serial.println("connected");
       }
@@ -225,7 +226,7 @@ void setup() {
     */
   });
 
-  ArduinoOTA.begin();  
+  ArduinoOTA.begin();
 }
 
 void loop()

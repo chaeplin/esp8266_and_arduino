@@ -41,7 +41,7 @@
 
 | name | esp | arduino | desc |
 |------|-----|---------|------|
-| _01-door-alarm | esp-12 | pro mini | alarm door status using mqtt. first one to learn esp, don't know how to wake up esp using external intterupt. replaced with _06-power_meter. check _15-esp8266-dash-deepsleep-reset | 
+| _01-door-alarm | esp-12 | pro mini | alarm door status using mqtt. first one to learn esp, didn't know how to wake up esp using external intterupt. replaced with _06-power_meter. check _15-esp8266-dash-deepsleep-reset | 
 | _02-mqtt-sw-temperature | esp-12 | | control lamp, pub temp, pub radio data. nrf24l01P |
 | _03-hx711-scale | esp-12 | pro mini | pub measured weight of pet. hx711, 4 * body scale load cell |
 | _04-lcd-dust | esp-01 | nano | display mqtt msg, pub temp/hum, dust, control ir |

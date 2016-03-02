@@ -127,6 +127,7 @@ void ICACHE_RAM_ATTR rtc_check() {
 void wifi_connect() {
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
+  WiFi.hostname("esp-power");
 
   int Attempt = 0;
   while (WiFi.status() != WL_CONNECTED) {
@@ -141,25 +142,25 @@ void wifi_connect() {
 
 boolean reconnect() {
   if (!client.connected()) {
-  if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
-    client.publish(willTopic, "1", true);
-    if ( ResetInfo == LOW) {
-      client.publish(hellotopic, (char*) getResetInfo.c_str());
-      ResetInfo = HIGH;
-    } else {
-      client.publish(hellotopic, "hello again 1 from esp-power");
-    }
-    client.subscribe(subtopic);
+    if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
+      client.publish(willTopic, "1", true);
+      if ( ResetInfo == LOW) {
+        client.publish(hellotopic, (char*) getResetInfo.c_str());
+        ResetInfo = HIGH;
+      } else {
+        client.publish(hellotopic, "hello again 1 from esp-power");
+      }
+      client.subscribe(subtopic);
       if (DEBUG_PRINT) {
         sendUdpSyslog("---> mqttconnected");
       }
-  } else {
+    } else {
       if (DEBUG_PRINT) {
         syslogPayload = "failed, rc=";
         syslogPayload += client.state();
         sendUdpSyslog(syslogPayload);
       }
-  }
+    }
   }
   client.loop();
   return client.connected();
@@ -403,13 +404,13 @@ void ICACHE_RAM_ATTR sendmqttMsg(char* topictosend, String payload) {
 
   if (client.publish(topictosend, p, msg_length, 1)) {
     /*
-    if (INFO_PRINT) {
+      if (INFO_PRINT) {
       syslogPayload = topictosend;
       syslogPayload += " - ";
       syslogPayload += payload;
       syslogPayload += " : Publish ok";
       sendUdpSyslog(syslogPayload);
-    }
+      }
     */
     free(p);
   } else {

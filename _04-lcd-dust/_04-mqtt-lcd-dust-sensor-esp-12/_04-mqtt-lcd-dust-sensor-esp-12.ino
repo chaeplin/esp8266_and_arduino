@@ -259,6 +259,7 @@ void wifi_connect() {
 
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
+  WiFi.hostname("esp-lcd");
 
   int Attempt = 0;
   while (WiFi.status() != WL_CONNECTED) {
