@@ -115,10 +115,13 @@ int ResetInfo = LOW;
 
 PubSubClient client(mqtt_server, 1883, callback, wifiClient);
 
+//
 volatile float H, T1, T2, OT, PW;
 volatile int NW, PIR, HO, HL, unihost, rsphost, unitot, rsptot;
+volatile bool T2_UPDATE, OT_UPDATE, PW_UPDATE, NW_UPDATE, PIR_UPDATE, HO_UPDATE, HL_UPDATE;
 volatile bool msgcallback;
 
+//
 int sleepmode = LOW ;
 int o_sleepmode = LOW ;
 
@@ -198,32 +201,47 @@ void parseMqttMsg(String receivedpayload, String receivedtopic) {
 
   if ( receivedtopic == substopic[0] ) {
     if (root.containsKey("DS18B20")) {
-      T2  = root["DS18B20"];
+      if ( T2 != root["DS18B20"] ) {
+        T2  = root["DS18B20"];
+        T2_UPDATE = true;
+      }
     }
   }
 
   if ( receivedtopic == substopic[1] ) {
     if (root.containsKey("data1")) {
-      OT  = root["data1"];
+      if (OT != root["data1"]) {
+        OT = root["data1"];
+        OT_UPDATE = true;
+      }
     }
   }
 
   if ( receivedtopic == substopic[2] ) {
     if (root.containsKey("powerAvg")) {
-      PW  = root["powerAvg"];
+      if (PW != root["powerAvg"]) {
+        PW  = root["powerAvg"];
+        PW_UPDATE = true;
+      }
     }
   }
 
   if ( receivedtopic == substopic[3] ) {
     if (root.containsKey("WeightAvg")) {
-      NW  = root["WeightAvg"];
+      if (NW != root["WeightAvg"]) {
+        NW = root["WeightAvg"];
+        NW_UPDATE = true;
+      }
     }
   }
 
   if ( receivedtopic == substopic[4] )
   {
     if (root.containsKey("DOORPIR")) {
-      PIR = root["DOORPIR"];
+      if (PIR != root["DOORPIR"]) {
+        PIR = root["DOORPIR"];
+        PIR_UPDATE = true;
+      }
     }
   }
 
@@ -249,6 +267,18 @@ void parseMqttMsg(String receivedpayload, String receivedtopic) {
       rsptot = atoi(temprsptot);
     }
   }
+
+  if (HO != (unihost + rsphost)) {
+    HO = unihost + rsphost;
+    HO_UPDATE = true;
+  }
+
+  if (HL != (unitot + rsptot)) {
+    HL = unitot + rsptot;
+    HL_UPDATE = true;
+
+  }
+
   msgcallback = !msgcallback;
 }
 
@@ -329,6 +359,7 @@ void setup() {
   //T2 =  OT = PW = NW =  dustDensity = 0 ;
   PIR = HO = HL = moisture = unihost = rsphost = unitot = rsptot = 0;
   acquirestatus = 0;
+  T2_UPDATE = OT_UPDATE = PW_UPDATE = NW_UPDATE = PIR_UPDATE = HO_UPDATE = HL_UPDATE = false;
   msgcallback = false;
 
 
@@ -502,21 +533,39 @@ void loop() {
           bDHTstarted = false;
         }
       }
+          
+      if (HO_UPDATE || HL_UPDATE) {
+        displayHost(HO, HL);
+        HO_UPDATE = HL_UPDATE = false;
+      }
+
+      if (PW_UPDATE) {
+        displaypowerAvg(PW);
+        PW_UPDATE = false;
+      }
+
+      if (NW_UPDATE) {
+        displayNemoWeight(NW);
+        NW_UPDATE = false;
+      }
+
+      if (PIR_UPDATE) {
+        displayPIR();
+        PIR_UPDATE = false;
+      }
+
+      if (T2_UPDATE || OT_UPDATE) {
+        displayTemperature();
+        T2_UPDATE = OT_UPDATE = false;
+      }
 
       if (timeStatus() != timeNotSet) {
-        if (now() != prevDisplay) { //update the display only if time has changed
+        if (now() != prevDisplay) { 
           prevDisplay = now();
           digitalClockDisplay();
-          requestSharp();
-          HO = unihost + rsphost;
-          HL = unitot + rsptot;
 
           displaysleepmode(sleepmode);
-          displayHost(HO, HL);
-          displaypowerAvg(PW);
-          displayNemoWeight(NW);
-          displayPIR();
-          displayTemperature();
+          requestSharp();
           displaydustDensity();
 
           if (msgcallback) {
