@@ -1,4 +1,5 @@
 // CPU : 80MHz, FLASH : 4M/1M
+// update rtc_mem_revcount.salt when power was iterrupted
 /*
 D5(SCL)   - DOOR INT
 D4(SDA)   - IR INT 
@@ -124,7 +125,7 @@ void ICACHE_RAM_ATTR rtc_check() {
   system_rtc_mem_read(100, &rtc_mem_revcount, sizeof(rtc_mem_revcount));
   if (rtc_mem_revcount.magic != RTC_MAGIC) {
     rtc_mem_revcount.magic = RTC_MAGIC;
-    rtc_mem_revcount.salt = 5255;
+    rtc_mem_revcount.salt = 369093;
   }
 }
 
