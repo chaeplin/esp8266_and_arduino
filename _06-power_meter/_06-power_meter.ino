@@ -1,5 +1,9 @@
-// CPU : 80MHz
-// FLASH : 4M/1M
+// CPU : 80MHz, FLASH : 4M/1M
+/*
+D5(SCL)   - DOOR INT
+D4(SDA)   - IR INT 
+ADC       - CT SENSOR
+ */
 #include <PubSubClient.h>
 #include <ESP8266WiFi.h>
 #include <ESP8266mDNS.h>

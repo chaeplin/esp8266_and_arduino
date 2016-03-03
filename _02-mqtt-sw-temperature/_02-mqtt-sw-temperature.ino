@@ -1,4 +1,18 @@
 // 160M CPU / 4M / 1M SPIFFS / esp-swtemp
+/*
+D1(TX)    - DHT22(NEW)
+D3(RX)    - nrf24l01
+D5(SCL)   - TOP BUTTON
+D4(SDA)   - RELAY  
+D0        - DS18B20
+D2        - DHT22(OLD), not used
+D15(SS)   - nrf24l01
+D13(MOSI) - nrf24l01
+D12(MISO) - nrf24l01
+D14(SCK)  - nrf24l01
+D16       - PIR
+ADC
+ */
 #include <TimeLib.h>
 #include "nRF24L01.h"
 #include "RF24.h"
@@ -70,12 +84,12 @@ IPAddress time_server = MQTT_SERVER;
 #define TOPBUTTONPIN 5
 
 // OTHER
-#define REPORT_INTERVAL 3000 // in msec
+#define REPORT_INTERVAL 5000 // in msec
 #define BETWEEN_RELAY_ACTIVE 5000
 
 // DHT22
 #define DHTTYPE  DHT22           // Sensor type DHT11/21/22/AM2301/AM2302
-#define DHTPIN   2              // Digital pin for communications
+#define DHTPIN   1              // Digital pin for communications
 
 // DS18B20
 #define ONE_WIRE_BUS 0
@@ -424,7 +438,7 @@ void loop() {
           bDHTstarted = false;
         }
       }
-
+      
       if (bDalasstarted) {
         if (millis() > (startMills + (750 / (1 << (12 - TEMPERATURE_PRECISION))))) {
           unsigned long getTempCstart =  micros();
@@ -433,7 +447,7 @@ void loop() {
           bDalasstarted = false;
         }
       }
-
+      
       if ( relaystatus != oldrelaystatus ) {
 
         if (INFO_PRINT) {
@@ -610,6 +624,7 @@ void loop() {
       if ((millis() - startMills) > REPORT_INTERVAL )
       {
         sendmqttMsg(topic, payload);
+        
         sensors.requestTemperatures();
         bDalasstarted = true;
 
@@ -621,6 +636,7 @@ void loop() {
           DHT.acquire();
           bDHTstarted = true;
         }
+        
         startMills = millis();
       }
       client.loop();

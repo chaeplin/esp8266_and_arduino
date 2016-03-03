@@ -1,4 +1,10 @@
 // flash 4M, CPU 80Mhz
+/*
+D5(SCL)   - pro mini / i2c
+D4(SDA)   - pro mini / i2c 
+D13(MOSI) - LED
+D14(SCK)  - INT from pro mini
+ */
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
 #include <Average.h>

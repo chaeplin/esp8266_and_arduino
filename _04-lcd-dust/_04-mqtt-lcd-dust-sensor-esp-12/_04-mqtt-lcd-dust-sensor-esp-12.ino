@@ -1,4 +1,10 @@
 // 80MHz / 4M / 1M / ESP-01 (flash chip is changed) / esp-lcd
+/*
+D1(TX)    - for rtc int(not used)
+D3(RX)    - DHT22
+D0        - i2c
+D2        - i2c
+ */
 #include <TimeLib.h>
 #include <pgmspace.h>
 #include <ESP8266WiFi.h>
