@@ -1,18 +1,18 @@
-// 160M CPU / 4M / 1M SPIFFS / esp-swtemp
+// 80M CPU / 4M / 1M SPIFFS / esp-swtemp
 /*
-D1(TX)    - DHT22(NEW)
-D3(RX)    - nrf24l01
-D5(SCL)   - TOP BUTTON
-D4(SDA)   - RELAY  
-D0        - DS18B20
-D2        - DHT22(OLD), not used
-D15(SS)   - nrf24l01
-D13(MOSI) - nrf24l01
-D12(MISO) - nrf24l01
-D14(SCK)  - nrf24l01
-D16       - PIR
-ADC
- */
+  D1(TX)    - DHT22(NEW)
+  D3(RX)    - nrf24l01
+  D5(SCL)   - TOP BUTTON
+  D4(SDA)   - RELAY
+  D0        - DS18B20
+  D2        - DHT22(OLD), not used
+  D15(SS)   - nrf24l01
+  D13(MOSI) - nrf24l01
+  D12(MISO) - nrf24l01
+  D14(SCK)  - nrf24l01
+  D16       - PIR
+  ADC
+*/
 #include <TimeLib.h>
 #include "nRF24L01.h"
 #include "RF24.h"
@@ -44,6 +44,7 @@ extern "C" {
 #include "ap_setting.h"
 #endif
 
+//#define ENABLE_DHT
 #define DHT_DEBUG_TIMING
 
 #define INFO_PRINT 0
@@ -171,6 +172,7 @@ int relayIsReady = HIGH;
 
 //declaration
 
+#if defined(ENABLE_DHT)
 // Lib instantiate
 PietteTech_DHT DHT(DHTPIN, DHTTYPE, dht_wrapper);
 
@@ -181,6 +183,7 @@ int acquirestatus;
 int _sensor_error_count;
 unsigned long _sensor_report_count;
 float t, h;
+#endif
 
 // ds18b20
 bool bDalasstarted;
@@ -192,11 +195,13 @@ WiFiUDP udp;
 
 long lastReconnectAttempt = 0;
 
+#if defined(ENABLE_DHT)
 // This wrapper is in charge of calling
 // must be defined like this for the lib work
 void ICACHE_RAM_ATTR dht_wrapper() {
   DHT.isrCallback();
 }
+#endif
 
 void wifi_connect() {
   //wifi_set_phy_mode(PHY_MODE_11N);
@@ -286,7 +291,7 @@ void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int lengt
 }
 
 void setup() {
-  system_update_cpu_freq(SYS_CPU_160MHz);
+  system_update_cpu_freq(SYS_CPU_80MHz);
   // wifi_status_led_uninstall();
 
   startMills = timemillis = lastRelayActionmillis = millis();
@@ -387,6 +392,7 @@ void setup() {
 
   ArduinoOTA.begin();
 
+#if defined(ENABLE_DHT)
   // dht22
   _sensor_error_count = _sensor_report_count = 0;
   acquireresult = DHT.acquireAndWait(100);
@@ -399,6 +405,7 @@ void setup() {
   } else {
     t = h = 0;
   }
+#endif
 
   if (DEBUG_PRINT) {
     syslogPayload = "------------------> unit started : pin 2 status : ";
@@ -424,6 +431,7 @@ void loop() {
       }
     } else {
 
+#if defined(ENABLE_DHT)
       if (bDHTstarted) {
         acquirestatus = DHT.acquiring();
         if (!acquirestatus) {
@@ -438,7 +446,8 @@ void loop() {
           bDHTstarted = false;
         }
       }
-      
+#endif
+
       if (bDalasstarted) {
         if (millis() > (startMills + (750 / (1 << (12 - TEMPERATURE_PRECISION))))) {
           unsigned long getTempCstart =  micros();
@@ -447,7 +456,7 @@ void loop() {
           bDalasstarted = false;
         }
       }
-      
+
       if ( relaystatus != oldrelaystatus ) {
 
         if (INFO_PRINT) {
@@ -516,23 +525,26 @@ void loop() {
         oldpirValue = pirValue;
       }
 
-      payload = "{\"Humidity\":";
+      payload = "{\"PIRSTATUS\":";
+      payload += pirValue;
+
+#if defined(ENABLE_DHT)
+      payload += ",\"Humidity\":";
       payload += h;
       payload += ",\"Temperature\":";
       payload += t;
-      // to check DHT.acquiring()
+
       payload += ",\"acquireresult\":";
       payload += acquireresult;
       payload += ",\"acquirestatus\":";
       payload += acquirestatus;
+#endif
 
       if ( tempCoutside > -30 ) {
         payload += ",\"DS18B20\":";
         payload += tempCoutside;
       }
 
-      payload += ",\"PIRSTATUS\":";
-      payload += pirValue;
       payload += ",\"FreeHeap\":";
       payload += ESP.getFreeHeap();
       payload += ",\"RSSI\":";
@@ -624,10 +636,11 @@ void loop() {
       if ((millis() - startMills) > REPORT_INTERVAL )
       {
         sendmqttMsg(topic, payload);
-        
+
         sensors.requestTemperatures();
         bDalasstarted = true;
 
+#if defined(ENABLE_DHT)
         if (acquirestatus == 1) {
           DHT.reset();
         }
@@ -636,7 +649,7 @@ void loop() {
           DHT.acquire();
           bDHTstarted = true;
         }
-        
+#endif
         startMills = millis();
       }
       client.loop();
@@ -706,6 +719,7 @@ void run_lightcmd() {
   }
 }
 
+#if defined(ENABLE_DHT)
 void ICACHE_RAM_ATTR printEdgeTiming(class PietteTech_DHT *_d) {
   byte n;
 #if defined(DHT_DEBUG_TIMING)
@@ -745,6 +759,7 @@ void ICACHE_RAM_ATTR printEdgeTiming(class PietteTech_DHT *_d) {
 
   sendUdpmsg(udppayload);
 }
+#endif
 
 void ICACHE_RAM_ATTR sendUdpSyslog(String msgtosend) {
   unsigned int msg_length = msgtosend.length();
