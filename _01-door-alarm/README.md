@@ -18,6 +18,6 @@ door alarm using pro mini as external reset
 |  9  | esp8266 reset                        |
 
 
-![1](https://raw.githubusercontent.com/chaeplin/esp8266_and_arduino/master/_01-door-alarm/pics/01.png)
+![1](./pics/01.png)
 
-![2](https://raw.githubusercontent.com/chaeplin/esp8266_and_arduino/master/_01-door-alarm/pics/02.png)
+![2](./pics/02.png)
