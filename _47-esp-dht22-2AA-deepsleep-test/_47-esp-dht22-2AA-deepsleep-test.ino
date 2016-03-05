@@ -143,7 +143,7 @@ void wifi_connect() {
     if (Attempt == 300)
     {
       // if fail
-      ESP.reset();;
+      ESP.restart();;
     }
   }
 }
@@ -170,7 +170,7 @@ void setup()
     Serial.println(h);
   } else {
     pinMode(DHTPIN, INPUT);
-    ESP.reset();
+    ESP.restart();
   }
 
   delay(2100);
@@ -184,7 +184,7 @@ void setup()
     Serial.println(h);
   } else {
     pinMode(DHTPIN, INPUT);
-    ESP.reset();
+    ESP.restart();
   }
 
   Serial.println("wifi on");
