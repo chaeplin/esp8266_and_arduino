@@ -5,11 +5,6 @@
 - Use static ip for fast WIFI connection
 - 22K R is changed to 330K
 
-- WiFiClient::setLocalPortStart(micros() + vdd);
-- wifi_set_phy_mode(PHY_MODE_11N);
-- system_phy_set_rfoption(1);
-- wifi_set_channel(channel);
-
 
 ![1](./pics/01.reset_switch_schem.png)
 

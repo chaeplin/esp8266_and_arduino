@@ -1,10 +1,10 @@
 // 80MHz / 4M / 1M / ESP-01 (flash chip is changed) / esp-lcd
 /*
-D1(TX)    - for rtc int(not used)
-D3(RX)    - DHT22
-D0        - i2c
-D2        - i2c
- */
+  D1(TX)    - for rtc int(not used)
+  D3(RX)    - DHT22
+  D0        - i2c
+  D2        - i2c
+*/
 #include <TimeLib.h>
 #include <pgmspace.h>
 #include <ESP8266WiFi.h>
@@ -123,7 +123,7 @@ PubSubClient client(mqtt_server, 1883, callback, wifiClient);
 
 //
 volatile float H, T1, T2, OT, PW;
-volatile int NW, PIR, HO, HL, unihost, rsphost, unitot, rsptot;
+volatile int NW, PIR, HO, HL, unihost, unitot;
 volatile bool T2_UPDATE, OT_UPDATE, PW_UPDATE, NW_UPDATE, PIR_UPDATE, HO_UPDATE, HL_UPDATE;
 volatile bool msgcallback;
 
@@ -258,33 +258,17 @@ void parseMqttMsg(String receivedpayload, String receivedtopic) {
       unihost = atoi(tempunihost);
     }
 
-    if (root.containsKey("rsphost")) {
-      const char* temprsphost =  root["rsphost"].asString();
-      rsphost = atoi(temprsphost);
-    }
-
     if (root.containsKey("unitot")) {
       const char* tempunitot =  root["unitot"].asString();
       unitot = atoi(tempunitot);
     }
-
-    if (root.containsKey("rsptot")) {
-      const char* temprsptot =  root["rsptot"].asString();
-      rsptot = atoi(temprsptot);
+    
+    if (HO != unihost || HL != unitot) {
+      HO = unihost;
+      HL = unitot;
+      HL_UPDATE = true;
     }
   }
-
-  if (HO != (unihost + rsphost)) {
-    HO = unihost + rsphost;
-    HO_UPDATE = true;
-  }
-
-  if (HL != (unitot + rsptot)) {
-    HL = unitot + rsptot;
-    HL_UPDATE = true;
-
-  }
-
   msgcallback = !msgcallback;
 }
 
@@ -363,7 +347,7 @@ void setup() {
 
   T2 =  OT = PW = NW =  dustDensity = SquareWaveCount = old_SquareWaveCount = 0 ;
   //T2 =  OT = PW = NW =  dustDensity = 0 ;
-  PIR = HO = HL = moisture = unihost = rsphost = unitot = rsptot = 0;
+  PIR = HO = HL = moisture = unihost = unitot = 0;
   acquirestatus = 0;
   T2_UPDATE = OT_UPDATE = PW_UPDATE = NW_UPDATE = PIR_UPDATE = HO_UPDATE = HL_UPDATE = false;
   msgcallback = false;
@@ -539,15 +523,15 @@ void loop() {
           bDHTstarted = false;
         }
       }
-          
-      if (HO_UPDATE || HL_UPDATE) {
-        displayHost(HO, HL);
-        HO_UPDATE = HL_UPDATE = false;
-      }
 
       if (PW_UPDATE) {
         displaypowerAvg(PW);
         PW_UPDATE = false;
+      }
+
+      if (HL_UPDATE) {
+        displayHost(HO, HL);
+        HL_UPDATE = false;
       }
 
       if (NW_UPDATE) {
@@ -566,11 +550,11 @@ void loop() {
       }
 
       if (timeStatus() != timeNotSet) {
-        if (now() != prevDisplay) { 
+        if (now() != prevDisplay) {
           prevDisplay = now();
           digitalClockDisplay();
 
-          displaysleepmode(sleepmode);
+          //displaysleepmode(sleepmode);
           requestSharp();
           displaydustDensity();
 
@@ -712,14 +696,14 @@ void printEdgeTiming(class PietteTech_DHT *_d) {
 }
 
 void displayHost(int numofhost, int numofall) {
-  lcd.setCursor(15, 2);
-  lcd.print(numofhost);
-
   lcd.setCursor(17, 2);
   if (numofall < 10) {
     lcd.print(' ');
   }
   lcd.print(numofall);
+
+  lcd.setCursor(15, 2);
+  lcd.print(numofhost);  
 }
 
 void displaysleepmode(int sleepmode) {
