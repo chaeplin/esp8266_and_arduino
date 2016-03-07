@@ -1,5 +1,8 @@
 #### button using esp8266/Arduino ####
 
+http://chaeplin.github.io/project-01-button.html
+
+
 - deepSleep(0)
 - Using GPIO16 and NPN TR, reset is not permitted while device is running
 - Use static ip for fast WIFI connection
