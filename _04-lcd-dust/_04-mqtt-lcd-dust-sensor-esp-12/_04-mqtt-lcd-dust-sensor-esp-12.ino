@@ -22,7 +22,7 @@
 
 #define DHT_DEBUG_TIMING
 
-#define REPORT_INTERVAL 3000 // in msec
+#define REPORT_INTERVAL 5000 // in msec
 
 #define SYS_CPU_80MHz 80
 #define SYS_CPU_160MHz 160

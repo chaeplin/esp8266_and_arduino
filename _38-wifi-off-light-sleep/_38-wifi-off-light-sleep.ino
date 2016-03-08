@@ -3,6 +3,7 @@
 #include "/usr/local/src/ap_setting.h"
 
 extern "C" {
+#include "gpio.h"
 #include "user_interface.h"
 }
 
@@ -94,7 +95,7 @@ void wifi_connect()
     delay(10);
     WiFi.mode(WIFI_STA);
     WiFi.begin(ssid, password);
-    WiFi.config(IPAddress(ip_static), IPAddress(ip_gateway), IPAddress(ip_subnet), IPAddress(ip_dns));
+    WiFi.config(ip_static, ip_gateway, ip_subnet, ip_dns);
 
     int Attempt = 0;
     while (WiFi.status() != WL_CONNECTED) {
@@ -121,13 +122,16 @@ void wifi_connect()
 void setup()
 {
   startMills = millis();
-  Serial.begin(74880);
+  Serial.begin(115200);
+
+  pinMode(5, INPUT_PULLUP);
 
   Serial.println("");
-  Serial.println("rtc mem test");
+  Serial.println("starting setup");
   Serial.println(wifi_station_get_auto_connect());
   WiFi.setAutoConnect(true);
 
+  wifi_fpm_set_sleep_type(LIGHT_SLEEP_T);
   wifi_connect();
 
   clientName += "esp8266-";
@@ -136,20 +140,13 @@ void setup()
   clientName += macToStr(mac);
   clientName += "-";
   clientName += String(micros() & 0xff, 16);
-
-}
-
-void fpm_wakup_cb_func1()
-{
-  Serial.println("Reconnecting");
-  wifi_fpm_close();
-  wifi_set_opmode(STATION_MODE);
-  wifi_station_connect();
-  wifi_connect();
+  
+  reconnect();
 }
 
 void loop()
 {
+  Serial.println("");
   Serial.println("starting main loop");
   if (WiFi.status() == WL_CONNECTED) {
     if (!client.connected()) {
@@ -162,7 +159,7 @@ void loop()
       }
     }
   } else {
-    //wifi_connect();
+    wifi_connect();
   }
 
   if (client.connected()) {
@@ -173,18 +170,20 @@ void loop()
     payload += ",\"RSSI\":";
     payload += WiFi.RSSI();
     payload += "}";
+    
     sendmqttMsg(topic, payload);
+    delay(100);
   }
 
-  Serial.println("diconnecting client and wifi");
   client.disconnect();
-  wifi_station_disconnect();
-  wifi_set_opmode(NULL_MODE);
-  wifi_set_sleep_type(LIGHT_SLEEP_T);
+  Serial.println("going to sleep");
+  delay(100);
+  wifi_fpm_set_sleep_type(LIGHT_SLEEP_T);
+  gpio_pin_wakeup_enable(GPIO_ID_PIN(5), GPIO_PIN_INTR_LOLEVEL);
   wifi_fpm_open();
-  // ---> not yet includef in user_interface.h, so can't use it now
-  // 'wifi_fpm_set_wakeup_cb' was not declared in this scope
-  wifi_fpm_set_wakeup_cb(fpm_wakup_cb_func1);
-  wifi_fpm_do_sleep(100000 * 1000);
+  wifi_fpm_do_sleep(0xFFFFFFF);
+  delay(100);
+
+  Serial.println("wake up");
 }
 
