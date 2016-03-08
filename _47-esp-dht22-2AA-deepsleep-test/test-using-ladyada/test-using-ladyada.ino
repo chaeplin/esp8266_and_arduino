@@ -38,6 +38,8 @@ DHT dht(DHTPIN, DHTTYPE);
 unsigned long startMills;
 float t, h;
 int acquireresult;
+int _sensor_error_count;
+unsigned long _sensor_report_count;
 
 void sendUdpmsg(String msgtosend) {
   unsigned int msg_length = msgtosend.length();
@@ -52,9 +54,17 @@ void sendUdpmsg(String msgtosend) {
 
 void report()
 {
+  _sensor_report_count++;
+
   String udppayload = "edges2,device=esp-12-N3,debug=on,DHTLIB_ONE_TIMING=110 ";
   udppayload += "Freq=";
   udppayload += ESP.getCpuFreqMHz();
+  udppayload += "i,C=";
+  udppayload += _sensor_report_count;
+  udppayload += "i,R=";
+  udppayload += acquireresult;
+  udppayload += ",E=";
+  udppayload += _sensor_error_count;
   udppayload += "i,H=";
   udppayload += h;
   udppayload += ",T=";
@@ -132,6 +142,7 @@ void loop()
   t = dht.readTemperature();
 
   if (isnan(h) || isnan(t)) {
+    _sensor_error_count++;
     acquireresult = -1;
     h = t = 0;
     Serial.println("Failed to read from DHT sensor!");

@@ -6,6 +6,7 @@ D13(MOSI) - LED
 D14(SCK)  - INT from pro mini
  */
 #include <ESP8266WiFi.h>
+#include <ESP8266Ping.h>
 #include <PubSubClient.h>
 #include <Average.h>
 #include <pgmspace.h>
@@ -27,6 +28,8 @@ D14(SCK)  - INT from pro mini
 
 #define DEBUG_PRINT 0
 
+#define REPORT_INTERVAL 5000 // in msec
+
 // ****************
 //void callback(char* intopic, byte* inpayload, unsigned int length);
 String macToStr(const uint8_t* mac);
@@ -34,17 +37,19 @@ void check_isr();
 void hx711IsReady();
 void sendHx711toMqtt(String payload, char* topic, int retain);
 
-
 // ****************
 const char* ssid = WIFI_SSID;
 const char* password = WIFI_PASSWORD;
 const char* otapassword = OTA_PASSWORD;
 
-//int32_t channel = WIFI_CHANNEL;
+const IPAddress mqtt_server = MQTT_SERVER;
+const IPAddress time_server = MQTT_SERVER;
 
-//
-IPAddress mqtt_server = MQTT_SERVER;
-IPAddress time_server = MQTT_SERVER;
+// ICMP
+const IPAddress ap2(192, 168, 10, 2);
+bool ret_ap2;
+int millis_ap2;
+String pingpayload;
 
 //-------------
 int measured = 0;
@@ -63,9 +68,10 @@ int measured_empty    = 0;
 
 Average<float> ave(10);
 
-char* topicEvery   = "esp8266/arduino/s16";
-char* topicAverage = "esp8266/arduino/s06";
-char* hellotopic = "HELLO";
+char* topicEvery    = "esp8266/arduino/s16";
+char* topicAverage  = "esp8266/arduino/s06";
+char* topicpingtest = "esp8266/ping";
+char* hellotopic    = "HELLO";
 
 char* willTopic = "clients/scale";
 char* willMessage = "0";
@@ -78,16 +84,9 @@ String getResetInfo ;
 int ResetInfo = LOW;
 
 WiFiClient wifiClient;
-//PubSubClient client(mqtt_server, 1883, callback, wifiClient);
 PubSubClient client(mqtt_server, 1883, wifiClient);
 
-/*
-  void callback(char* topic, byte* payload, unsigned int length) {
-  // handle message arrived
-  }
-*/
-
-unsigned long startMills;
+unsigned long startMills, sentMills;
 
 long lastReconnectAttempt = 0;
 
@@ -114,8 +113,7 @@ void wifi_connect() {
     if (DEBUG_PRINT) {
       Serial.print(".");
     }
-    if (Attempt == 100)
-    {
+    if (Attempt == 100) {
       if (DEBUG_PRINT) {
         Serial.println();
         Serial.println("Could not connect to WIFI");
@@ -180,7 +178,9 @@ void setup() {
   }
   delay(100);
 
-  startMills = millis();
+  startMills = sentMills = millis();
+  millis_ap2 = 0;
+  ret_ap2 = false;
 
   pinMode(nemoisOnPin, INPUT);
   pinMode(ledPin, OUTPUT);
@@ -208,7 +208,6 @@ void setup() {
   // Hostname defaults to esp8266-[ChipID]
   ArduinoOTA.setHostname("esp-scale");
 
-
   // No authentication by default
   ArduinoOTA.setPassword(otapassword);
 
@@ -235,8 +234,7 @@ void setup() {
   ArduinoOTA.begin();
 }
 
-void loop()
-{
+void loop() {
   if (WiFi.status() == WL_CONNECTED) {
     if (!client.connected()) {
       if (DEBUG_PRINT) {
@@ -258,21 +256,34 @@ void loop()
     wifi_connect();
   }
 
+  if ((millis() - sentMills) > REPORT_INTERVAL ) {
+    if ( m == o_m && inuse == LOW ) {
+      ret_ap2 = Ping.ping(ap2, 1);
+      if (ret_ap2) {
+        millis_ap2 = Ping.averageTime();
+      } else {
+        millis_ap2 = 0;
+      }
+      pingpayload  = "{\"ping\":";
+      pingpayload += millis_ap2;
+      pingpayload += "}";
+      sendHx711toMqtt(pingpayload, topicpingtest, 0);
+      sentMills = millis();
+    }    
+  }
+
   if ( m != o_m ) {
     hx711IsReady();
     o_m = m;
   }
 
-  if ( r != o_r )
-  {
+  if ( r != o_r ) {
     ave.push(measured);
 
     if ( inuse == HIGH ) {
       digitalWrite(ledPin, HIGH);
-      if ( measured > 200 )
-      {
-        if ( ( ave.stddev() < 15 ) && ( nofchecked > 15 ) && ( ave.mean() > 1000 ) && ( ave.mean() < 7000 ) && ( AvgMeasuredIsSent == LOW ) )
-        {
+      if ( measured > 200 ) {
+        if ( ( ave.stddev() < 15 ) && ( nofchecked > 15 ) && ( ave.mean() > 1000 ) && ( ave.mean() < 7000 ) && ( AvgMeasuredIsSent == LOW ) ) {
           payload = "{\"WeightAvg\":";
           payload += ( int(ave.mean()) - measured_empty );
           payload += ",\"WeightStddev\":";
@@ -281,8 +292,7 @@ void loop()
 
           sendHx711toMqtt(payload, topicAverage, 1);
         } else {
-          if ( nofchecked > 3 )
-          {
+          if ( nofchecked > 3 ) {
             payload = "{\"NemoWeight\":";
             payload += ( measured - measured_empty );
             payload += "}";
@@ -295,8 +305,7 @@ void loop()
       digitalWrite(ledPin, LOW);
 
       if ( ( ave.stddev() < 10 ) && ( nofnotinuse > 20 ) ) {
-        if ( AvgMeasuredIsSent == HIGH )
-        {
+        if ( AvgMeasuredIsSent == HIGH ) {
           if (DEBUG_PRINT) {
             Serial.print("poop_checked : ");
             Serial.println(int(ave.mean()));
@@ -341,13 +350,11 @@ void loop()
   ArduinoOTA.handle();
 }
 
-void check_isr()
-{
+void check_isr() {
   m = !m;
 }
 
-void hx711IsReady()
-{
+void hx711IsReady() {
 
   Wire.requestFrom(2, 3);
 
@@ -381,8 +388,7 @@ void hx711IsReady()
   r = !r;
 }
 
-void sendHx711toMqtt(String payload, char* topic, int retain)
-{
+void sendHx711toMqtt(String payload, char* topic, int retain) {
   /*
     if (!client.connected()) {
       if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
@@ -442,8 +448,7 @@ void sendHx711toMqtt(String payload, char* topic, int retain)
 
 }
 
-String macToStr(const uint8_t* mac)
-{
+String macToStr(const uint8_t* mac) {
   String result;
   for (int i = 0; i < 6; ++i) {
     result += String(mac[i], 16);

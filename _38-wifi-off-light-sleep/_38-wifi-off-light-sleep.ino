@@ -182,6 +182,7 @@ void loop()
   gpio_pin_wakeup_enable(GPIO_ID_PIN(5), GPIO_PIN_INTR_LOLEVEL);
   wifi_fpm_open();
   wifi_fpm_do_sleep(0xFFFFFFF);
+  //wifi_fpm_do_sleep(10000000);
   delay(100);
 
   Serial.println("wake up");
