@@ -35,10 +35,32 @@ extern "C" {
 #include "user_interface.h"
 }
 
-#define DHT_DEBUG_TIMING
-
 // to check battery voltage using internal adc
 ADC_MODE(ADC_VCC);
+
+// rtc
+#define RTC_MAGIC 123
+
+typedef struct _tagPoint {
+  uint32 magic;
+  uint32 salt;
+  uint32 wifi_err_cnt;
+  uint32 temp_err_cnt;
+  uint32 report_cnt;
+} RTC_TEST;
+
+RTC_TEST rtc_mem_test;
+
+//
+#define IPSET_STATIC { 192, 168, 10, 17 }
+#define IPSET_GATEWAY { 192, 168, 10, 1 }
+#define IPSET_SUBNET { 255, 255, 255, 0 }
+#define IPSET_DNS { 192, 168, 10, 10 }
+
+byte ip_static[] = IPSET_STATIC;
+byte ip_gateway[] = IPSET_GATEWAY;
+byte ip_subnet[] = IPSET_SUBNET;
+byte ip_dns[] = IPSET_DNS;
 
 //
 IPAddress influxdbudp = MQTT_SERVER;
@@ -55,27 +77,40 @@ WiFiClient wifiClient;
 WiFiUDP udp;
 
 // system defines
-#define DHTTYPE  DHT22          // Sensor type DHT11/21/22/AM2301/AM2302
-#define DHTPIN   2              // Digital pin for communications
-#define REPORT_INTERVAL 5000 // in msec
+#define DHTTYPE  DHT22              // Sensor type DHT11/21/22/AM2301/AM2302
+#define DHTPIN   2                  // Digital pin for communications
+#define REPORT_INTERVAL 10          // in sec
+#define DHT_SMAPLING_INTERVAL  2000 // in msec 
 
-// to check dht
-unsigned long startMills, sentMills;
-bool bDHTstarted;       // flag to indicate we started acquisition
-float t, h;
-int acquireresult;
+unsigned long startMills, checkMillis;
+bool bDHTstarted;
 int acquirestatus;
-int _sensor_error_count;
-unsigned long _sensor_report_count;
+int loopcount;
 
-//declaration
-void ICACHE_RAM_ATTR dht_wrapper(); // must be declared before the lib initialization
+void ICACHE_RAM_ATTR dht_wrapper();
 
-// Lib instantiate
 PietteTech_DHT DHT(DHTPIN, DHTTYPE, dht_wrapper);
 
-// This wrapper is in charge of calling
-// must be defined like this for the lib work
+void goingtosleep() {
+  //pinMode(DHTPIN, INPUT);
+  system_rtc_mem_write(100, &rtc_mem_test, sizeof(rtc_mem_test));
+  ESP.deepSleep((REPORT_INTERVAL * 1000 * 1000 ), WAKE_RF_DEFAULT);
+  yield();
+}
+
+void rtc_check() {
+  // system_rtc_mem_read(64... not work, use > 64
+  system_rtc_mem_read(100, &rtc_mem_test, sizeof(rtc_mem_test));
+  if (rtc_mem_test.magic != RTC_MAGIC) {
+    rtc_mem_test.magic        = RTC_MAGIC;
+    rtc_mem_test.salt         = 0;
+    rtc_mem_test.wifi_err_cnt = 0;
+    rtc_mem_test.temp_err_cnt = 0;
+    rtc_mem_test.report_cnt   = 0;
+  }
+  rtc_mem_test.salt++;
+}
+
 void ICACHE_RAM_ATTR dht_wrapper() {
   DHT.isrCallback();
 }
@@ -89,40 +124,41 @@ void ICACHE_RAM_ATTR sendUdpmsg(String msgtosend) {
   udp.write(p, msg_length);
   udp.endPacket();
   free(p);
+  delay(100);
 }
 
 void ICACHE_RAM_ATTR printEdgeTiming(class PietteTech_DHT *_d) {
   byte n;
-#if defined(DHT_DEBUG_TIMING)
   volatile uint8_t *_e = &_d->_edges[0];
-#endif
   int result = _d->getStatus();
   if (result != 0) {
-    _sensor_error_count++;
+    rtc_mem_test.temp_err_cnt++;
   }
-  _sensor_report_count++;
+  rtc_mem_test.report_cnt++;
 
-  String udppayload = "edges2,device=esp-12-N3,debug=on,DHTLIB_ONE_TIMING=110 ";
+  String udppayload = "edges2,device=esp-12-N3,DHTLIB_ONE_TIMING=110 ";
   for (n = 0; n < 41; n++) {
     char buf[2];
     udppayload += "e";
     sprintf(buf, "%02d", n);
     udppayload += buf;
     udppayload += "=";
-#if defined(DHT_DEBUG_TIMING)
     udppayload += *_e++;
-#endif
     udppayload += "i,";
   }
 
   udppayload += "F=";
   udppayload += ESP.getCpuFreqMHz();
   udppayload += "i,C=";
-  udppayload += _sensor_report_count;
+  udppayload += rtc_mem_test.salt;
+  udppayload += "i,O=";
+  udppayload += rtc_mem_test.report_cnt;
   udppayload += "i,R=";
   udppayload += result;
   udppayload += ",E=";
-  udppayload += _sensor_error_count;
+  udppayload += rtc_mem_test.temp_err_cnt;
+  udppayload += "i,W=";
+  udppayload += rtc_mem_test.wifi_err_cnt;
   udppayload += "i,H=";
   udppayload += _d->getHumidity();
   udppayload += ",T=";
@@ -131,12 +167,14 @@ void ICACHE_RAM_ATTR printEdgeTiming(class PietteTech_DHT *_d) {
   udppayload += vdd;
   udppayload += "i";
 
+  //Serial.println(udppayload);
   sendUdpmsg(udppayload);
 }
 
 void wifi_connect() {
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
+  WiFi.config(IPAddress(ip_static), IPAddress(ip_gateway), IPAddress(ip_subnet), IPAddress(ip_dns));
   WiFi.hostname("esp-dht22-deepsleeptest");
 
   int Attempt = 0;
@@ -145,50 +183,58 @@ void wifi_connect() {
     Attempt++;
     if (Attempt == 300)
     {
-      ESP.restart();
+      rtc_mem_test.wifi_err_cnt++;
+      goingtosleep();
     }
   }
+  /*
+  Serial.println(millis() - startMills);
+
+  Serial.println("");
+  Serial.println("WiFi connected");
+  Serial.println("IP address: ");
+  Serial.println(WiFi.localIP());
+  */
 }
 
-void setup()
-{
-  startMills = sentMills = millis();
-
+void setup() {
+  //pinMode(DHTPIN, OUTPUT);
+  //digitalWrite(DHTPIN, HIGH);
+  DHT.begin(DHTPIN, DHTTYPE, dht_wrapper);
+  /*
+  Serial.begin(115200);
+  Serial.println("");
+  Serial.println("Setup started");
+  */
+  
+  rtc_check();
   vdd = ESP.getVcc() * 0.96;
-
-  _sensor_error_count = _sensor_report_count = acquirestatus = 0;
-
-  delay(2000);
-  acquireresult = DHT.acquireAndWait(500);
-
-  if (acquireresult != 0) {
-    h = t = 0;
+  acquirestatus = loopcount = 0;
+  //Serial.println("wifi on");
+  if (WiFi.status() != WL_CONNECTED) {
+    wifi_connect();
   }
-  wifi_connect();
+  //Serial.println("wifi connected");
+  bDHTstarted = false;
+  startMills = checkMillis = millis();
 }
 
-void loop()
-{
-
-  if (WiFi.status() == WL_CONNECTED) {
-
+void loop() {
+  if ( loopcount < 2 ) {
     if (bDHTstarted) {
       acquirestatus = DHT.acquiring();
       if (!acquirestatus) {
-        acquireresult = DHT.getStatus();
-        if ( acquireresult == 0 ) {
-          t = DHT.getCelsius();
-          h = DHT.getHumidity();
+        //Serial.println("dht started");
+        if (DHT.getStatus() != 0) {
+          rtc_mem_test.temp_err_cnt++;
         }
         bDHTstarted = false;
+        loopcount++;
       }
     }
 
-    if ((millis() - sentMills) > REPORT_INTERVAL ) {
-#if defined(DHT_DEBUG_TIMING)
-      printEdgeTiming(&DHT);
-#endif
-      sentMills = millis();
+    if ((millis() - checkMillis) > DHT_SMAPLING_INTERVAL ) {
+      checkMillis = millis();
 
       if (acquirestatus == 1) {
         DHT.reset();
@@ -197,10 +243,19 @@ void loop()
       if (!bDHTstarted) {
         DHT.acquire();
         bDHTstarted = true;
+        //Serial.println("starting dht");
       }
     }
-
   } else {
-    wifi_connect();
+    //Serial.println("reporting -->");
+    printEdgeTiming(&DHT);
+    //Serial.println("reporting done --> ");
+    //Serial.println("going to sleep --> ");
+    goingtosleep();
+  }
+
+  if ((millis() - startMills) > 25000) {
+    //Serial.println("timed out");
+    goingtosleep();
   }
 }

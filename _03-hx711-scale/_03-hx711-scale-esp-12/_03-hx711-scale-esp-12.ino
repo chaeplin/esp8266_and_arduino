@@ -1,10 +1,10 @@
 // flash 4M, CPU 80Mhz
 /*
-D5(SCL)   - pro mini / i2c
-D4(SDA)   - pro mini / i2c 
-D13(MOSI) - LED
-D14(SCK)  - INT from pro mini
- */
+  D5(SCL)   - pro mini / i2c
+  D4(SDA)   - pro mini / i2c
+  D13(MOSI) - LED
+  D14(SCK)  - INT from pro mini
+*/
 #include <ESP8266WiFi.h>
 #include <ESP8266Ping.h>
 #include <PubSubClient.h>
@@ -47,8 +47,10 @@ const IPAddress time_server = MQTT_SERVER;
 
 // ICMP
 const IPAddress ap2(192, 168, 10, 2);
-bool ret_ap2;
-int millis_ap2;
+const IPAddress dns(8, 8, 8, 8);
+
+bool ret_ap2_result, ret_dns_result;
+int millis_ap2, millis_dns, pingloopcount;
 String pingpayload;
 
 //-------------
@@ -179,8 +181,8 @@ void setup() {
   delay(100);
 
   startMills = sentMills = millis();
-  millis_ap2 = 0;
-  ret_ap2 = false;
+  millis_ap2 = millis_dns = pingloopcount = 0;
+  ret_ap2_result = ret_dns_result = false;
 
   pinMode(nemoisOnPin, INPUT);
   pinMode(ledPin, OUTPUT);
@@ -258,18 +260,46 @@ void loop() {
 
   if ((millis() - sentMills) > REPORT_INTERVAL ) {
     if ( m == o_m && inuse == LOW ) {
-      ret_ap2 = Ping.ping(ap2, 1);
-      if (ret_ap2) {
-        millis_ap2 = Ping.averageTime();
-      } else {
-        millis_ap2 = 0;
+      switch (pingloopcount) {
+        case 0:
+          ret_ap2_result = Ping.ping(ap2, 1);
+          if (ret_ap2_result) {
+            millis_ap2 = Ping.averageTime();
+          } else {
+            millis_ap2 = 0;
+          }
+          sentMills = millis();
+          pingloopcount++;
+          break;
+
+        case 1:
+          ret_dns_result = Ping.ping(dns, 1);
+          if (ret_dns_result) {
+            millis_dns = Ping.averageTime();
+          } else {
+            millis_dns = 0;
+          }
+          sentMills = millis();
+          pingloopcount++;
+          break;
+
+        case 2:
+          pingpayload  = "{\"ap2\":";
+          pingpayload += millis_ap2;
+          pingpayload += ",\"dns\":";
+          pingpayload += millis_dns;
+          pingpayload += ",\"ret_ap2_result\":";
+          pingpayload += ret_ap2_result;
+          pingpayload += ",\"ret_dns_result\":";
+          pingpayload += ret_dns_result;
+          pingpayload += "}";
+
+          sendHx711toMqtt(pingpayload, topicpingtest, 0);
+          sentMills = millis();
+          pingloopcount = 0;
+          break;
       }
-      pingpayload  = "{\"ping\":";
-      pingpayload += millis_ap2;
-      pingpayload += "}";
-      sendHx711toMqtt(pingpayload, topicpingtest, 0);
-      sentMills = millis();
-    }    
+    }
   }
 
   if ( m != o_m ) {
