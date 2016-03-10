@@ -15,6 +15,10 @@
 #include <WiFiUdp.h>
 #include <ArduinoOTA.h>
 
+extern "C" {
+#include "user_interface.h"
+}
+
 #define _IS_MY_HOME
 // wifi
 #ifdef _IS_MY_HOME
@@ -22,6 +26,9 @@
 #else
 #include "ap_setting.h"
 #endif
+
+#define SYS_CPU_80MHz 80
+#define SYS_CPU_160MHz 160
 
 #define nemoisOnPin 14
 #define ledPin 13
@@ -160,6 +167,8 @@ boolean reconnect() {
 }
 
 void setup() {
+   system_update_cpu_freq(SYS_CPU_80MHz);
+
   if (DEBUG_PRINT) {
     Serial.begin(115200);
   }
@@ -199,7 +208,7 @@ void setup() {
   lastReconnectAttempt = 0;
 
   getResetInfo = "hello from ESP8266 s06 ";
-  getResetInfo += ESP.getResetInfo().substring(0, 30);
+  getResetInfo += ESP.getResetInfo().substring(0, 40);
 
   attachInterrupt(14, check_isr, RISING);
 
@@ -258,11 +267,14 @@ void loop() {
     wifi_connect();
   }
 
+
   if ((millis() - sentMills) > REPORT_INTERVAL ) {
     if ( m == o_m && inuse == LOW ) {
       switch (pingloopcount) {
         case 0:
+          ESP.wdtDisable();
           ret_ap2_result = Ping.ping(ap2, 1);
+           ESP.wdtEnable(2000);
           if (ret_ap2_result) {
             millis_ap2 = Ping.averageTime();
           } else {
@@ -273,7 +285,9 @@ void loop() {
           break;
 
         case 1:
+          ESP.wdtDisable();
           ret_dns_result = Ping.ping(dns, 1);
+           ESP.wdtEnable(2000);
           if (ret_dns_result) {
             millis_dns = Ping.averageTime();
           } else {
@@ -301,7 +315,7 @@ void loop() {
       }
     }
   }
-
+  
   if ( m != o_m ) {
     hx711IsReady();
     o_m = m;

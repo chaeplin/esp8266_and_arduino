@@ -16,8 +16,12 @@ http://www.bowdenshobbycircuits.info/mono.gif
 
 ![1](./pics/01.reset_switch_schem.png)
 
-![2](./pics/buttonmillis.png)
+![2](./pics/02reset.png)
 
-![3](./pics/npntr.png)
+![3](./pics/03.reset-reed-no.png)
 
-![4](./pics/FullSizeRender%205.jpg)
+![4](./pics/buttonmillis.png)
+
+![5](./pics/npntr.png)
+
+![6](./pics/FullSizeRender%205.jpg)

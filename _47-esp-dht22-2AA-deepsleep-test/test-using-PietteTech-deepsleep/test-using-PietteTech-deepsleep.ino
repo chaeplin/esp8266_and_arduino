@@ -80,7 +80,7 @@ WiFiUDP udp;
 #define DHTTYPE  DHT22              // Sensor type DHT11/21/22/AM2301/AM2302
 #define DHTPIN   2                  // Digital pin for communications
 #define REPORT_INTERVAL 10          // in sec
-#define DHT_SMAPLING_INTERVAL  2000 // in msec 
+#define DHT_SMAPLING_INTERVAL  2100 // in msec 
 
 unsigned long startMills, checkMillis;
 bool bDHTstarted;
@@ -92,9 +92,14 @@ void ICACHE_RAM_ATTR dht_wrapper();
 PietteTech_DHT DHT(DHTPIN, DHTTYPE, dht_wrapper);
 
 void goingtosleep() {
-  //pinMode(DHTPIN, INPUT);
   system_rtc_mem_write(100, &rtc_mem_test, sizeof(rtc_mem_test));
   ESP.deepSleep((REPORT_INTERVAL * 1000 * 1000 ), WAKE_RF_DEFAULT);
+  yield();
+}
+
+void dorestart() {
+  system_rtc_mem_write(100, &rtc_mem_test, sizeof(rtc_mem_test));
+  ESP.restart();
   yield();
 }
 
@@ -198,9 +203,6 @@ void wifi_connect() {
 }
 
 void setup() {
-  //pinMode(DHTPIN, OUTPUT);
-  //digitalWrite(DHTPIN, HIGH);
-  DHT.begin(DHTPIN, DHTTYPE, dht_wrapper);
   /*
   Serial.begin(115200);
   Serial.println("");
@@ -227,7 +229,9 @@ void loop() {
         //Serial.println("dht started");
         if (DHT.getStatus() != 0) {
           rtc_mem_test.temp_err_cnt++;
+          goingtosleep();
         }
+
         bDHTstarted = false;
         loopcount++;
       }

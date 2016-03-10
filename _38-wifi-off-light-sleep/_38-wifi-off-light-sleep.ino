@@ -125,6 +125,8 @@ void setup()
   Serial.begin(115200);
 
   pinMode(5, INPUT_PULLUP);
+  // GPIO state preserved
+  pinMode(4, OUTPUT);
 
   Serial.println("");
   Serial.println("starting setup");
@@ -148,6 +150,7 @@ void loop()
 {
   Serial.println("");
   Serial.println("starting main loop");
+  digitalWrite(4, LOW);
   if (WiFi.status() == WL_CONNECTED) {
     if (!client.connected()) {
       long now = millis();
@@ -182,9 +185,12 @@ void loop()
   gpio_pin_wakeup_enable(GPIO_ID_PIN(5), GPIO_PIN_INTR_LOLEVEL);
   wifi_fpm_open();
   wifi_fpm_do_sleep(0xFFFFFFF);
-  //wifi_fpm_do_sleep(10000000);
+  // after some loop wifi has problem.
+  //wifi_fpm_do_sleep(100000000);
   delay(100);
 
   Serial.println("wake up");
+  digitalWrite(4, HIGH);
+  delay(2000);
 }
 

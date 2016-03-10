@@ -98,6 +98,10 @@ volatile int sleepmode = LOW ;
 volatile int o_sleepmode = HIGH ;
 
 // ------------------------------------------
+// RGB for ICMP display pin
+const int RGBLED[6] = {4, 5, 8, 9, 10,11};
+
+//
 
 // IR
 void ac_send_code(unsigned long code)
@@ -108,7 +112,7 @@ void ac_send_code(unsigned long code)
   Serial.println(code, HEX);
 
   delay(100);
-  irsend.sendLGAC(code, 28);
+  irsend.sendLG(code, 28);
 
   delay(100);
   irrecv.enableIRIn(); // Start the receiver
@@ -283,6 +287,12 @@ void setup()
 
   irrecv.enableIRIn(); // Start the receiver
 
+  for ( int i = 0; i < 6 ; i++ )
+  {
+    pinMode(RGBLED[i], OUTPUT);
+    digitalWrite(RGBLED[i], LOW);
+  }
+
   Wire.begin(2);                // join i2c bus with address #2
   Wire.onRequest(requestEvent); // register event
   Wire.onReceive(receiveEvent);
@@ -321,6 +331,10 @@ void loop()
     Serial.println(ave2.mean());
     */
     
+    for ( int i = 0; i < 6 ; i++ )
+    {
+      digitalWrite(RGBLED[i], LOW);
+    }
   }
 
   if ((sleepmode == HIGH) && ( ( millis() - ac_startMills) >= 1800000 )) {
@@ -328,7 +342,13 @@ void loop()
     ac_startMills = millis();
   }
 
+  for ( int i = 0; i < 6 ; i++ )
+  {
+    digitalWrite(RGBLED[i], HIGH);
+  }
+
   delay(10);
+
 }
 
 void requestEvent()
