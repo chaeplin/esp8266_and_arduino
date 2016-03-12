@@ -138,7 +138,7 @@ void setup() {
   digitalWrite(RST_PIN, LOW);
 
   // input of door switch, closed : 1, open : 0
-  pinMode(DOOR_PIN, INPUT);
+  pinMode(DOOR_PIN, INPUT_PULLUP);
 
   clientName += "esp8266-";
   uint8_t mac[6];
