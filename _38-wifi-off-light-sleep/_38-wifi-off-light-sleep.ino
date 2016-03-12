@@ -122,9 +122,9 @@ void wifi_connect()
 void setup()
 {
   startMills = millis();
-  Serial.begin(115200);
+  Serial.begin(74880);
 
-  pinMode(5, INPUT_PULLUP);
+  pinMode(5, INPUT);
   // GPIO state preserved
   pinMode(4, OUTPUT);
 
@@ -142,7 +142,7 @@ void setup()
   clientName += macToStr(mac);
   clientName += "-";
   clientName += String(micros() & 0xff, 16);
-  
+
   reconnect();
 }
 
@@ -173,7 +173,7 @@ void loop()
     payload += ",\"RSSI\":";
     payload += WiFi.RSSI();
     payload += "}";
-    
+
     sendmqttMsg(topic, payload);
     delay(100);
   }
@@ -181,6 +181,8 @@ void loop()
   client.disconnect();
   Serial.println("going to sleep");
   delay(100);
+  wifi_station_disconnect();
+  wifi_set_opmode(NULL_MODE);
   wifi_fpm_set_sleep_type(LIGHT_SLEEP_T);
   gpio_pin_wakeup_enable(GPIO_ID_PIN(5), GPIO_PIN_INTR_LOLEVEL);
   wifi_fpm_open();
@@ -190,6 +192,9 @@ void loop()
   delay(100);
 
   Serial.println("wake up");
+  wifi_fpm_close();
+  wifi_set_opmode(STATION_MODE);
+  wifi_station_connect();
   digitalWrite(4, HIGH);
   delay(2000);
 }
