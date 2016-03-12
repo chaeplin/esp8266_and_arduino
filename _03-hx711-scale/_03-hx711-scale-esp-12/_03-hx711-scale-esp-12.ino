@@ -14,18 +14,11 @@
 #include <ESP8266mDNS.h>
 #include <WiFiUdp.h>
 #include <ArduinoOTA.h>
+#include "/usr/local/src/ap_setting.h"
 
 extern "C" {
 #include "user_interface.h"
 }
-
-#define _IS_MY_HOME
-// wifi
-#ifdef _IS_MY_HOME
-#include "/usr/local/src/ap_setting.h"
-#else
-#include "ap_setting.h"
-#endif
 
 #define SYS_CPU_80MHz 80
 #define SYS_CPU_160MHz 160
@@ -33,7 +26,7 @@ extern "C" {
 #define nemoisOnPin 14
 #define ledPin 13
 
-#define DEBUG_PRINT 0
+#define DEBUG_PRINT 1
 
 #define REPORT_INTERVAL 5000 // in msec
 
@@ -43,12 +36,14 @@ String macToStr(const uint8_t* mac);
 void check_isr();
 void hx711IsReady();
 void sendHx711toMqtt(String payload, char* topic, int retain);
+void sendUdpSyslog(String msgtosend);
 
 // ****************
 const char* ssid = WIFI_SSID;
 const char* password = WIFI_PASSWORD;
 const char* otapassword = OTA_PASSWORD;
 
+const IPAddress influxdbudp = MQTT_SERVER;
 const IPAddress mqtt_server = MQTT_SERVER;
 const IPAddress time_server = MQTT_SERVER;
 
@@ -59,6 +54,7 @@ const IPAddress dns(8, 8, 8, 8);
 bool ret_ap2_result, ret_dns_result;
 int millis_ap2, millis_dns, pingloopcount;
 String pingpayload;
+String syslogPayload;
 
 //-------------
 int measured = 0;
@@ -93,6 +89,7 @@ String getResetInfo ;
 int ResetInfo = LOW;
 
 WiFiClient wifiClient;
+WiFiUDP udp;
 PubSubClient client(mqtt_server, 1883, wifiClient);
 
 unsigned long startMills, sentMills;
@@ -100,46 +97,18 @@ unsigned long startMills, sentMills;
 long lastReconnectAttempt = 0;
 
 void wifi_connect() {
-  // WIFI
-  if (DEBUG_PRINT) {
-    Serial.println();
-    Serial.println();
-    Serial.print("Connecting to ");
-    Serial.println(ssid);
-  }
-
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
   WiFi.hostname("esp-scale");
 
   int Attempt = 0;
   while (WiFi.status() != WL_CONNECTED) {
-    digitalWrite(ledPin, HIGH);
-    delay(50);
-    digitalWrite(ledPin, LOW);
-    delay(50);
+    delay(100);
     Attempt++;
-    if (DEBUG_PRINT) {
-      Serial.print(".");
-    }
-    if (Attempt == 100) {
-      if (DEBUG_PRINT) {
-        Serial.println();
-        Serial.println("Could not connect to WIFI");
-      }
+    if (Attempt == 200) {
       ESP.restart();
-      delay(2000);
     }
   }
-
-  if (DEBUG_PRINT) {
-    Serial.println("");
-    Serial.println("WiFi connected");
-    Serial.println("IP address: ");
-    Serial.println(WiFi.localIP());
-  }
-  //startMills = millis();
-
 }
 
 boolean reconnect() {
@@ -150,43 +119,27 @@ boolean reconnect() {
         client.publish(hellotopic, (char*) getResetInfo.c_str());
         ResetInfo = HIGH;
       } else {
-        client.publish(hellotopic, "hello again 1 from ESP8266 s06");
+        client.publish(hellotopic, "hello again 1 from scale");
       }
       if (DEBUG_PRINT) {
-        Serial.println("connected");
+        sendUdpSyslog("connected");
       }
     } else {
       if (DEBUG_PRINT) {
-        Serial.print("failed, rc=");
-        Serial.print(client.state());
+        syslogPayload = "failed, rc=";
+        syslogPayload += client.state();
+        sendUdpSyslog(syslogPayload);
       }
     }
   }
-  //startMills = millis();
+  client.loop();
   return client.connected();
 }
 
 void setup() {
-   system_update_cpu_freq(SYS_CPU_80MHz);
-
-  if (DEBUG_PRINT) {
-    Serial.begin(115200);
-  }
-  delay(20);
+  system_update_cpu_freq(SYS_CPU_80MHz);
 
   Wire.begin(4, 5);
-  if (DEBUG_PRINT) {
-    Serial.println("HX711 START");
-
-    Serial.print("ESP.getChipId() : ");
-    Serial.println(ESP.getChipId());
-
-    Serial.print("ESP.getFlashChipId() : ");
-    Serial.println(ESP.getFlashChipId());
-
-    Serial.print("ESP.getFlashChipSize() : ");
-    Serial.println(ESP.getFlashChipSize());
-  }
   delay(100);
 
   startMills = sentMills = millis();
@@ -207,52 +160,47 @@ void setup() {
 
   lastReconnectAttempt = 0;
 
-  getResetInfo = "hello from ESP8266 s06 ";
+  getResetInfo = "hello from scale ";
   getResetInfo += ESP.getResetInfo().substring(0, 40);
 
   attachInterrupt(14, check_isr, RISING);
 
   //OTA
-  // Port defaults to 8266
-  //ArduinoOTA.setPort(8266);
-
-  // Hostname defaults to esp8266-[ChipID]
   ArduinoOTA.setHostname("esp-scale");
-
-  // No authentication by default
   ArduinoOTA.setPassword(otapassword);
-
   ArduinoOTA.onStart([]() {
-    //Serial.println("Start");
+    sendUdpSyslog("ArduinoOTA Start");
   });
   ArduinoOTA.onEnd([]() {
-    //Serial.println("\nEnd");
+    sendUdpSyslog("ArduinoOTA End");
   });
   ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
-    //Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
+    syslogPayload = "Progress: ";
+    syslogPayload += (progress / (total / 100));
+    sendUdpSyslog(syslogPayload);
   });
   ArduinoOTA.onError([](ota_error_t error) {
-    ESP.restart();
-    /*
-      if (error == OTA_AUTH_ERROR) abort();
-      else if (error == OTA_BEGIN_ERROR) abort();
-      else if (error == OTA_CONNECT_ERROR) abort();
-      else if (error == OTA_RECEIVE_ERROR) abort();
-      else if (error == OTA_END_ERROR) abort();
-    */
+    //ESP.restart();
+    if (error == OTA_AUTH_ERROR) abort();
+    else if (error == OTA_BEGIN_ERROR) abort();
+    else if (error == OTA_CONNECT_ERROR) abort();
+    else if (error == OTA_RECEIVE_ERROR) abort();
+    else if (error == OTA_END_ERROR) abort();
+
   });
 
   ArduinoOTA.begin();
+  sendUdpSyslog("-------------> scale started"); 
 }
 
 void loop() {
   if (WiFi.status() == WL_CONNECTED) {
     if (!client.connected()) {
       if (DEBUG_PRINT) {
-        Serial.print("failed, rc=");
-        Serial.print(client.state());
+        syslogPayload = "failed, rc= ";
+        syslogPayload += client.state();
+        sendUdpSyslog(syslogPayload);
       }
-
       unsigned long now = millis();
       if (now - lastReconnectAttempt > 1000) {
         lastReconnectAttempt = now;
@@ -260,145 +208,176 @@ void loop() {
           lastReconnectAttempt = 0;
         }
       }
-    } /* else {
+    } else {
+
+      if ( m != o_m ) {
+        sendUdpSyslog("hx711IsReady : i2c read");
+        detachInterrupt(14);
+        hx711IsReady();
+        sendUdpSyslog("hx711IsReady : i2c read done");
+        attachInterrupt(14, check_isr, RISING);
+        o_m = m;
+      }
+
+      if ((millis() - sentMills) > REPORT_INTERVAL ) {
+        if ( m == o_m && inuse == LOW ) {
+          switch (pingloopcount) {
+            case 0:
+              detachInterrupt(14);
+              sendUdpSyslog("ap2 ping start");
+
+              ESP.wdtDisable();
+              ret_ap2_result = Ping.ping(ap2, 1);
+              ESP.wdtEnable(2000);
+              if (ret_ap2_result) {
+                millis_ap2 = Ping.averageTime();
+              } else {
+                millis_ap2 = 0;
+              }
+              sentMills = millis();
+              pingloopcount++;
+
+              sendUdpSyslog("ap2 ping stop");
+              attachInterrupt(14, check_isr, RISING);
+              break;
+
+            case 1:
+              detachInterrupt(14);
+              sendUdpSyslog("dns ping start");
+
+              ESP.wdtDisable();
+              ret_dns_result = Ping.ping(dns, 1);
+              ESP.wdtEnable(2000);
+              if (ret_dns_result) {
+                millis_dns = Ping.averageTime();
+              } else {
+                millis_dns = 0;
+              }
+              sentMills = millis();
+              pingloopcount++;
+
+              sendUdpSyslog("dns ping stop");
+              attachInterrupt(14, check_isr, RISING);
+              break;
+
+            case 2:
+              detachInterrupt(14);
+              sendUdpSyslog("ping case 2 start");
+              pingpayload  = "{\"ap2\":";
+              pingpayload += millis_ap2;
+              pingpayload += ",\"dns\":";
+              pingpayload += millis_dns;
+              pingpayload += ",\"ret_ap2_result\":";
+              pingpayload += ret_ap2_result;
+              pingpayload += ",\"ret_dns_result\":";
+              pingpayload += ret_dns_result;
+              pingpayload += "}";
+
+              sendHx711toMqtt(pingpayload, topicpingtest, 0);
+              sentMills = millis();
+              pingloopcount = 0;
+
+              sendUdpSyslog("ping case 2 stop");
+              attachInterrupt(14, check_isr, RISING);
+              break;
+          }
+        }
+      }
+
+      if ( r != o_r ) {
+        ave.push(measured);
+
+        if ( inuse == HIGH ) {
+          digitalWrite(ledPin, HIGH);
+          if ( measured > 200 ) {
+            if ( ( ave.stddev() < 15 ) && ( nofchecked > 15 ) && ( ave.mean() > 1000 ) && ( ave.mean() < 7000 ) && ( AvgMeasuredIsSent == LOW ) ) {
+              payload = "{\"WeightAvg\":";
+              payload += ( int(ave.mean()) - measured_empty );
+              payload += ",\"WeightStddev\":";
+              payload += ave.stddev();
+              payload += "}";
+
+              sendHx711toMqtt(payload, topicAverage, 1);
+            } else {
+              if ( nofchecked > 3 ) {
+                payload = "{\"NemoWeight\":";
+                payload += ( measured - measured_empty );
+                payload += "}";
+
+                sendHx711toMqtt(payload, topicEvery, 0);
+              }
+            }
+          }
+        } else {
+          digitalWrite(ledPin, LOW);
+
+          if ( ( ave.stddev() < 10 ) && ( nofnotinuse > 20 ) ) {
+            if ( AvgMeasuredIsSent == HIGH ) {
+              if (DEBUG_PRINT) {
+                syslogPayload = "poop_checked : ";
+                syslogPayload += int(ave.mean());
+                sendUdpSyslog(syslogPayload);
+              }
+
+              payload = "{\"WeightPoop\":";
+              payload += ( int(ave.mean()) - measured_empty );
+              payload += ",\"NemoWeight\":0}";
+              sendHx711toMqtt(payload, topicEvery, 0);
+              /*
+                        payload = "{\"WeightAvg\":0}";
+                        sendHx711toMqtt(payload, topicAverage, 0);
+              */
+              AvgMeasuredIsSent = LOW;
+            } else {
+              payload = "{\"NemoEmpty\":";
+              payload += int(ave.mean());
+              payload += ",\"NemoStddev\":";
+              payload += ave.stddev();
+              payload += ",\"FreeHeap\":";
+              payload += ESP.getFreeHeap();
+              payload += ",\"RSSI\":";
+              payload += WiFi.RSSI();
+              payload += ",\"millis\":";
+              payload += (millis() - startMills);
+              payload += "}";
+
+              measured_empty = int(ave.mean());
+              sendHx711toMqtt(payload, topicEvery, 0);
+            }
+            nofnotinuse = 0;
+          }
+
+          nofchecked = 0;
+        }
+        nofchecked++;
+        nofnotinuse++;
+        o_r = r;
+      }
       client.loop();
-    } */
+    }
+    ArduinoOTA.handle();
   } else {
     wifi_connect();
   }
-
-
-  if ((millis() - sentMills) > REPORT_INTERVAL ) {
-    if ( m == o_m && inuse == LOW ) {
-      switch (pingloopcount) {
-        case 0:
-          ESP.wdtDisable();
-          ret_ap2_result = Ping.ping(ap2, 1);
-           ESP.wdtEnable(2000);
-          if (ret_ap2_result) {
-            millis_ap2 = Ping.averageTime();
-          } else {
-            millis_ap2 = 0;
-          }
-          sentMills = millis();
-          pingloopcount++;
-          break;
-
-        case 1:
-          ESP.wdtDisable();
-          ret_dns_result = Ping.ping(dns, 1);
-           ESP.wdtEnable(2000);
-          if (ret_dns_result) {
-            millis_dns = Ping.averageTime();
-          } else {
-            millis_dns = 0;
-          }
-          sentMills = millis();
-          pingloopcount++;
-          break;
-
-        case 2:
-          pingpayload  = "{\"ap2\":";
-          pingpayload += millis_ap2;
-          pingpayload += ",\"dns\":";
-          pingpayload += millis_dns;
-          pingpayload += ",\"ret_ap2_result\":";
-          pingpayload += ret_ap2_result;
-          pingpayload += ",\"ret_dns_result\":";
-          pingpayload += ret_dns_result;
-          pingpayload += "}";
-
-          sendHx711toMqtt(pingpayload, topicpingtest, 0);
-          sentMills = millis();
-          pingloopcount = 0;
-          break;
-      }
-    }
-  }
-  
-  if ( m != o_m ) {
-    hx711IsReady();
-    o_m = m;
-  }
-
-  if ( r != o_r ) {
-    ave.push(measured);
-
-    if ( inuse == HIGH ) {
-      digitalWrite(ledPin, HIGH);
-      if ( measured > 200 ) {
-        if ( ( ave.stddev() < 15 ) && ( nofchecked > 15 ) && ( ave.mean() > 1000 ) && ( ave.mean() < 7000 ) && ( AvgMeasuredIsSent == LOW ) ) {
-          payload = "{\"WeightAvg\":";
-          payload += ( int(ave.mean()) - measured_empty );
-          payload += ",\"WeightStddev\":";
-          payload += ave.stddev();
-          payload += "}";
-
-          sendHx711toMqtt(payload, topicAverage, 1);
-        } else {
-          if ( nofchecked > 3 ) {
-            payload = "{\"NemoWeight\":";
-            payload += ( measured - measured_empty );
-            payload += "}";
-
-            sendHx711toMqtt(payload, topicEvery, 0);
-          }
-        }
-      }
-    } else {
-      digitalWrite(ledPin, LOW);
-
-      if ( ( ave.stddev() < 10 ) && ( nofnotinuse > 20 ) ) {
-        if ( AvgMeasuredIsSent == HIGH ) {
-          if (DEBUG_PRINT) {
-            Serial.print("poop_checked : ");
-            Serial.println(int(ave.mean()));
-          }
-
-          payload = "{\"WeightPoop\":";
-          payload += ( int(ave.mean()) - measured_empty );
-          payload += ",\"NemoWeight\":0}";
-          sendHx711toMqtt(payload, topicEvery, 0);
-          /*
-                    payload = "{\"WeightAvg\":0}";
-                    sendHx711toMqtt(payload, topicAverage, 0);
-          */
-          AvgMeasuredIsSent = LOW;
-        } else {
-          payload = "{\"NemoEmpty\":";
-          payload += int(ave.mean());
-          payload += ",\"NemoStddev\":";
-          payload += ave.stddev();
-          payload += ",\"FreeHeap\":";
-          payload += ESP.getFreeHeap();
-          payload += ",\"RSSI\":";
-          payload += WiFi.RSSI();
-          payload += ",\"millis\":";
-          payload += (millis() - startMills);
-          payload += "}";
-
-          measured_empty = int(ave.mean());
-          sendHx711toMqtt(payload, topicEvery, 0);
-        }
-        nofnotinuse = 0;
-      }
-
-      nofchecked = 0;
-    }
-    nofchecked++;
-    nofnotinuse++;
-    o_r = r;
-  }
-
-  client.loop();
-  ArduinoOTA.handle();
 }
 
-void check_isr() {
+void ICACHE_RAM_ATTR check_isr() {
   m = !m;
 }
 
-void hx711IsReady() {
+void ICACHE_RAM_ATTR sendUdpSyslog(String msgtosend) {
+  unsigned int msg_length = msgtosend.length();
+  byte* p = (byte*)malloc(msg_length);
+  memcpy(p, (char*) msgtosend.c_str(), msg_length);
+
+  udp.beginPacket(influxdbudp, 514);
+  udp.write("mqtt-scale: ");
+  udp.write(p, msg_length);
+  udp.endPacket();
+  free(p);
+}
+
+void ICACHE_RAM_ATTR hx711IsReady() {
 
   Wire.requestFrom(2, 3);
 
@@ -432,62 +411,48 @@ void hx711IsReady() {
   r = !r;
 }
 
-void sendHx711toMqtt(String payload, char* topic, int retain) {
-  /*
-    if (!client.connected()) {
-      if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
-        client.publish(willTopic, "1", true);
-        client.publish(hellotopic, "hello again 2 from ESP8266 s06");
+void ICACHE_RAM_ATTR sendHx711toMqtt(String payload, char* topic, int retain) {
+  unsigned int msg_length = payload.length();
+
+  byte* p = (byte*)malloc(msg_length);
+  memcpy(p, (char*) payload.c_str(), msg_length);
+
+  if ( retain == 1 ) {
+    if ( client.publish(topic, p, msg_length, 1)) {
+      if ( topic == "esp8266/arduino/s06" ) {
+        AvgMeasuredIsSent = HIGH;
       }
-    }
-  */
-  if (client.connected()) {
-    if (DEBUG_PRINT) {
-      Serial.print("Sending payload: ");
-      Serial.print(payload);
-    }
-
-    unsigned int msg_length = payload.length();
-
-    if (DEBUG_PRINT) {
-      Serial.print(" length: ");
-      Serial.println(msg_length);
-    }
-    byte* p = (byte*)malloc(msg_length);
-    memcpy(p, (char*) payload.c_str(), msg_length);
-
-    if ( retain == 1 ) {
-      if ( client.publish(topic, p, msg_length, 1)) {
-        if ( topic == "esp8266/arduino/s06" ) {
-          AvgMeasuredIsSent = HIGH;
-        }
-        if (DEBUG_PRINT) {
-          Serial.println("Publish ok");
-        }
-        free(p);
-      } else {
-        if (DEBUG_PRINT) {
-          Serial.println("Publish failed");
-        }
-        free(p);
-      }
+      client.loop();
+      free(p);
     } else {
-      if ( client.publish(topic, p, msg_length)) {
-        if ( topic == "esp8266/arduino/s06" ) {
-          AvgMeasuredIsSent = HIGH;
-        }
-        if (DEBUG_PRINT) {
-          Serial.println("Publish ok");
-        }
-        free(p);
-      } else {
-        if (DEBUG_PRINT) {
-          Serial.println("Publish failed");
-        }
-        free(p);
+      if (DEBUG_PRINT) {
+        syslogPayload = topic;
+        syslogPayload += " - ";
+        syslogPayload += payload;
+        syslogPayload += " : Publish fail";
+        sendUdpSyslog(syslogPayload);
       }
+      client.loop();
+      free(p);
     }
-
+  } else {
+    if ( client.publish(topic, p, msg_length)) {
+      if ( topic == "esp8266/arduino/s06" ) {
+        AvgMeasuredIsSent = HIGH;
+      }
+      client.loop();
+      free(p);
+    } else {
+      if (DEBUG_PRINT) {
+        syslogPayload = topic;
+        syslogPayload += " - ";
+        syslogPayload += payload;
+        syslogPayload += " : Publish fail";
+        sendUdpSyslog(syslogPayload);
+      }
+      client.loop();
+      free(p);
+    }
   }
 
 }
