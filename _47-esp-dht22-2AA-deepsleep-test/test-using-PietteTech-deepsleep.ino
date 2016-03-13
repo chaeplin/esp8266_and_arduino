@@ -39,7 +39,7 @@ extern "C" {
 ADC_MODE(ADC_VCC);
 
 // rtc
-#define RTC_MAGIC 123
+#define RTC_MAGIC 1234
 
 typedef struct _tagPoint {
   uint32 magic;
@@ -81,6 +81,7 @@ WiFiUDP udp;
 #define DHTPIN   2                  // Digital pin for communications
 #define REPORT_INTERVAL 10          // in sec
 #define DHT_SMAPLING_INTERVAL  2100 // in msec 
+#define DHT_GND_PIN 0 // to control npn tr
 
 unsigned long startMills, checkMillis;
 bool bDHTstarted;
@@ -92,12 +93,16 @@ void ICACHE_RAM_ATTR dht_wrapper();
 PietteTech_DHT DHT(DHTPIN, DHTTYPE, dht_wrapper);
 
 void goingtosleep() {
+  digitalWrite(DHT_GND_PIN, LOW);
+  delay(100);
   system_rtc_mem_write(100, &rtc_mem_test, sizeof(rtc_mem_test));
   ESP.deepSleep((REPORT_INTERVAL * 1000 * 1000 ), WAKE_RF_DEFAULT);
   yield();
 }
 
 void dorestart() {
+  digitalWrite(DHT_GND_PIN, LOW);
+  delay(100);
   system_rtc_mem_write(100, &rtc_mem_test, sizeof(rtc_mem_test));
   ESP.restart();
   yield();
@@ -172,7 +177,7 @@ void ICACHE_RAM_ATTR printEdgeTiming(class PietteTech_DHT *_d) {
   udppayload += vdd;
   udppayload += "i";
 
-  //Serial.println(udppayload);
+  Serial.println(udppayload);
   sendUdpmsg(udppayload);
 }
 
@@ -193,30 +198,35 @@ void wifi_connect() {
     }
   }
   /*
-  Serial.println(millis() - startMills);
+    Serial.println(millis() - startMills);
 
-  Serial.println("");
-  Serial.println("WiFi connected");
-  Serial.println("IP address: ");
-  Serial.println(WiFi.localIP());
+    Serial.println("");
+    Serial.println("WiFi connected");
+    Serial.println("IP address: ");
+    Serial.println(WiFi.localIP());
   */
 }
 
 void setup() {
-  /*
-  Serial.begin(115200);
+
+  Serial.begin(74880);
   Serial.println("");
   Serial.println("Setup started");
-  */
-  
+
+
   rtc_check();
+
   vdd = ESP.getVcc() * 0.96;
   acquirestatus = loopcount = 0;
-  //Serial.println("wifi on");
+
+  pinMode(DHT_GND_PIN, OUTPUT);
+  digitalWrite(DHT_GND_PIN, HIGH);
+
+  Serial.println("wifi on");
   if (WiFi.status() != WL_CONNECTED) {
     wifi_connect();
   }
-  //Serial.println("wifi connected");
+  Serial.println("wifi connected");
   bDHTstarted = false;
   startMills = checkMillis = millis();
 }
@@ -226,10 +236,11 @@ void loop() {
     if (bDHTstarted) {
       acquirestatus = DHT.acquiring();
       if (!acquirestatus) {
-        //Serial.println("dht started");
+        Serial.println("dht started");
         if (DHT.getStatus() != 0) {
           rtc_mem_test.temp_err_cnt++;
-          goingtosleep();
+          dorestart();
+          //goingtosleep();
         }
 
         bDHTstarted = false;
@@ -247,19 +258,19 @@ void loop() {
       if (!bDHTstarted) {
         DHT.acquire();
         bDHTstarted = true;
-        //Serial.println("starting dht");
+        Serial.println("starting dht");
       }
     }
   } else {
-    //Serial.println("reporting -->");
+    Serial.println("reporting -->");
     printEdgeTiming(&DHT);
-    //Serial.println("reporting done --> ");
-    //Serial.println("going to sleep --> ");
+    Serial.println("reporting done --> ");
+    Serial.println("going to sleep --> ");
     goingtosleep();
   }
 
   if ((millis() - startMills) > 25000) {
-    //Serial.println("timed out");
+    Serial.println("timed out");
     goingtosleep();
   }
 }
