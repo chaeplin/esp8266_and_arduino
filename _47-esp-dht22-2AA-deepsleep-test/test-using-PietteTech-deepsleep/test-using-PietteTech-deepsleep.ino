@@ -39,7 +39,7 @@ extern "C" {
 ADC_MODE(ADC_VCC);
 
 // rtc
-#define RTC_MAGIC 1234
+#define RTC_MAGIC 12345
 
 typedef struct _tagPoint {
   uint32 magic;
@@ -57,13 +57,13 @@ RTC_TEST rtc_mem_test;
 #define IPSET_SUBNET { 255, 255, 255, 0 }
 #define IPSET_DNS { 192, 168, 10, 10 }
 
-byte ip_static[] = IPSET_STATIC;
-byte ip_gateway[] = IPSET_GATEWAY;
-byte ip_subnet[] = IPSET_SUBNET;
-byte ip_dns[] = IPSET_DNS;
+const IPAddress ip_static = IPSET_STATIC;
+const IPAddress ip_gateway = IPSET_GATEWAY;
+const IPAddress ip_subnet = IPSET_SUBNET;
+const IPAddress ip_dns = IPSET_DNS;
 
 //
-IPAddress influxdbudp = MQTT_SERVER;
+const IPAddress influxdbudp = MQTT_SERVER;
 
 // wifi
 const char* ssid = WIFI_SSID;
@@ -79,8 +79,8 @@ WiFiUDP udp;
 // system defines
 #define DHTTYPE  DHT22              // Sensor type DHT11/21/22/AM2301/AM2302
 #define DHTPIN   2                  // Digital pin for communications
-#define REPORT_INTERVAL 10          // in sec
-#define DHT_SMAPLING_INTERVAL  2100 // in msec 
+#define REPORT_INTERVAL 300          // in sec
+#define DHT_SMAPLING_INTERVAL  2500 // in msec 
 #define DHT_GND_PIN 0 // to control npn tr
 
 unsigned long startMills, checkMillis;
@@ -102,7 +102,8 @@ void goingtosleep() {
 
 void dorestart() {
   digitalWrite(DHT_GND_PIN, LOW);
-  delay(100);
+  delay(200);
+  
   system_rtc_mem_write(100, &rtc_mem_test, sizeof(rtc_mem_test));
   ESP.restart();
   yield();
@@ -119,6 +120,7 @@ void rtc_check() {
     rtc_mem_test.report_cnt   = 0;
   }
   rtc_mem_test.salt++;
+  system_rtc_mem_write(100, &rtc_mem_test, sizeof(rtc_mem_test));
 }
 
 void ICACHE_RAM_ATTR dht_wrapper() {
@@ -184,7 +186,7 @@ void ICACHE_RAM_ATTR printEdgeTiming(class PietteTech_DHT *_d) {
 void wifi_connect() {
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
-  WiFi.config(IPAddress(ip_static), IPAddress(ip_gateway), IPAddress(ip_subnet), IPAddress(ip_dns));
+  WiFi.config(ip_static, ip_gateway, ip_subnet, ip_dns);
   WiFi.hostname("esp-dht22-deepsleeptest");
 
   int Attempt = 0;
@@ -239,6 +241,7 @@ void loop() {
         Serial.println("dht started");
         if (DHT.getStatus() != 0) {
           rtc_mem_test.temp_err_cnt++;
+          printEdgeTiming(&DHT);
           dorestart();
           //goingtosleep();
         }
@@ -252,6 +255,7 @@ void loop() {
       checkMillis = millis();
 
       if (acquirestatus == 1) {
+        rtc_mem_test.temp_err_cnt++;
         DHT.reset();
       }
 

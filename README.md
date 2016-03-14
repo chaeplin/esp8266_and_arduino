@@ -87,6 +87,10 @@
 | _44-esp-atmega328p-spi | esp | atmega328p | spi multi byte test |
 | _45-esp-atmega328p-i2c | esp | atmega328p | i2c multi byte test |
 | _46-esp-atmega328p-spi-i2c | esp | atmega328p | spi and i2c multi byte test |
+| _47-esp-dht22-2AA-deepsleep-test | esp | | dht22 test |
+| _48-door-alarm-deepsleep | esp | | | door alarm using reed switch |
+| _49-emontxv2-esp-01-i2c | esp-01 | atmega328p | emontx v2 plus esp-01 and ds1307. test | 
+
 
 
 #### _02-mqtt-sw ####
