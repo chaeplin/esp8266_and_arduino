@@ -1,4 +1,11 @@
 
+![1](./pics/board-pin-0.png)
+![2](./pics/board-pin-1.png)
+![3](./pics/board-2.jpg)
+![4](./pics/board-3.jpg)
+![5](./pics/board-4.jpg)
+![6](./pics/board-5.jpg)
+
 
 
 
