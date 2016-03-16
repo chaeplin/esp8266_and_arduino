@@ -42,16 +42,16 @@ volatile bool bsqw_pulse;
 volatile bool bmode_start;
 volatile bool breset_esp01;
 volatile bool bboot_done;
-volatile bool btwi_busy;
+volatile bool btwi_idle;
 volatile bool btwi_written;
 
 void twi_busy_isr() {
-  btwi_busy = digitalRead(CHECK_TWI_PIN);
+  btwi_idle = digitalRead(CHECK_TWI_PIN);
 }
 
 void sqw_isr() {
   bsqw_pulse = true;
-  digitalWrite(LED_PIN, HIGH);
+  //digitalWrite(LED_PIN, HIGH);
 }
 
 void boot_mode_isr() {
@@ -95,7 +95,7 @@ void start_measure() {
   sensor_data.ct3++;
   sensor_data.pad = sensor_data._salt + sensor_data.pls + sensor_data.ct1 + sensor_data.ct2 + sensor_data.ct3 ;
 
-  digitalWrite(LED_PIN, LOW);
+  //digitalWrite(LED_PIN, LOW);
   btwi_written = false;
 }
 
@@ -103,7 +103,7 @@ void write_nvram() {
 
   detachPinChangeInterrupt(digitalPinToPinChangeInterrupt(CHECK_TWI_PIN));
   pinMode(CHECK_TWI_PIN, OUTPUT);
-  digitalWrite(CHECK_TWI_PIN, HIGH);
+  digitalWrite(CHECK_TWI_PIN, LOW);
   digitalWrite(LED_PIN, HIGH);
   delayMicroseconds(5);
 
@@ -113,14 +113,15 @@ void write_nvram() {
 
   delayMicroseconds(5);
   digitalWrite(LED_PIN, LOW);
-  digitalWrite(CHECK_TWI_PIN, LOW);
-  pinMode(CHECK_TWI_PIN, INPUT);
-  attachPinChangeInterrupt(digitalPinToPinChangeInterrupt(CHECK_TWI_PIN), twi_busy_isr, FALLING);
+  digitalWrite(CHECK_TWI_PIN, HIGH);
+  pinMode(CHECK_TWI_PIN, INPUT_PULLUP);
+  attachPinChangeInterrupt(digitalPinToPinChangeInterrupt(CHECK_TWI_PIN), twi_busy_isr, CHANGE);
 }
 
 void setup() {
   // BOOL
-  bsqw_pulse = bmode_start = breset_esp01 = bboot_done = btwi_busy = btwi_written = false;
+  bsqw_pulse = bmode_start = breset_esp01 = bboot_done = btwi_written = false;
+  btwi_idle = true;
 
   // OUT
   pinMode(LED_PIN, OUTPUT);
@@ -129,7 +130,7 @@ void setup() {
   // IN
   pinMode(SQW_PIN, INPUT_PULLUP);
   pinMode(BOOT_MODE_PIN, INPUT_PULLUP);
-  pinMode(CHECK_TWI_PIN, INPUT);
+  pinMode(CHECK_TWI_PIN, INPUT_PULLUP);
 
   // OUT
   digitalWrite(RESET_ESP_PIN, HIGH);
@@ -164,7 +165,7 @@ void loop() {
     start_measure();
     if (!breset_esp01 && bboot_done) {
       if (!btwi_written) {
-        if (!btwi_busy) {
+        if (btwi_idle) {
           write_nvram();
           btwi_written = true;
         }
