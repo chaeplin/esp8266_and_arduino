@@ -48,7 +48,7 @@ WiFiClient wifiClient;
 WiFiUDP udp;
 
 void data_isr() {
-  data_is_rdy = true;
+  data_is_rdy = digitalRead(DATA_IS_RDY_PIN);
 }
 
 void sendUdpSyslog(String msgtosend) {
@@ -89,16 +89,27 @@ void setup() {
 
   wifi_connect();
 
-  pinMode(DATA_IS_RDY_PIN, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(DATA_IS_RDY_PIN), data_isr, FALLING);
+  pinMode(DATA_IS_RDY_PIN, INPUT);
+  attachInterrupt(digitalPinToInterrupt(DATA_IS_RDY_PIN), data_isr, CHANGE);
 
 }
 
 void loop() {
-  if (data_is_rdy) {
+  if (!data_is_rdy) {
+    detachInterrupt(digitalPinToInterrupt(DATA_IS_RDY_PIN));
+    pinMode(DATA_IS_RDY_PIN, OUTPUT);
+    digitalWrite(DATA_IS_RDY_PIN, HIGH);
+    delayMicroseconds(5);
+
     int start_address = 0;
     uint8_t* to_read_current = reinterpret_cast< uint8_t*>(&sensor_data);
     uint8_t gotten = Rtc.GetMemory(start_address, to_read_current, sizeof(sensor_data));
+
+    delayMicroseconds(5);
+    digitalWrite(DATA_IS_RDY_PIN, LOW);
+    pinMode(DATA_IS_RDY_PIN, INPUT);
+    attachInterrupt(digitalPinToInterrupt(DATA_IS_RDY_PIN), data_isr, CHANGE);
+
     Serial.print("GetMemory result : ");
     Serial.println(gotten);
 
@@ -118,7 +129,5 @@ void loop() {
     syslogPayload += sensor_data._salt + sensor_data.pls + sensor_data.ct1 + sensor_data.ct2 + sensor_data.ct3;
 
     sendUdpSyslog(syslogPayload);
-    data_is_rdy = false;
   }
-
 }
