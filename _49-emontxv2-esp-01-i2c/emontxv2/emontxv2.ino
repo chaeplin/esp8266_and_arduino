@@ -1,4 +1,5 @@
 #include <Wire.h>
+// https://github.com/Makuna/Rtc
 #include <RtcDS1307.h>
 #include "PinChangeInterrupt.h"
 
@@ -8,10 +9,10 @@
   gnd
   scl - d2  - scl
   sda - d0  - sda // led
-  d12 -     - sqw
+  d2 -      - sqw
   d6  - tx
   d7  - rst
-  d12 - rx  -     // button to inform flashing of esp
+  d12 -  -        // button to inform flashing of esp
 */
 
 // pins
@@ -40,6 +41,7 @@ RtcDS1307 Rtc;
 volatile bool bsqw_pulse;
 volatile bool bmode_start;
 volatile bool breset_esp01;
+volatile bool bboot_done;
 
 void sqw_isr() {
   bsqw_pulse = true;
@@ -52,7 +54,9 @@ void boot_mode_isr() {
 }
 
 void _reset_esp01(bool upload) {
-  detachPinChangeInterrupt(digitalPinToPinChangeInterrupt(BOOT_MODE_PIN));
+  bboot_done = false;
+  Wire.end();
+  digitalWrite(RESET_ESP_PIN, LOW);
   if (upload == true) {
     pinMode(NOTIFY_ESP_PIN, INPUT_PULLUP);
     pinMode(SDA, OUTPUT);
@@ -64,7 +68,6 @@ void _reset_esp01(bool upload) {
     pinMode(SDA, INPUT_PULLUP);
   }
 
-  digitalWrite(RESET_ESP_PIN, LOW);
   delay(3);
   digitalWrite(RESET_ESP_PIN, HIGH);
   delay(200);
@@ -72,6 +75,7 @@ void _reset_esp01(bool upload) {
   if (upload == false) {
     pinMode(NOTIFY_ESP_PIN, OUTPUT);
     digitalWrite(NOTIFY_ESP_PIN, HIGH);
+    bboot_done = true;
     Wire.begin();
   }
 }
@@ -102,6 +106,9 @@ void write_nvram() {
 }
 
 void setup() {
+  // BOOL
+  bsqw_pulse = bmode_start = breset_esp01 = bboot_done = false;
+
   // OUT
   pinMode(LED_PIN, OUTPUT);
   pinMode(NOTIFY_ESP_PIN, OUTPUT);
@@ -134,9 +141,6 @@ void setup() {
   Rtc.SetIsRunning(true);
   Rtc.SetSquareWavePin(DS1307SquareWaveOut_1Hz);
 
-  // BOOL
-  bsqw_pulse = bmode_start = breset_esp01 = false;
-
   // INTERRUPT
   attachInterrupt(digitalPinToInterrupt(SQW_PIN), sqw_isr, FALLING);
   attachPinChangeInterrupt(digitalPinToPinChangeInterrupt(BOOT_MODE_PIN), boot_mode_isr, FALLING);
@@ -145,7 +149,7 @@ void setup() {
 void loop() {
   if (bsqw_pulse) {
     start_measure();
-    if (!breset_esp01) {
+    if (!breset_esp01 && bboot_done) {
       write_nvram();
       nofify_esp();
     }
@@ -153,9 +157,7 @@ void loop() {
   }
 
   if (breset_esp01) {
-    Wire.end();
     _reset_esp01(bmode_start);
-    attachPinChangeInterrupt(digitalPinToPinChangeInterrupt(BOOT_MODE_PIN), boot_mode_isr, FALLING);
     breset_esp01 = false;
   }
 }
