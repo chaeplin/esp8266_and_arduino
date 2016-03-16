@@ -16,54 +16,76 @@
 
 // pins
 // IN
-#define SQW_PIN         2 // int 0
-#define FLAH_ESP_PIN    12
+#define SQW_PIN         2   // int 0
+#define BOOT_MODE_PIN   12  // put esp in booot mode
 // OUT
-#define LED_PIN        9
-#define NOTIFY_ESP_PIN 6
-#define RESET_ESP_PIN  7
-// Using SDA to put LOW D0 of ESP
+#define LED_PIN         9
+#define NOTIFY_ESP_PIN  6
+#define RESET_ESP_PIN   7   // reset esp
+
+typedef struct
+{
+  uint32_t _salt;
+  uint32_t pls;
+  uint16_t ct1;
+  uint16_t ct2;
+  uint16_t ct3;
+  uint16_t pad;
+} data;
+
+data sensor_data;
 
 RtcDS1307 Rtc;
 
-volatile bool sqw_start;
-volatile bool flash_start;
+volatile bool bsqw_pulse;
+volatile bool bmode_start;
+volatile bool breset_esp01;
 
-void SQW_CHECK() {
-  sqw_start = true;
+void sqw_isr() {
+  bsqw_pulse = true;
   digitalWrite(LED_PIN, HIGH);
 }
 
-void FLASH_STOP_CHECK() {
-  detachPinChangeInterrupt(digitalPinToPinChangeInterrupt(SCL));
-  Wire.begin();
+void boot_mode_isr() {
+  bmode_start = !bmode_start;
+  breset_esp01 = true;
 }
 
-void FLASH_START_CHECK() {
-  flash_start = !flash_start;
-  if (flash_start) {
-    Wire.end();
-    // PUT ESP to FLASH mode
+void _reset_esp01(bool upload) {
+  detachPinChangeInterrupt(digitalPinToPinChangeInterrupt(BOOT_MODE_PIN));
+  if (upload == true) {
+    pinMode(NOTIFY_ESP_PIN, INPUT_PULLUP);
     pinMode(SDA, OUTPUT);
-    digitalWrite(SDA, LOW);
-
-    // RESET ESP
-    digitalWrite(RESET_ESP_PIN, LOW);
-    delayMicroseconds(5);
-    digitalWrite(RESET_ESP_PIN, HIGH);
-    delayMicroseconds(10);
-    
-    // TO CHECK FLASHING IS DONE
     pinMode(SCL, INPUT_PULLUP);
-    delayMicroseconds(10);
-    attachPinChangeInterrupt(digitalPinToPinChangeInterrupt(SCL), FLASH_STOP_CHECK, FALLING);
+
+    digitalWrite(SDA, LOW);
   } else {
-    FLASH_STOP_CHECK();
+    pinMode(SCL, INPUT_PULLUP);
+    pinMode(SDA, INPUT_PULLUP);
+  }
+
+  digitalWrite(RESET_ESP_PIN, LOW);
+  delay(3);
+  digitalWrite(RESET_ESP_PIN, HIGH);
+  delay(200);
+
+  if (upload == false) {
+    pinMode(NOTIFY_ESP_PIN, OUTPUT);
+    digitalWrite(NOTIFY_ESP_PIN, HIGH);
+    Wire.begin();
   }
 }
 
 void start_measure() {
   delay(200);
+
+  sensor_data._salt++;
+  sensor_data.pls++;
+  sensor_data.ct1++;
+  sensor_data.ct2++;
+  sensor_data.ct3++;
+  sensor_data.pad = sensor_data._salt + sensor_data.pls + sensor_data.ct1 + sensor_data.ct2 + sensor_data.ct3 ;
+
   digitalWrite(LED_PIN, LOW);
 }
 
@@ -73,13 +95,13 @@ void nofify_esp() {
   digitalWrite(NOTIFY_ESP_PIN, HIGH);
 }
 
-void setup() {
-  Rtc.Begin();
-  Rtc.SetIsRunning(true);
-  Rtc.SetSquareWavePin(DS1307SquareWaveOut_1Hz);
-  
-  sqw_start = flash_start = false;
+void write_nvram() {
+  int start_address = 0;
+  const uint8_t* to_write_current = reinterpret_cast<const uint8_t*>(&sensor_data);
+  Rtc.SetMemory(start_address, to_write_current, sizeof(sensor_data));
+}
 
+void setup() {
   // OUT
   pinMode(LED_PIN, OUTPUT);
   pinMode(NOTIFY_ESP_PIN, OUTPUT);
@@ -87,23 +109,53 @@ void setup() {
 
   // IN
   pinMode(SQW_PIN, INPUT_PULLUP);
-  pinMode(FLAH_ESP_PIN, INPUT);
+  pinMode(BOOT_MODE_PIN, INPUT_PULLUP);
 
-  //
+  // OUT
   digitalWrite(NOTIFY_ESP_PIN, HIGH);
   digitalWrite(RESET_ESP_PIN, HIGH);
+  digitalWrite(LED_PIN, HIGH);
 
-  attachInterrupt(digitalPinToInterrupt(SQW_PIN), SQW_CHECK, FALLING);
-  attachPinChangeInterrupt(digitalPinToPinChangeInterrupt(FLAH_ESP_PIN), FLASH_START_CHECK, FALLING);
+  // RESET
+  _reset_esp01(false);
+  delay(200);
+  digitalWrite(LED_PIN, LOW);
+
+  // sensor_data
+  sensor_data._salt = 0;
+  sensor_data.pls   = 10;
+  sensor_data.ct1   = 20;
+  sensor_data.ct2   = 30;
+  sensor_data.ct3   = 40;
+  sensor_data.pad   = sensor_data._salt + sensor_data.pls + sensor_data.ct1 + sensor_data.ct2 + sensor_data.ct3 ;
+
+  // RTC
+  Rtc.Begin();
+  Rtc.SetIsRunning(true);
+  Rtc.SetSquareWavePin(DS1307SquareWaveOut_1Hz);
+
+  // BOOL
+  bsqw_pulse = bmode_start = breset_esp01 = false;
+
+  // INTERRUPT
+  attachInterrupt(digitalPinToInterrupt(SQW_PIN), sqw_isr, FALLING);
+  attachPinChangeInterrupt(digitalPinToPinChangeInterrupt(BOOT_MODE_PIN), boot_mode_isr, FALLING);
 }
 
 void loop() {
-  if (sqw_start) {
+  if (bsqw_pulse) {
     start_measure();
-    if (!flash_start) {
-      //write_nvram();
+    if (!breset_esp01) {
+      write_nvram();
       nofify_esp();
     }
-    sqw_start = false;
+    bsqw_pulse = false;
+  }
+
+  if (breset_esp01) {
+    Wire.end();
+    _reset_esp01(bmode_start);
+    attachPinChangeInterrupt(digitalPinToPinChangeInterrupt(BOOT_MODE_PIN), boot_mode_isr, FALLING);
+    breset_esp01 = false;
   }
 }

@@ -11,5 +11,5 @@
 | IRQ0 / D2 | | SQ | LOW PULSE|
 | D6 | TX | | |
 | D7 | RST | | |
-| D12 | RX | | BUTTON / LOW PULSE to FLASH |
+| D12 | | | BUTTON / LOW PULSE to FLASH |
 

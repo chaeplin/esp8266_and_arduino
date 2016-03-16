@@ -212,10 +212,10 @@ void loop() {
 
       if ( m != o_m ) {
         sendUdpSyslog("hx711IsReady : i2c read");
-        detachInterrupt(14);
+        //detachInterrupt(14);
         hx711IsReady();
         sendUdpSyslog("hx711IsReady : i2c read done");
-        attachInterrupt(14, check_isr, RISING);
+        //attachInterrupt(14, check_isr, RISING);
         o_m = m;
       }
 
@@ -223,7 +223,7 @@ void loop() {
         if ( m == o_m && inuse == LOW ) {
           switch (pingloopcount) {
             case 0:
-              detachInterrupt(14);
+              //detachInterrupt(14);
               sendUdpSyslog("ap2 ping start");
 
               ESP.wdtDisable();
@@ -238,11 +238,11 @@ void loop() {
               pingloopcount++;
 
               sendUdpSyslog("ap2 ping stop");
-              attachInterrupt(14, check_isr, RISING);
+              //attachInterrupt(14, check_isr, RISING);
               break;
 
             case 1:
-              detachInterrupt(14);
+              //detachInterrupt(14);
               sendUdpSyslog("dns ping start");
 
               ESP.wdtDisable();
@@ -257,11 +257,11 @@ void loop() {
               pingloopcount++;
 
               sendUdpSyslog("dns ping stop");
-              attachInterrupt(14, check_isr, RISING);
+              //attachInterrupt(14, check_isr, RISING);
               break;
 
             case 2:
-              detachInterrupt(14);
+              //detachInterrupt(14);
               sendUdpSyslog("ping case 2 start");
               pingpayload  = "{\"ap2\":";
               pingpayload += millis_ap2;
@@ -278,7 +278,7 @@ void loop() {
               pingloopcount = 0;
 
               sendUdpSyslog("ping case 2 stop");
-              attachInterrupt(14, check_isr, RISING);
+              //attachInterrupt(14, check_isr, RISING);
               break;
           }
         }
@@ -290,7 +290,7 @@ void loop() {
         if ( inuse == HIGH ) {
           digitalWrite(ledPin, HIGH);
           if ( measured > 200 ) {
-            if ( ( ave.stddev() < 15 ) && ( nofchecked > 15 ) && ( ave.mean() > 1000 ) && ( ave.mean() < 7000 ) && ( AvgMeasuredIsSent == LOW ) ) {
+            if ( ( ave.stddev() < 20 ) && ( nofchecked > 10 ) && ( ave.mean() > 1000 ) && ( ave.mean() < 7000 ) && ( AvgMeasuredIsSent == LOW ) ) {
               payload = "{\"WeightAvg\":";
               payload += ( int(ave.mean()) - measured_empty );
               payload += ",\"WeightStddev\":";
