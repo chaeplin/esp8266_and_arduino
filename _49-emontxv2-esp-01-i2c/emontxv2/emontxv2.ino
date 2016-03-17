@@ -3,7 +3,6 @@
 // https://github.com/Makuna/Rtc
 #include <RtcDS1307.h>
 #include "PinChangeInterrupt.h"
-#include "EmonLib.h"
 
 /*
   atmega328  -  esp - ds1307
@@ -44,9 +43,11 @@ typedef struct
 
 data sensor_data;
 
-const int CT2 = 1;
-const int CT3 = 1;
+const int CT1 = 1; 
+const int CT2 = 1;                
+const int CT3 = 1;    
 
+#include "EmonLib.h"
 EnergyMonitor ct1, ct2, ct3;
 
 RtcDS1307 Rtc;
@@ -124,14 +125,18 @@ void _reset_esp01(bool upload) {
 }
 
 void start_measure() {
-  ct1.calcVI(20, 2000);
-  ct2.calcVI(20, 2000);
-  ct3.calcVI(20, 2000);
 
-  sensor_data.ct1_wh == ct1.realPower;
-  sensor_data.ct2_wh == ct2.realPower;
-  sensor_data.ct3_wh == ct3.realPower;
-  sensor_data.ct1_vr = ct1.Vrms * 100 ;
+  if (CT1) {
+    sensor_data.ct1_wh = ct1.calcIrms(1480) * 220.0;                         //ct.calcIrms(number of wavelengths sample)*AC RMS voltage
+  }
+  
+  if (CT2) {
+    sensor_data.ct2_wh = ct2.calcIrms(1480) * 220.0;
+  } 
+
+  if (CT3) {
+    sensor_data.ct3_wh = ct3.calcIrms(1480) * 220.0;
+  } 
 
   sensor_data._salt++;
 
@@ -169,6 +174,11 @@ bool write_nvram() {
 }
 
 void setup() {
+
+  if (CT1) ct1.currentTX(1, 111.1);                                     // Setup emonTX CT channel (ADC input, calibration)
+  if (CT2) ct2.currentTX(2, 111.1);                                     // Calibration factor = CT ratio / burden resistance
+  if (CT3) ct3.currentTX(3, 111.1);                                     // Calibration factor = (100A / 0.05A) / 33 Ohms
+
   wdt_enable(WDTO_8S);
 
   // bool
@@ -202,6 +212,7 @@ void setup() {
   sensor_data.ct1_wh = 3;
   sensor_data.ct2_wh = 4;
   sensor_data.ct3_wh = 5;
+  sensor_data.ct1_vr = 0;
   sensor_data.door   = bdoor_now = digitalRead(DOOR_LOCK_PIN);
   sensor_data.pad1   = uint8_t(sensor_data.pls_wh + sensor_data.ct1_wh + sensor_data.ct2_wh + sensor_data.ct3_wh + sensor_data.door);
 
@@ -209,13 +220,6 @@ void setup() {
   Rtc.Begin();
   Rtc.SetIsRunning(true);
   Rtc.SetSquareWavePin(DS1307SquareWaveOut_1Hz);
-
-  ct1.voltageTX(236.2, 1.7);
-  ct1.currentTX(1, 111.1);
-  ct2.voltageTX(234.26, 1.7);
-  ct2.currentTX(2, 111.1);
-  ct3.voltageTX(234.26, 1.7);
-  ct3.currentTX(3, 111.1);
 
   // interrupt
   attachInterrupt(digitalPinToInterrupt(SQW_PIN), sqw_isr, FALLING);               //  int 0
