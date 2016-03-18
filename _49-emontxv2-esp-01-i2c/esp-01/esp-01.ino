@@ -68,6 +68,7 @@ char* subtopic    = "esp8266/check";
 
 //
 volatile bool bdata_is_rdy;
+uint32_t _salt;
 bool bdoor_status;
 bool ResetInfo = false;
 long lastReconnectAttempt = 0;
@@ -107,23 +108,19 @@ void ICACHE_RAM_ATTR sendmqttMsg(char* topictosend, String payload) {
 
   if (client.publish(topictosend, p, msg_length, 1)) {
     /*
-      if (DEBUG_PRINT) {
       syslogPayload = topictosend;
       syslogPayload += " - ";
       syslogPayload += payload;
       syslogPayload += " : Publish ok";
       sendUdpSyslog(syslogPayload);
-      }
     */
     free(p);
   } else {
-    if (DEBUG_PRINT) {
-      syslogPayload = topictosend;
-      syslogPayload += " - ";
-      syslogPayload += payload;
-      syslogPayload += " : Publish fail";
-      sendUdpSyslog(syslogPayload);
-    }
+    syslogPayload = topictosend;
+    syslogPayload += " - ";
+    syslogPayload += payload;
+    syslogPayload += " : Publish fail";
+    sendUdpSyslog(syslogPayload);
     free(p);
   }
   client.loop();
@@ -137,12 +134,11 @@ void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int lengt
     receivedpayload += (char)inpayload[i];
   }
 
-  if (DEBUG_PRINT) {
-    syslogPayload = intopic;
-    syslogPayload += " ====> ";
-    syslogPayload += receivedpayload;
-    sendUdpSyslog(syslogPayload);
-  }
+  syslogPayload = intopic;
+  syslogPayload += " ====> ";
+  syslogPayload += receivedpayload;
+  sendUdpSyslog(syslogPayload);
+
 
   if ( receivedpayload == "{\"DOOR\":\"CHECKING\"}") {
 
@@ -169,15 +165,11 @@ boolean reconnect() {
         client.publish(hellotopic, "hello again 1 from esp-power");
       }
       client.subscribe(subtopic);
-      if (DEBUG_PRINT) {
-        sendUdpSyslog("---> mqttconnected");
-      }
+      sendUdpSyslog("---> mqttconnected");
     } else {
-      if (DEBUG_PRINT) {
-        syslogPayload = "failed, rc=";
-        syslogPayload += client.state();
-        sendUdpSyslog(syslogPayload);
-      }
+      syslogPayload = "failed, rc=";
+      syslogPayload += client.state();
+      sendUdpSyslog(syslogPayload);
     }
   }
   client.loop();
@@ -275,6 +267,7 @@ void setup() {
   }
   get_i2c_data();
   bdoor_status = sensor_data.door;
+  _salt = sensor_data._salt;
 
   //
   getResetInfo = "hello from esp-emontxv2 ";
@@ -329,11 +322,11 @@ void loop() {
     }
 
     if (!client.connected()) {
-      if (DEBUG_PRINT) {
-        syslogPayload = "failed, rc= ";
-        syslogPayload += client.state();
-        sendUdpSyslog(syslogPayload);
-      }
+      syslogPayload = "failed, rc= ";
+      syslogPayload += client.state();
+      sendUdpSyslog(syslogPayload);
+
+
       unsigned long now = millis();
       if (now - lastReconnectAttempt > 200) {
         lastReconnectAttempt = now;
@@ -353,6 +346,33 @@ void loop() {
         doorpayload += "}";
         sendmqttMsg(doortopic, doorpayload);
         bdoor_status = sensor_data.door;
+      }
+
+      if (_salt != sensor_data._salt) {
+        payload = "{\"_salt\":";
+        payload += sensor_data._salt;
+        payload += ",\"pls_no\":";
+        payload += sensor_data.pls_no;
+        payload += ",\"pls_time\":";
+        payload += sensor_data.pls_wh;
+        payload += ",\"ct1\":";
+        payload += sensor_data.ct1_wh;
+        payload += ",\"ct2\":";
+        payload += sensor_data.ct2_wh;
+        payload += ",\"ct3\":";
+        payload += sensor_data.ct3_wh;
+        payload += ",\"powerAvg\":";
+        payload += (( sensor_data.ct2_wh + sensor_data.ct3_wh ) / 2) ;
+        payload += ",\"FreeHeap\":";
+        payload += ESP.getFreeHeap();
+        payload += ",\"RSSI\":";
+        payload += WiFi.RSSI();
+        payload += ",\"millis\":";
+        payload += millis();
+        payload += "}";
+
+        sendmqttMsg(topic, payload);
+        _salt = sensor_data._salt;
       }
       client.loop();
     }
