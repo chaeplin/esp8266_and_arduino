@@ -73,7 +73,8 @@ void onpulse_isr() {
   }
 
   pulseCount++;
-  pulseValue = uint16_t((3600000000.0 / (pulseTime - lastTime)) / 0.6);
+  //pulseValue = uint16_t((3600000000.0 / (pulseTime - lastTime)) / 1.66667);
+  pulseValue = uint16_t((3600*1000*1000)/(600*(pulseTime - lastTime))*1000));
 }
 
 void start_onpulse_isr() {
