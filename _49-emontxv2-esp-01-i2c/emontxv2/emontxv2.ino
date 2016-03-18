@@ -85,7 +85,8 @@ void start_onpulse_isr() {
 }
 
 void door_lock_isr() {
-  bdoor_now = digitalRead(DOOR_LOCK_PIN);
+  //bdoor_now = digitalRead(DOOR_LOCK_PIN);
+  bdoor_now = !bdoor_now;
 }
 
 void twi_busy_isr() {

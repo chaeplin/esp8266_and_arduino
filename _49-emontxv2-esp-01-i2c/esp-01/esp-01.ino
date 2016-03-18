@@ -19,6 +19,8 @@ extern "C" {
 #define SYS_CPU_80MHz 80
 #define SYS_CPU_160MHz 160
 
+#define DEBUG_PRINT 1
+
 /*
   atmega328  -  esp - ds1307
   3v
@@ -56,15 +58,33 @@ IPAddress influxdbudp = MQTT_SERVER;
 IPAddress mqtt_server = MQTT_SERVER;
 IPAddress time_server = MQTT_SERVER;
 
-volatile bool data_is_rdy;
-String syslogPayload;
+// mqtt
+char* topic       = "esp8266/arduino/s07";
+char* doortopic   = "esp8266/arduino/s05" ;
+char* hellotopic  = "HELLO";
+char* willTopic   = "clients/power";
+char* willMessage = "0";
+char* subtopic    = "esp8266/check";
 
+//
+volatile bool bdata_is_rdy;
+bool bdoor_status;
+bool ResetInfo = false;
+long lastReconnectAttempt = 0;
+
+String syslogPayload, clientName, payload, doorpayload, getResetInfo;
+
+//
+void callback(char* intopic, byte* inpayload, unsigned int length);
+
+//
 RtcDS1307 Rtc;
 WiFiClient wifiClient;
 WiFiUDP udp;
+PubSubClient client(mqtt_server, 1883, callback, wifiClient);
 
 void data_isr() {
-  data_is_rdy = digitalRead(DATA_IS_RDY_PIN);
+  bdata_is_rdy = digitalRead(DATA_IS_RDY_PIN);
 }
 
 void sendUdpSyslog(String msgtosend) {
@@ -77,6 +97,91 @@ void sendUdpSyslog(String msgtosend) {
   udp.write(p, msg_length);
   udp.endPacket();
   free(p);
+}
+
+void ICACHE_RAM_ATTR sendmqttMsg(char* topictosend, String payload) {
+  unsigned int msg_length = payload.length();
+
+  byte* p = (byte*)malloc(msg_length);
+  memcpy(p, (char*) payload.c_str(), msg_length);
+
+  if (client.publish(topictosend, p, msg_length, 1)) {
+    /*
+      if (DEBUG_PRINT) {
+      syslogPayload = topictosend;
+      syslogPayload += " - ";
+      syslogPayload += payload;
+      syslogPayload += " : Publish ok";
+      sendUdpSyslog(syslogPayload);
+      }
+    */
+    free(p);
+  } else {
+    if (DEBUG_PRINT) {
+      syslogPayload = topictosend;
+      syslogPayload += " - ";
+      syslogPayload += payload;
+      syslogPayload += " : Publish fail";
+      sendUdpSyslog(syslogPayload);
+    }
+    free(p);
+  }
+  client.loop();
+}
+
+void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int length) {
+  String receivedtopic = intopic;
+  String receivedpayload ;
+
+  for (int i = 0; i < length; i++) {
+    receivedpayload += (char)inpayload[i];
+  }
+
+  if (DEBUG_PRINT) {
+    syslogPayload = intopic;
+    syslogPayload += " ====> ";
+    syslogPayload += receivedpayload;
+    sendUdpSyslog(syslogPayload);
+  }
+
+  if ( receivedpayload == "{\"DOOR\":\"CHECKING\"}") {
+
+    String check_doorpayload = "{\"DOOR\":";
+    if ( sensor_data.door == 0 ) {
+      check_doorpayload += "\"CHECK_CLOSED\"";
+    }
+    else {
+      check_doorpayload += "\"CHECK_OPEN\"";
+    }
+    check_doorpayload += "}";
+    sendmqttMsg(doortopic, check_doorpayload);
+  }
+}
+
+boolean reconnect() {
+  if (!client.connected()) {
+    if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
+      client.publish(willTopic, "1", true);
+      if ( ResetInfo == false) {
+        client.publish(hellotopic, (char*) getResetInfo.c_str());
+        ResetInfo = true;
+      } else {
+        client.publish(hellotopic, "hello again 1 from esp-power");
+      }
+      client.subscribe(subtopic);
+      if (DEBUG_PRINT) {
+        sendUdpSyslog("---> mqttconnected");
+      }
+    } else {
+      if (DEBUG_PRINT) {
+        syslogPayload = "failed, rc=";
+        syslogPayload += client.state();
+        sendUdpSyslog(syslogPayload);
+      }
+    }
+  }
+  client.loop();
+  return client.connected();
 }
 
 void wifi_connect() {
@@ -98,22 +203,94 @@ void wifi_connect() {
   }
 }
 
+String macToStr(const uint8_t* mac)
+{
+  String result;
+  for (int i = 0; i < 6; ++i) {
+    result += String(mac[i], 16);
+    if (i < 5)
+      result += ':';
+  }
+  return result;
+}
+
+void send_raw_data() {
+  syslogPayload  = "_salt : ";
+  syslogPayload += sensor_data._salt;
+  syslogPayload += " - pls_no : ";
+  syslogPayload += sensor_data.pls_no;
+  syslogPayload += " - pls_wh : ";
+  syslogPayload += sensor_data.pls_wh;
+  syslogPayload += " - ct1 : ";
+  syslogPayload += sensor_data.ct1_wh;
+  syslogPayload += " - ct2 : ";
+  syslogPayload += sensor_data.ct2_wh;
+  syslogPayload += " - ct3 : ";
+  syslogPayload += sensor_data.ct3_wh;
+  syslogPayload += " - ct1 vr : ";
+  syslogPayload += sensor_data.ct1_vr;
+  syslogPayload += " - door : ";
+  syslogPayload += sensor_data.door;
+  syslogPayload += " - pad1 : ";
+  syslogPayload += sensor_data.pad1;
+  syslogPayload += " == ";
+  syslogPayload += uint8_t(sensor_data.pls_wh + sensor_data.ct1_wh + sensor_data.ct2_wh + sensor_data.ct3_wh + sensor_data.door);
+
+  sendUdpSyslog(syslogPayload);
+}
+
+void get_i2c_data() {
+  detachInterrupt(digitalPinToInterrupt(DATA_IS_RDY_PIN));
+  delayMicroseconds(5);
+  pinMode(DATA_IS_RDY_PIN, OUTPUT);
+  digitalWrite(DATA_IS_RDY_PIN, LOW);
+  delayMicroseconds(5);
+
+  int start_address = 0;
+  uint8_t* to_read_current = reinterpret_cast< uint8_t*>(&sensor_data);
+  uint8_t gotten = Rtc.GetMemory(start_address, to_read_current, sizeof(sensor_data));
+
+  delayMicroseconds(5);
+  digitalWrite(DATA_IS_RDY_PIN, HIGH);
+  pinMode(DATA_IS_RDY_PIN, INPUT_PULLUP);
+  delayMicroseconds(5);
+  attachInterrupt(digitalPinToInterrupt(DATA_IS_RDY_PIN), data_isr, RISING);
+}
+
 void setup() {
   system_update_cpu_freq(SYS_CPU_80MHz);
   Serial.swap();
   Wire.begin(0, 2);
   //twi_setClock(100000);
 
-  data_is_rdy = false;
-
-  wifi_connect();
-
+  bdata_is_rdy = false;
   pinMode(DATA_IS_RDY_PIN, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(DATA_IS_RDY_PIN), data_isr, RISING);
 
+  wifi_connect();
+  lastReconnectAttempt = 0;
+
+  while (!bdata_is_rdy) {
+    delay(100);
+  }
+  get_i2c_data();
+  bdoor_status = sensor_data.door;
+
+  //
+  getResetInfo = "hello from esp-emontxv2 ";
+  getResetInfo += ESP.getResetInfo().substring(0, 50);
+
+  //
+  clientName += "esp8266-";
+  uint8_t mac[6];
+  WiFi.macAddress(mac);
+  clientName += macToStr(mac);
+  clientName += "-";
+  clientName += String(micros() & 0xff, 16);
+
   //OTA
   ArduinoOTA.setPort(8266);
-  ArduinoOTA.setHostname("esp-power");
+  ArduinoOTA.setHostname("esp-emontxv2");
   ArduinoOTA.setPassword(otapassword);
   ArduinoOTA.onStart([]() {
     sendUdpSyslog("ArduinoOTA Start");
@@ -138,57 +315,50 @@ void setup() {
 
   ArduinoOTA.begin();
 
+  syslogPayload = "------------------> unit started : pin 1 status : ";
+  syslogPayload += digitalRead(1);
+  sendUdpSyslog(syslogPayload);
 }
 
 void loop() {
   if (WiFi.status() == WL_CONNECTED) {
-    if (data_is_rdy) {
-      detachInterrupt(digitalPinToInterrupt(DATA_IS_RDY_PIN));
-      delayMicroseconds(5);
-      pinMode(DATA_IS_RDY_PIN, OUTPUT);
-      digitalWrite(DATA_IS_RDY_PIN, LOW);
-      delayMicroseconds(5);
+    if (bdata_is_rdy) {
+      get_i2c_data();
+      send_raw_data();
+      bdata_is_rdy = false;
+    }
 
-      int start_address = 0;
-      uint8_t* to_read_current = reinterpret_cast< uint8_t*>(&sensor_data);
-      uint8_t gotten = Rtc.GetMemory(start_address, to_read_current, sizeof(sensor_data));
-
-      delayMicroseconds(5);
-      digitalWrite(DATA_IS_RDY_PIN, HIGH);
-      pinMode(DATA_IS_RDY_PIN, INPUT_PULLUP);
-      delayMicroseconds(5);
-      attachInterrupt(digitalPinToInterrupt(DATA_IS_RDY_PIN), data_isr, RISING);
-
-      Serial.print("GetMemory result : ");
-      Serial.println(gotten);
-
-      syslogPayload  = "_salt : ";
-      syslogPayload += sensor_data._salt;
-      syslogPayload += " - pls_no : ";
-      syslogPayload += sensor_data.pls_no;
-      syslogPayload += " - pls_wh : ";
-      syslogPayload += sensor_data.pls_wh;
-      syslogPayload += " - ct1 : ";
-      syslogPayload += sensor_data.ct1_wh;
-      syslogPayload += " - ct2 : ";
-      syslogPayload += sensor_data.ct2_wh;
-      syslogPayload += " - ct3 : ";
-      syslogPayload += sensor_data.ct3_wh;
-      syslogPayload += " - ct1 vr : ";
-      syslogPayload += sensor_data.ct1_vr;
-      syslogPayload += " - door : ";
-      syslogPayload += sensor_data.door;
-      syslogPayload += " - pad1 : ";
-      syslogPayload += sensor_data.pad1;
-      syslogPayload += " == ";
-      syslogPayload += uint8_t(sensor_data.pls_wh + sensor_data.ct1_wh + sensor_data.ct2_wh + sensor_data.ct3_wh + sensor_data.door);
-
-      sendUdpSyslog(syslogPayload);
-
-      data_is_rdy = false;
+    if (!client.connected()) {
+      if (DEBUG_PRINT) {
+        syslogPayload = "failed, rc= ";
+        syslogPayload += client.state();
+        sendUdpSyslog(syslogPayload);
+      }
+      unsigned long now = millis();
+      if (now - lastReconnectAttempt > 200) {
+        lastReconnectAttempt = now;
+        if (reconnect()) {
+          lastReconnectAttempt = 0;
+        }
+      }
+    } else {
+      if (bdoor_status != sensor_data.door) {
+        doorpayload = "{\"DOOR\":";
+        if ( sensor_data.door == 0 ) {
+          doorpayload += "\"CLOSED\"";
+        }
+        else {
+          doorpayload += "\"OPEN\"";
+        }
+        doorpayload += "}";
+        sendmqttMsg(doortopic, doorpayload);
+        bdoor_status = sensor_data.door;
+      }
+      client.loop();
     }
     ArduinoOTA.handle();
   } else {
     wifi_connect();
   }
 }
+//
