@@ -66,19 +66,21 @@ volatile uint32_t lastTime;
 
 void onpulse_isr() {
   lastTime = pulseTime;
-  pulseTime = micros();
+  pulseTime = millis();
+  //pulseTime = micros();
 
-  if (( micros() - lastTime ) < 600000 ) {
+  if (( millis() - lastTime ) < 600 ) {
     return;
   }
-
+  
+  pulseValue =  (pulseTime - lastTime);
+  //pulseValue = uint16_t((3600000000.0 / (pulseTime - lastTime)) / 0.6);
   pulseCount++;
-  //pulseValue = uint16_t((3600000000.0 / (pulseTime - lastTime)) / 1.66667);
-  pulseValue = uint16_t((3600*1000*1000)/(600*(pulseTime - lastTime))*1000));
 }
 
 void start_onpulse_isr() {
   detachInterrupt(digitalPinToInterrupt(PLS_CNT_PIN));
+  pulseTime = millis();
   attachInterrupt(digitalPinToInterrupt(PLS_CNT_PIN), onpulse_isr, FALLING);
 }
 
