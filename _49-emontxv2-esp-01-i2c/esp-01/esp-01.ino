@@ -8,18 +8,11 @@
 #include <ESP8266mDNS.h>
 #include <WiFiUdp.h>
 #include <ArduinoOTA.h>
-
-
 #include "/usr/local/src/ap_setting.h"
 
 extern "C" {
 #include "user_interface.h"
 }
-
-#define SYS_CPU_80MHz 80
-#define SYS_CPU_160MHz 160
-
-#define DEBUG_PRINT 1
 
 /*
   atmega328  -  esp - ds1307
@@ -33,22 +26,41 @@ extern "C" {
   d12 -  -        // button to inform flashing of esp
 */
 
+#define SYS_CPU_80MHz 80
+#define SYS_CPU_160MHz 160
+
+#define DEBUG_PRINT 1
 #define DATA_IS_RDY_PIN 1
 
-typedef struct
-{
-  uint32_t _salt;
-  uint32_t pls_no;
-  uint16_t pls_wh;
-  uint16_t ct1_wh;
-  uint16_t ct2_wh;
-  uint16_t ct3_wh;
-  uint16_t ct1_vr;
-  uint8_t  door;
-  uint8_t  pad1;
-} data;
+// rtc size --> 56 byte
+static const uint8_t RTC_READ_ADDRESS  = 0;
 
-data sensor_data;
+//
+static uint32_t fnv_1_hash_32(uint8_t *bytes, size_t length) {
+  static const uint32_t FNV_OFFSET_BASIS_32 = 2166136261U;
+  static const uint32_t FNV_PRIME_32 = 16777619U;
+  uint32_t hash = FNV_OFFSET_BASIS_32;;
+  for (size_t i = 0 ; i < length ; ++i) hash = (FNV_PRIME_32 * hash) ^ (bytes[i]);
+  return hash;
+}
+
+//
+template <class T> uint32_t calc_hash(T& data) {
+  return fnv_1_hash_32(((uint8_t*)&data) + sizeof(data.hash), sizeof(T) - sizeof(data.hash));
+}
+
+struct {
+  uint32_t hash;
+  uint32_t pls_no;
+  uint16_t pls_ts;
+  int16_t ct1_rp;
+  int16_t ct1_ap;
+  int16_t ct1_vr;
+  uint16_t ct1_ir;
+  int16_t ct2_rp;
+  int16_t ct3_rp;
+  uint16_t door;
+} sensor_data;
 
 const char* ssid = WIFI_SSID;
 const char* password = WIFI_PASSWORD;
@@ -68,7 +80,9 @@ char* subtopic    = "esp8266/check";
 
 //
 volatile bool bdata_is_rdy;
-uint32_t _salt;
+bool ok;
+uint32_t _hash;
+int16_t pls_p = 0;
 bool bdoor_status;
 bool ResetInfo = false;
 long lastReconnectAttempt = 0;
@@ -88,7 +102,19 @@ void data_isr() {
   bdata_is_rdy = digitalRead(DATA_IS_RDY_PIN);
 }
 
-void sendUdpSyslog(String msgtosend) {
+void ICACHE_RAM_ATTR sendUdpmsg(String msgtosend) {
+  unsigned int msg_length = msgtosend.length();
+  byte* p = (byte*)malloc(msg_length);
+  memcpy(p, (char*) msgtosend.c_str(), msg_length);
+
+  udp.beginPacket(influxdbudp, 8089);
+  udp.write(p, msg_length);
+  udp.endPacket();
+  free(p);
+  delay(100);
+}
+
+void ICACHE_RAM_ATTR sendUdpSyslog(String msgtosend) {
   unsigned int msg_length = msgtosend.length();
   byte* p = (byte*)malloc(msg_length);
   memcpy(p, (char*) msgtosend.c_str(), msg_length);
@@ -139,9 +165,7 @@ void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int lengt
   syslogPayload += receivedpayload;
   sendUdpSyslog(syslogPayload);
 
-
   if ( receivedpayload == "{\"DOOR\":\"CHECKING\"}") {
-
     String check_doorpayload = "{\"DOOR\":";
     if ( sensor_data.door == 0 ) {
       check_doorpayload += "\"CHECK_CLOSED\"";
@@ -206,68 +230,99 @@ String macToStr(const uint8_t* mac)
   return result;
 }
 
-void send_raw_data() {
-  syslogPayload  = "_salt : ";
-  syslogPayload += sensor_data._salt;
-  syslogPayload += " - pls_no : ";
+void ICACHE_RAM_ATTR send_raw_data() {
+
+
+  syslogPayload = "pls_no : ";
   syslogPayload += sensor_data.pls_no;
-  syslogPayload += " - pls_wh : ";
-  syslogPayload += sensor_data.pls_wh;
-  syslogPayload += " - ct1 : ";
-  syslogPayload += sensor_data.ct1_wh;
-  syslogPayload += " - ct2 : ";
-  syslogPayload += sensor_data.ct2_wh;
-  syslogPayload += " - ct3 : ";
-  syslogPayload += sensor_data.ct3_wh;
-  syslogPayload += " - ct1 vr : ";
+  syslogPayload += " - pls_ts : ";
+  syslogPayload += sensor_data.pls_ts;
+  syslogPayload += " - pls_p : ";
+  syslogPayload += pls_p;
+  syslogPayload += " - ct1_rp : ";
+  syslogPayload += sensor_data.ct1_rp;
+  syslogPayload += " - ct1_ap : ";
+  syslogPayload += sensor_data.ct1_ap;
+  syslogPayload += " - ct1_vr : ";
   syslogPayload += sensor_data.ct1_vr;
+  syslogPayload += " - ct1_ir : ";
+  syslogPayload += sensor_data.ct1_ir;
+  syslogPayload += " - ct2_rp : ";
+  syslogPayload += sensor_data.ct2_rp;
+  syslogPayload += " - ct3_rp : ";
+  syslogPayload += sensor_data.ct3_rp;
   syslogPayload += " - door : ";
   syslogPayload += sensor_data.door;
-  syslogPayload += " - pad1 : ";
-  syslogPayload += sensor_data.pad1;
-  syslogPayload += " == ";
-  syslogPayload += uint8_t(sensor_data.pls_wh + sensor_data.ct1_wh + sensor_data.ct2_wh + sensor_data.ct3_wh + sensor_data.door);
+
+  _hash = calc_hash(sensor_data);
+  if (_hash != sensor_data.hash) {
+    syslogPayload += " - hash : ";
+    syslogPayload += sensor_data.hash;
+    syslogPayload += " != ";
+    syslogPayload += _hash;
+  }
 
   sendUdpSyslog(syslogPayload);
 }
 
-void get_i2c_data() {
-  detachInterrupt(digitalPinToInterrupt(DATA_IS_RDY_PIN));
-  delayMicroseconds(5);
-  pinMode(DATA_IS_RDY_PIN, OUTPUT);
-  digitalWrite(DATA_IS_RDY_PIN, LOW);
-  delayMicroseconds(5);
+void ICACHE_RAM_ATTR sendtoInfluxdb() {
+  String udppayload = "emontxv2,device=esp-01 ";
+  udppayload += "F=";
+  udppayload += ESP.getCpuFreqMHz();
+  udppayload += "i,pls_no=";
+  udppayload += sensor_data.pls_no;
+  udppayload += "i,pls_ts=";
+  udppayload += sensor_data.pls_ts;
+  udppayload += "i,pls_p=";
+  udppayload += pls_p;
+  udppayload += "i,ct1_rp=";
+  udppayload += sensor_data.ct1_rp;
+  udppayload += "i,ct1_ap=";
+  udppayload += sensor_data.ct1_ap;
+  udppayload += "i,ct1_vr=";
+  udppayload += sensor_data.ct1_vr;
+  udppayload += "i,ct1_ir=";
+  udppayload += sensor_data.ct1_ir;
+  udppayload += "i,ct2_rp=";
+  udppayload += sensor_data.ct2_rp;
+  udppayload += "i,ct3_rp=";
+  udppayload += sensor_data.ct3_rp;
+  udppayload += "i,door=";
+  udppayload += sensor_data.door;
+  udppayload += "i";
 
-  int start_address = 0;
-  uint8_t* to_read_current = reinterpret_cast< uint8_t*>(&sensor_data);
-  uint8_t gotten = Rtc.GetMemory(start_address, to_read_current, sizeof(sensor_data));
+  sendUdpmsg(udppayload);
+}
 
-  delayMicroseconds(5);
-  digitalWrite(DATA_IS_RDY_PIN, HIGH);
-  pinMode(DATA_IS_RDY_PIN, INPUT_PULLUP);
-  delayMicroseconds(5);
-  attachInterrupt(digitalPinToInterrupt(DATA_IS_RDY_PIN), data_isr, RISING);
+bool ICACHE_RAM_ATTR get_i2c_data() {
+  if (digitalRead(DATA_IS_RDY_PIN)) {
+    pinMode(DATA_IS_RDY_PIN, OUTPUT);
+    digitalWrite(DATA_IS_RDY_PIN, LOW);
+    delayMicroseconds(5);
+
+    uint8_t* to_read_current = reinterpret_cast< uint8_t*>(&sensor_data);
+    uint8_t gotten = Rtc.GetMemory(RTC_READ_ADDRESS, to_read_current, sizeof(sensor_data));
+
+    delayMicroseconds(5);
+    digitalWrite(DATA_IS_RDY_PIN, HIGH);
+    pinMode(DATA_IS_RDY_PIN, INPUT_PULLUP);
+    return true;
+  } else {
+    return false;
+  }
 }
 
 void setup() {
   system_update_cpu_freq(SYS_CPU_80MHz);
   Serial.swap();
-  Wire.begin(0, 2);
-  //twi_setClock(100000);
-
-  bdata_is_rdy = false;
+  //
   pinMode(DATA_IS_RDY_PIN, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(DATA_IS_RDY_PIN), data_isr, RISING);
+  //
+  Wire.begin(0, 2);
 
+  //
   wifi_connect();
   lastReconnectAttempt = 0;
-
-  while (!bdata_is_rdy) {
-    delay(100);
-  }
-  get_i2c_data();
-  bdoor_status = sensor_data.door;
-  _salt = sensor_data._salt;
 
   //
   getResetInfo = "hello from esp-emontxv2 ";
@@ -308,24 +363,34 @@ void setup() {
 
   ArduinoOTA.begin();
 
-  syslogPayload = "------------------> unit started : pin 1 status : ";
+  syslogPayload = "=====> unit started : pin 1 status : ";
   syslogPayload += digitalRead(1);
   sendUdpSyslog(syslogPayload);
+
+  bdata_is_rdy = false;
+  attachInterrupt(digitalPinToInterrupt(DATA_IS_RDY_PIN), data_isr, RISING);
 }
 
 void loop() {
   if (WiFi.status() == WL_CONNECTED) {
     if (bdata_is_rdy) {
-      get_i2c_data();
-      send_raw_data();
+      while (!digitalRead(DATA_IS_RDY_PIN)) {
+        delay(5);
+      }
+      ok = get_i2c_data();
+      if (sensor_data.pls_ts > 1) {
+        pls_p = (float(( 3600  * 1000 ) / ( 600 * float(sensor_data.pls_ts) ) ) * 1000);
+      } else {
+        pls_p = 0;
+      }
+      //send_raw_data();
+      sendtoInfluxdb();
       bdata_is_rdy = false;
     }
-
     if (!client.connected()) {
       syslogPayload = "failed, rc= ";
       syslogPayload += client.state();
       sendUdpSyslog(syslogPayload);
-
 
       unsigned long now = millis();
       if (now - lastReconnectAttempt > 200) {
@@ -348,21 +413,14 @@ void loop() {
         bdoor_status = sensor_data.door;
       }
 
-      if (_salt != sensor_data._salt) {
-        payload = "{\"_salt\":";
-        payload += sensor_data._salt;
+      /*
+        if (_hash != sensor_data.hash) {
+        payload = "{\"hash\":";
+        payload += sensor_data.hash;
         payload += ",\"pls_no\":";
         payload += sensor_data.pls_no;
-        payload += ",\"pls_time\":";
-        payload += sensor_data.pls_wh;
-        payload += ",\"ct1\":";
-        payload += sensor_data.ct1_wh;
-        payload += ",\"ct2\":";
-        payload += sensor_data.ct2_wh;
-        payload += ",\"ct3\":";
-        payload += sensor_data.ct3_wh;
-        payload += ",\"powerAvg\":";
-        payload += (( sensor_data.ct2_wh + sensor_data.ct3_wh ) / 2) ;
+        payload += ",\"pls_ts\":";
+        payload += sensor_data.pls_ts;
         payload += ",\"FreeHeap\":";
         payload += ESP.getFreeHeap();
         payload += ",\"RSSI\":";
@@ -372,10 +430,12 @@ void loop() {
         payload += "}";
 
         sendmqttMsg(topic, payload);
-        _salt = sensor_data._salt;
-      }
+        _hash = sensor_data.hash;
+        }
+      */
       client.loop();
     }
+
     ArduinoOTA.handle();
   } else {
     wifi_connect();
