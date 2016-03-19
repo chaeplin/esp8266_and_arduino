@@ -146,7 +146,7 @@ void setup() {
   millis_ap2 = millis_dns = pingloopcount = 0;
   ret_ap2_result = ret_dns_result = false;
 
-  pinMode(nemoisOnPin, INPUT);
+  pinMode(nemoisOnPin, INPUT_PULLUP);
   pinMode(ledPin, OUTPUT);
 
   wifi_connect();
@@ -163,7 +163,7 @@ void setup() {
   getResetInfo = "hello from scale ";
   getResetInfo += ESP.getResetInfo().substring(0, 40);
 
-  attachInterrupt(14, check_isr, RISING);
+  attachInterrupt(14, check_isr, FALLING);
 
   //OTA
   ArduinoOTA.setHostname("esp-scale");
