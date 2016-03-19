@@ -102,6 +102,18 @@ void data_isr() {
   bdata_is_rdy = digitalRead(DATA_IS_RDY_PIN);
 }
 
+void ICACHE_RAM_ATTR sendUdpmsg(String msgtosend) {
+  unsigned int msg_length = msgtosend.length();
+  byte* p = (byte*)malloc(msg_length);
+  memcpy(p, (char*) msgtosend.c_str(), msg_length);
+
+  udp.beginPacket(influxdbudp, 8089);
+  udp.write(p, msg_length);
+  udp.endPacket();
+  free(p);
+  delay(100);
+}
+
 void ICACHE_RAM_ATTR sendUdpSyslog(String msgtosend) {
   unsigned int msg_length = msgtosend.length();
   byte* p = (byte*)malloc(msg_length);
@@ -253,9 +265,36 @@ void ICACHE_RAM_ATTR send_raw_data() {
   sendUdpSyslog(syslogPayload);
 }
 
+void ICACHE_RAM_ATTR sendtoInfluxdb() {
+  String udppayload = "emontxv2,device=esp-01 ";
+  udppayload += "F=";
+  udppayload += ESP.getCpuFreqMHz();
+  udppayload += "i,pls_no=";
+  udppayload += sensor_data.pls_no;
+  udppayload += "i,pls_ts=";
+  udppayload += sensor_data.pls_ts;
+  udppayload += "i,pls_p=";
+  udppayload += pls_p;
+  udppayload += "i,ct1_rp=";
+  udppayload += sensor_data.ct1_rp;
+  udppayload += "i,ct1_ap=";
+  udppayload += sensor_data.ct1_ap;
+  udppayload += "i,ct1_vr=";
+  udppayload += sensor_data.ct1_vr;
+  udppayload += "i,ct1_ir=";
+  udppayload += sensor_data.ct1_ir;
+  udppayload += "i,ct2_rp=";
+  udppayload += sensor_data.ct2_rp;
+  udppayload += "i,ct3_rp=";
+  udppayload += sensor_data.ct3_rp;
+  udppayload += "i,door=";
+  udppayload += sensor_data.door;
+  udppayload += "i";
+
+  sendUdpmsg(udppayload);
+}
+
 bool ICACHE_RAM_ATTR get_i2c_data() {
-  //detachInterrupt(digitalPinToInterrupt(DATA_IS_RDY_PIN));
-  //delayMicroseconds(5);
   if (digitalRead(DATA_IS_RDY_PIN)) {
     pinMode(DATA_IS_RDY_PIN, OUTPUT);
     digitalWrite(DATA_IS_RDY_PIN, LOW);
@@ -271,8 +310,6 @@ bool ICACHE_RAM_ATTR get_i2c_data() {
   } else {
     return false;
   }
-  //delayMicroseconds(5);
-  //attachInterrupt(digitalPinToInterrupt(DATA_IS_RDY_PIN), data_isr, RISING);
 }
 
 void setup() {
@@ -346,12 +383,11 @@ void loop() {
       } else {
         pls_p = 0;
       }
-      send_raw_data();
+      //send_raw_data();
+      sendtoInfluxdb();
       bdata_is_rdy = false;
     }
-
-    /*
-      if (!client.connected()) {
+    if (!client.connected()) {
       syslogPayload = "failed, rc= ";
       syslogPayload += client.state();
       sendUdpSyslog(syslogPayload);
@@ -363,7 +399,7 @@ void loop() {
           lastReconnectAttempt = 0;
         }
       }
-      } else {
+    } else {
       if (bdoor_status != sensor_data.door) {
         doorpayload = "{\"DOOR\":";
         if ( sensor_data.door == 0 ) {
@@ -377,21 +413,14 @@ void loop() {
         bdoor_status = sensor_data.door;
       }
 
-      if (_salt != sensor_data._salt) {
-        payload = "{\"_salt\":";
-        payload += sensor_data._salt;
+      /*
+        if (_hash != sensor_data.hash) {
+        payload = "{\"hash\":";
+        payload += sensor_data.hash;
         payload += ",\"pls_no\":";
         payload += sensor_data.pls_no;
-        payload += ",\"pls_time\":";
-        payload += sensor_data.pls_wh;
-        payload += ",\"ct1\":";
-        payload += sensor_data.ct1_wh;
-        payload += ",\"ct2\":";
-        payload += sensor_data.ct2_wh;
-        payload += ",\"ct3\":";
-        payload += sensor_data.ct3_wh;
-        payload += ",\"powerAvg\":";
-        payload += (( sensor_data.ct2_wh + sensor_data.ct3_wh ) / 2) ;
+        payload += ",\"pls_ts\":";
+        payload += sensor_data.pls_ts;
         payload += ",\"FreeHeap\":";
         payload += ESP.getFreeHeap();
         payload += ",\"RSSI\":";
@@ -401,11 +430,12 @@ void loop() {
         payload += "}";
 
         sendmqttMsg(topic, payload);
-        _salt = sensor_data._salt;
-      }
+        _hash = sensor_data.hash;
+        }
+      */
       client.loop();
-      }
-    */
+    }
+
     ArduinoOTA.handle();
   } else {
     wifi_connect();
