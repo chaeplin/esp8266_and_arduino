@@ -412,15 +412,10 @@ void loop() {
         sendmqttMsg(doortopic, doorpayload);
         bdoor_status = sensor_data.door;
       }
-
-      /*
+      
         if (_hash != sensor_data.hash) {
-        payload = "{\"hash\":";
-        payload += sensor_data.hash;
-        payload += ",\"pls_no\":";
-        payload += sensor_data.pls_no;
-        payload += ",\"pls_ts\":";
-        payload += sensor_data.pls_ts;
+        payload = "{\"powerAvg\":";
+        payload += sensor_data.ct1_rp;
         payload += ",\"FreeHeap\":";
         payload += ESP.getFreeHeap();
         payload += ",\"RSSI\":";
@@ -432,7 +427,6 @@ void loop() {
         sendmqttMsg(topic, payload);
         _hash = sensor_data.hash;
         }
-      */
       client.loop();
     }
 

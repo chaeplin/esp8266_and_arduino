@@ -1,8 +1,7 @@
 * ESP8266 mqtt node
 
 
-|![1](./pics/powermter-calibrated.png)|
-
+replaced by _49-emontxv2-esp-01-i2c
 
 #### Server ####
 - mqtt broker : mosquitto

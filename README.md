@@ -4,7 +4,8 @@
 
 |![3](./_02-mqtt-sw-temperature/pics/1.jpg)|![4](./_06-power_meter/pics/1.jpg)|
 
-|![5](./_15-esp8266-dash-deepsleep-reset/pics/FullSizeRender%205.jpg)|
+|![5](./_15-esp8266-dash-deepsleep-reset/pics/FullSizeRender%205.jpg)|![6](./_49-emontxv2-esp-01-i2c/pics/board-2.jpg)|
+|![7](./_48-door-alarm-deepsleep/pics/reedsw.png)||
 
 * ESP8266 mqtt node
 
@@ -46,7 +47,7 @@
 | _03-hx711-scale | esp-12 | pro mini | pub measured weight of pet. hx711, 4 * body scale load cell |
 | _04-lcd-dust | esp-01 | nano | display mqtt msg, pub temp/hum, dust, control ir |
 | _05-two-ds18b20 | esp-12 | | pub temp. ds18b20. to check deepsleep and life of 2 * AA battery |
-| _06-power_meter | esp-12 | | pub power usage, door status. using CT sensor and ADC |
+| _06-power_meter | esp-12 | | pub power usage, door status. using CT sensor and ADC ---> replaced by _49-emontxv2-esp-01-i2c|
 | _07-ac-ir-remote-timer | | pro mini | |
 | _08_hc-sr04 | | | hc-sr04 test |
 | _09_ir_tx_rx | | nano | to control tv using ir |
