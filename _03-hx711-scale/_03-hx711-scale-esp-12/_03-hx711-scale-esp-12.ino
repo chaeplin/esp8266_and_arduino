@@ -26,7 +26,7 @@ extern "C" {
 #define nemoisOnPin 14
 #define ledPin 13
 
-#define DEBUG_PRINT 1
+#define DEBUG_PRINT 0
 
 #define REPORT_INTERVAL 5000 // in msec
 
@@ -211,20 +211,21 @@ void loop() {
     } else {
 
       if ( m != o_m ) {
-        sendUdpSyslog("hx711IsReady : i2c read");
+        //sendUdpSyslog("hx711IsReady : i2c read");
         //detachInterrupt(14);
         hx711IsReady();
-        sendUdpSyslog("hx711IsReady : i2c read done");
+        //sendUdpSyslog("hx711IsReady : i2c read done");
         //attachInterrupt(14, check_isr, RISING);
         o_m = m;
       }
 
+      /*
       if ((millis() - sentMills) > REPORT_INTERVAL ) {
         if ( m == o_m && inuse == LOW ) {
           switch (pingloopcount) {
             case 0:
               //detachInterrupt(14);
-              sendUdpSyslog("ap2 ping start");
+              //sendUdpSyslog("ap2 ping start");
 
               ESP.wdtDisable();
               ret_ap2_result = Ping.ping(ap2, 1);
@@ -237,13 +238,13 @@ void loop() {
               sentMills = millis();
               pingloopcount++;
 
-              sendUdpSyslog("ap2 ping stop");
+              //sendUdpSyslog("ap2 ping stop");
               //attachInterrupt(14, check_isr, RISING);
               break;
 
             case 1:
               //detachInterrupt(14);
-              sendUdpSyslog("dns ping start");
+              //sendUdpSyslog("dns ping start");
 
               ESP.wdtDisable();
               ret_dns_result = Ping.ping(dns, 1);
@@ -256,13 +257,13 @@ void loop() {
               sentMills = millis();
               pingloopcount++;
 
-              sendUdpSyslog("dns ping stop");
+              //sendUdpSyslog("dns ping stop");
               //attachInterrupt(14, check_isr, RISING);
               break;
 
             case 2:
               //detachInterrupt(14);
-              sendUdpSyslog("ping case 2 start");
+              //sendUdpSyslog("ping case 2 start");
               pingpayload  = "{\"ap2\":";
               pingpayload += millis_ap2;
               pingpayload += ",\"dns\":";
@@ -277,12 +278,13 @@ void loop() {
               sentMills = millis();
               pingloopcount = 0;
 
-              sendUdpSyslog("ping case 2 stop");
+              //sendUdpSyslog("ping case 2 stop");
               //attachInterrupt(14, check_isr, RISING);
               break;
           }
         }
       }
+      */
 
       if ( r != o_r ) {
         ave.push(measured);
