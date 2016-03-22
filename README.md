@@ -1,15 +1,15 @@
 
-
-![1](./_04-lcd-dust/pics/4.jpg)
-![2](./_03-hx711-scale/pics/6.jpg)
-![3](./_03-hx711-scale/pics/2.jpg)
-![4](./_02-mqtt-sw-temperature/pics/6.jpg)
-![5](./_06-power_meter/pics/1.jpg)
-![6](./_15-esp8266-dash-deepsleep-reset/pics/FullSizeRender%205.jpg)
-![7](./_28-attiny85-nrf24-3pin-ir/pics/4.jpg)
-![8](./_49-emontxv2-esp-01-i2c/pics/1.jpg)
-![9](./_49-emontxv2-esp-01-i2c/pics/board-2.jpg)
-![10](./_48-door-alarm-deepsleep/pics/reedsw.png)
+![1](./pics/readme/02sw.jpg)
+![1](./pics/readme/03scale1.jpg)
+![1](./pics/readme/03scale2.jpg)
+![1](./pics/readme/03scale3.jpg)
+![1](./pics/readme/04lcd.jpg)
+![1](./pics/readme/06power1.jpg)
+![1](./pics/readme/15button1.jpg)
+![1](./pics/readme/28ir1.jpg)
+![1](./pics/readme/48reedsw.png)
+![1](./pics/readme/49power1.jpg)
+![1](./pics/readme/49power2.jpg)
 
 * ESP8266 mqtt node
 
