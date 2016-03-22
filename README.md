@@ -1,15 +1,8 @@
 
-![1](./pics/readme/02sw.jpg)
-![1](./pics/readme/03scale1.jpg)
-![1](./pics/readme/03scale2.jpg)
-![1](./pics/readme/03scale3.jpg)
-![1](./pics/readme/04lcd.jpg)
-![1](./pics/readme/06power1.jpg)
-![1](./pics/readme/15button1.jpg)
-![1](./pics/readme/28ir1.jpg)
-![1](./pics/readme/48reedsw.png)
-![1](./pics/readme/49power1.jpg)
-![1](./pics/readme/49power2.jpg)
+|![1](./pics/readme/02sw.jpg)|![1](./pics/readme/03scale1.jpg)|![1](./pics/readme/03scale2.jpg)|
+|![1](./pics/readme/03scale3.jpg)|![1](./pics/readme/04lcd.jpg)|![1](./pics/readme/06power1.jpg)|
+|![1](./pics/readme/15button1.jpg)|![1](./pics/readme/28ir1.jpg)|![1](./pics/readme/48reedsw.png)|
+|![1](./pics/readme/49power1.jpg)|![1](./pics/readme/49power2.jpg)||
 
 * ESP8266 mqtt node
 
