@@ -70,7 +70,8 @@ RF24 radio(CE_PIN, CSN_PIN);
 #define IRENPIN 4 // p3 / A2
 #define DATA1PIN 3 // p2 // A3
 
-int16_t currentData1 ;
+int16_t doorStatus;
+int16_t rollStatus;
 
 void setup() {
   delay(20);
@@ -93,7 +94,7 @@ void setup() {
 
   unsigned long stopmilis = millis();
   payload.data2 = ( stopmilis - startmilis ) * 10 ;
-  payload.data1  = digitalRead(DATA1PIN) * 10 ;
+  payload.data1  = rollStatus = digitalRead(DATA1PIN) * 10 ;
   payload._salt = 0;
   payload.volt = readVcc();
   payload.devid = DEVICE_ID;
@@ -106,8 +107,8 @@ void setup() {
 void loop() {
   pinint_sleep();
   goToSleep ();
-  currentData1 = digitalRead(DATA1PIN);
-  if (currentData1 == 1 ) {
+  doorStatus = digitalRead(DATA1PIN);
+  if (doorStatus == 1 ) {
     return;
   } else {
     unsigned long startmilis = millis();
@@ -119,10 +120,12 @@ void loop() {
     payload.data1 = digitalRead(DATA1PIN) * 10;
     digitalWrite(IRENPIN, LOW);
     
-    if (payload.data1 == 10) {
+    //if (payload.data1 == 10) {
+    if ( rollStatus != payload.data1 ) {
       radio.powerUp();
       radio.write(&payload , sizeof(payload));
       radio.powerDown();
+      rollStatus = payload.data1;
     }
     unsigned long stopmilis = millis();
     payload.data2 = ( stopmilis - startmilis ) * 10 ;
