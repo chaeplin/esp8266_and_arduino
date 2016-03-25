@@ -1,5 +1,9 @@
 * ESP8266 mqtt node
 
+|![1](./pics/load-cell.png)|
+
+
+
 #### Server ####
 - mqtt broker : mosquitto
 - db : influxdb
