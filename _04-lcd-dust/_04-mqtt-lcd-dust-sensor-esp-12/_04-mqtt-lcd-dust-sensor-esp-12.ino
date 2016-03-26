@@ -904,12 +904,17 @@ String macToStr(const uint8_t* mac) {
 void digitalClockDisplay() {
   // digital clock display of the time
   lcd.setCursor(0, 0);
-  lcd.print(year());
+  /*
+  lcd.print(year() - 2000);
   lcd.print("/");
+  */
   printDigitsnocolon(month());
   lcd.print("/");
   printDigitsnocolon(day());
-  lcd.print(" ");
+
+  lcd.setCursor(6, 0);
+  lcd.print(dayShortStr(weekday()));
+  lcd.setCursor(10, 0);
   printDigitsnocolon(hour());
   printDigits(minute());
   printDigits(second());
