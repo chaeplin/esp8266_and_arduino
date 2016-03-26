@@ -23,7 +23,6 @@
 #include <ESP8266mDNS.h>
 #include <ArduinoOTA.h>
 #include <WiFiUdp.h>
-#include "PietteTech_DHT.h"
 
 // radio
 #define DEVICE_ID 1
@@ -45,7 +44,10 @@ extern "C" {
 #endif
 
 //#define ENABLE_DHT
+#if defined(ENABLE_DHT)
+#include "PietteTech_DHT.h"
 #define DHT_DEBUG_TIMING
+#endif
 
 #define INFO_PRINT 0
 #define DEBUG_PRINT 0
@@ -104,19 +106,30 @@ DeviceAddress outsideThermometer;
 RF24 radio(3, 15);
 
 // Topology
-const uint64_t pipes[3] = { 0xFFFFFFFFFFLL, 0xCCCCCCCCCCLL, 0xFFFFFFFFCCLL };
+const uint64_t pipes[4] = { 0xFFFFFFFFFFLL, 0xCCCCCCCCCCLL, 0xFFFFFFFFCCLL, 0xFFFFFFFFCFLL};
+//  radio.openReadingPipe(1, pipes[0]); -->  5 : door, 65 : roll, 2 : DS18B20
+//  radio.openReadingPipe(2, pipes[2]); --> 15 : ads1115
+//  radio.openReadingPipe(2, pipes[3]); --> 25 : lcd
 
 const uint32_t ampereunit[]  = { 0, 1000000, 1, 1000};
 
-typedef struct {
+struct {
   uint32_t _salt;
   uint16_t volt;
   int16_t data1;
   int16_t data2;
   uint8_t devid;
-} data;
+} sensor_data;
 
-data sensor_data;
+struct {
+  uint32_t timestamp;
+} time_ackpayload;
+
+struct {
+  uint32_t timestamp;
+  uint16_t data1;
+  uint16_t data2;
+} data_ackpayload;
 
 // mqtt
 char* topic = "esp8266/arduino/s02";
@@ -217,8 +230,7 @@ void wifi_connect() {
   while (WiFi.status() != WL_CONNECTED) {
     delay(100);
     Attempt++;
-    if (Attempt == 300)
-    {
+    if (Attempt == 300) {
       ESP.restart();
     }
   }
@@ -316,6 +328,8 @@ void setup() {
   lastReconnectAttempt = 0;
   millisnow = 0;
 
+  time_ackpayload.timestamp = data_ackpayload.timestamp = data_ackpayload.data1 = data_ackpayload.data2 = 0;
+
   getResetInfo = "hello from ESP8266 s02 ";
   getResetInfo += ESP.getResetInfo().substring(0, 30);
 
@@ -364,6 +378,7 @@ void setup() {
   radio.maskIRQ(1, 1, 0);
   radio.openReadingPipe(1, pipes[0]);
   radio.openReadingPipe(2, pipes[2]);
+  radio.openReadingPipe(2, pipes[3]);
   radio.startListening();
 
   //OTA
@@ -415,6 +430,11 @@ void setup() {
 }
 
 void loop() {
+  if (timeStatus() != timeNotSet) {
+    time_ackpayload.timestamp = data_ackpayload.timestamp = timestamp = numberOfSecondsSinceEpochUTC(year(), month(), day(), hour(), minute(), second());
+    millisnow = millisecond();
+  }
+
   if (WiFi.status() == WL_CONNECTED) {
     if (!client.connected()) {
       if (DEBUG_PRINT) {
@@ -482,8 +502,7 @@ void loop() {
 
       }
 
-      if ((relayIsReady == LOW ) &&  ( millis() < 15000 ) && ( relaystatus == oldrelaystatus ))
-      {
+      if ((relayIsReady == LOW ) &&  ( millis() < 15000 ) && ( relaystatus == oldrelaystatus )) {
 
         if (INFO_PRINT) {
           syslogPayload = "after BETWEEN_RELAY_ACTIVE => relaystatus => ";
@@ -499,8 +518,7 @@ void loop() {
         sendmqttMsg(rslttopic, lightpayload);
         relayIsReady = HIGH;
 
-      } else if ((relayIsReady == LOW ) &&  (( millis() - lastRelayActionmillis) > BETWEEN_RELAY_ACTIVE ) && ( relaystatus == oldrelaystatus ))
-      {
+      } else if ((relayIsReady == LOW ) &&  (( millis() - lastRelayActionmillis) > BETWEEN_RELAY_ACTIVE ) && ( relaystatus == oldrelaystatus )) {
 
         if (INFO_PRINT) {
           syslogPayload = "after BETWEEN_RELAY_ACTIVE => relaystatus => ";
@@ -553,14 +571,17 @@ void loop() {
       payload += (millis() - timemillis);
       payload += "}";
 
-      if ( pirSent == HIGH )
-      {
+      if ( pirSent == HIGH ) {
         sendmqttMsg(topic, payload);
         pirSent = LOW;
       }
 
-      // radio
-      if (radio.available()) {
+      //  radio.openReadingPipe(1, pipes[0]); -->  5 : door, 65 : roll, 2 : DS18B20
+      //  radio.openReadingPipe(2, pipes[2]); --> 15 : ads1115
+      //  radio.openReadingPipe(2, pipes[3]); --> 25 : lcd
+      //  radio
+      byte pipeNo;
+      if (radio.available(&pipeNo)) {
         // from attiny 85 data size is 11
         // sensor_data data size = 12
         uint8_t len = radio.getDynamicPayloadSize();
@@ -571,7 +592,12 @@ void loop() {
         }
         radio.read(&sensor_data, sizeof(sensor_data));
 
-        if ( sensor_data.devid != 15 ) {
+        //if ( sensor_data.devid != 15 ) {
+        if ( pipeNo == 1 && sensor_data.devid != 15 ) {
+          if ( sensor_data.devid != 2 ) {
+            radio.writeAckPayload(pipeNo, &time_ackpayload, sizeof(time_ackpayload));
+          }
+          
           String radiopayload = "{\"_salt\":";
           radiopayload += sensor_data._salt;
           radiopayload += ",\"volt\":";
@@ -591,8 +617,7 @@ void loop() {
           radiopayload += ",\"devid\":";
           radiopayload += sensor_data.devid;
           radiopayload += "}";
-          if ( (sensor_data.devid > 0) && (sensor_data.devid < 255) )
-          {
+          if ( (sensor_data.devid > 0) && (sensor_data.devid < 255) ) {
             String newRadiotopic = radiotopic;
             newRadiotopic += "/";
             newRadiotopic += sensor_data.devid;
@@ -603,12 +628,8 @@ void loop() {
           } else {
             sendmqttMsg(radiofault, radiopayload);
           }
-        } else {
-          if (timeStatus() != timeNotSet) {
-            timestamp = numberOfSecondsSinceEpochUTC(year(), month(), day(), hour(), minute(), second());
-            millisnow = millisecond();
-          }
-
+          //} else {
+        } else if ( pipeNo == 2 && sensor_data.devid == 15 ) {
           if ( sensor_data.data1 < 0 ) {
             sensor_data.data1 = 0;
           }
@@ -630,11 +651,12 @@ void loop() {
           udppayload += buf;
           udppayload += "000000";
           sendUdpmsg(udppayload);
+        } else if ( pipeNo == 3 && sensor_data.devid == 25 ) {
+          radio.writeAckPayload(pipeNo, &data_ackpayload, sizeof(data_ackpayload));
         }
       }
 
-      if ((millis() - startMills) > REPORT_INTERVAL )
-      {
+      if ((millis() - startMills) > REPORT_INTERVAL ) {
         sendmqttMsg(topic, payload);
 
         sensors.requestTemperatures();
@@ -658,11 +680,12 @@ void loop() {
   } else {
     wifi_connect();
   }
+  data_ackpayload.data1 += 1;
+  data_ackpayload.data2 += 5;
 }
 
 void runTimerDoLightOff() {
-  if (( relaystatus == HIGH ) && ( hour() == 6 ) && ( minute() == 00 ) && ( second() < 5 ))
-  {
+  if (( relaystatus == HIGH ) && ( hour() == 6 ) && ( minute() == 00 ) && ( second() < 5 )) {
     if (INFO_PRINT) {
       syslogPayload = "changing => relaystatus => runTimerLighrOff";
       syslogPayload += relaystatus;
@@ -850,6 +873,4 @@ static unsigned long  numberOfSecondsSinceEpochUTC(uint16_t y, uint8_t m, uint8_
   Days = DateToMjd(y, m, d) - DateToMjd(1970, 1, 1);
   return (uint16_t)Days * 86400 + h * 3600L + mm * 60L + s - (timeZone * SECS_PER_HOUR);
 }
-
-
 //
