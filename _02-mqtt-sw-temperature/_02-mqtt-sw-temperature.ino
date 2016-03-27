@@ -50,7 +50,7 @@ extern "C" {
 #endif
 
 #define INFO_PRINT 0
-#define DEBUG_PRINT 0
+#define DEBUG_PRINT 1
 
 // ****************
 time_t getNtpTime();
@@ -106,7 +106,7 @@ DeviceAddress outsideThermometer;
 RF24 radio(3, 15);
 
 // Topology
-const uint64_t pipes[4] = { 0xFFFFFFFFFFLL, 0xCCCCCCCCCCLL, 0xFFFFFFFFCCLL, 0xFFFFFFFFCFLL};
+const uint64_t pipes[4] = {   0xFFFFFFFFFFLL,   0xCCCCCCCCCCLL,   0xFFFFFFFFCCLL,   0xFFFFFFFFCDLL  };
 //  radio.openReadingPipe(1, pipes[0]); -->  5 : door, 65 : roll, 2 : DS18B20
 //  radio.openReadingPipe(2, pipes[2]); --> 15 : ads1115
 //  radio.openReadingPipe(2, pipes[3]); --> 25 : lcd
@@ -374,11 +374,21 @@ void setup() {
   radio.setDataRate(RF24_1MBPS);
   //radio.setDataRate(RF24_2MBPS);
   radio.setRetries(15, 15);
+  //
+  radio.setAutoAck(true);
+  radio.enableAckPayload();
   radio.enableDynamicPayloads();
-  radio.maskIRQ(1, 1, 0);
+  /*
+  radio.enableDynamicAck();
+  radio.enableAckPayload();
+  radio.enableDynamicPayloads();
+  */
+  //radio.maskIRQ(1, 1, 0);
+  //radio.openWritingPipe(pipes[1]);
+  //
   radio.openReadingPipe(1, pipes[0]);
   radio.openReadingPipe(2, pipes[2]);
-  radio.openReadingPipe(2, pipes[3]);
+  radio.openReadingPipe(3, pipes[3]);
   radio.startListening();
 
   //OTA
@@ -590,33 +600,42 @@ void loop() {
           radio.read(0, 0);
           return;
         }
+
+        if ( sensor_data.devid == 5 ||  sensor_data.devid == 65) {
+          //radio.writeAckPayload(pipeNo, &time_ackpayload, sizeof(time_ackpayload));
+        } else if ( sensor_data.devid == 25 ) {
+          radio.writeAckPayload(pipeNo, &data_ackpayload, sizeof(data_ackpayload));
+        }
+
         radio.read(&sensor_data, sizeof(sensor_data));
 
         //if ( sensor_data.devid != 15 ) {
-        if ( pipeNo == 1 && sensor_data.devid != 15 ) {
-          if ( sensor_data.devid != 2 ) {
-            radio.writeAckPayload(pipeNo, &time_ackpayload, sizeof(time_ackpayload));
-          }
-          
+        if ( (pipeNo == 1 || pipeNo == 3 ) && sensor_data.devid != 15 ) {
+
           String radiopayload = "{\"_salt\":";
           radiopayload += sensor_data._salt;
           radiopayload += ",\"volt\":";
           radiopayload += sensor_data.volt;
           radiopayload += ",\"data1\":";
+
           if ( sensor_data.data1 == 0 ) {
             radiopayload += 0;
           } else {
             radiopayload += ((float)sensor_data.data1 / 10);
           }
+
           radiopayload += ",\"data2\":";
+
           if ( sensor_data.data2 == 0 ) {
             radiopayload += 0;
           } else {
             radiopayload += ((float)sensor_data.data2 / 10);
           }
+
           radiopayload += ",\"devid\":";
           radiopayload += sensor_data.devid;
           radiopayload += "}";
+
           if ( (sensor_data.devid > 0) && (sensor_data.devid < 255) ) {
             String newRadiotopic = radiotopic;
             newRadiotopic += "/";
@@ -628,7 +647,20 @@ void loop() {
           } else {
             sendmqttMsg(radiofault, radiopayload);
           }
-          //} else {
+
+          if (DEBUG_PRINT) {
+            syslogPayload = pipeNo;
+            syslogPayload += " ---> ";
+            syslogPayload += sensor_data.devid;
+            syslogPayload += " ---> ";
+            syslogPayload += data_ackpayload.timestamp;
+            syslogPayload += " ---> ";
+            syslogPayload += data_ackpayload.data1;
+            syslogPayload += " ---> ";
+            syslogPayload += data_ackpayload.data2;
+
+            sendUdpSyslog(syslogPayload);
+          }
         } else if ( pipeNo == 2 && sensor_data.devid == 15 ) {
           if ( sensor_data.data1 < 0 ) {
             sensor_data.data1 = 0;
@@ -651,8 +683,6 @@ void loop() {
           udppayload += buf;
           udppayload += "000000";
           sendUdpmsg(udppayload);
-        } else if ( pipeNo == 3 && sensor_data.devid == 25 ) {
-          radio.writeAckPayload(pipeNo, &data_ackpayload, sizeof(data_ackpayload));
         }
       }
 
