@@ -14,6 +14,7 @@
   ADC
 */
 #include <TimeLib.h>
+#include <TimeAlarms.h>
 #include "nRF24L01.h"
 #include "RF24.h"
 #include <OneWire.h>
@@ -53,9 +54,10 @@ extern "C" {
 #define DEBUG_PRINT 1
 
 // ****************
+
 time_t getNtpTime();
-void callback(char* intopic, byte* inpayload, unsigned int length);
 String macToStr(const uint8_t* mac);
+void callback(char* intopic, byte* inpayload, unsigned int length);
 void run_lightcmd();
 void changelight();
 void sendmqttMsg(char* topictosend, String payload);
@@ -65,13 +67,12 @@ void sendUdpSyslog(String msgtosend);
 void printEdgeTiming(class PietteTech_DHT *_d);
 void dht_wrapper();
 
-static unsigned long  numberOfSecondsSinceEpochUTC(uint16_t y, uint8_t m, uint8_t d, uint8_t h, uint8_t mm, uint8_t s);
+static unsigned long numberOfSecondsSinceEpochUTC(uint16_t y, uint8_t m, uint8_t d, uint8_t h, uint8_t mm, uint8_t s);
+static unsigned long numberOfSecondsSince1900EpochUTC(uint16_t y, uint8_t m, uint8_t d, uint8_t h, uint8_t mm, uint8_t s);
 long DateToMjd (uint16_t y, uint8_t m, uint8_t d);
 void sendUdpmsg(String msgtosend);
-void check_radio();
-void radio_publish();
-
 // ****************
+
 const char* ssid = WIFI_SSID;
 const char* password = WIFI_PASSWORD;
 const char* otapassword = OTA_PASSWORD;
@@ -91,7 +92,7 @@ IPAddress time_server = MQTT_SERVER;
 #define BETWEEN_RELAY_ACTIVE 5000
 
 // DHT22
-#define DHTTYPE  DHT22           // Sensor type DHT11/21/22/AM2301/AM2302
+#define DHTTYPE  DHT22          // Sensor type DHT11/21/22/AM2301/AM2302
 #define DHTPIN   1              // Digital pin for communications
 
 // DS18B20
@@ -346,13 +347,15 @@ void setup() {
 
   udp.begin(localPort);
   setSyncProvider(getNtpTime);
-
+  
   if (timeStatus() == timeNotSet) {
     if (INFO_PRINT) {
       sendUdpSyslog("waiting for sync message");
       setSyncProvider(getNtpTime);
     }
   }
+  // default Interval is 300 sec
+  setSyncInterval(3600);
 
   attachInterrupt(5, run_lightcmd, CHANGE);
 
@@ -448,6 +451,9 @@ void setup() {
     syslogPayload += digitalRead(2);
     sendUdpSyslog(syslogPayload);
   }
+
+  // turn off light at 6
+  Alarm.alarmRepeat(6, 0, 0, runTimerDoLightOff); // 8:30am every day
 }
 
 void loop() {
@@ -551,7 +557,7 @@ void loop() {
         relayIsReady = HIGH;
       }
 
-      runTimerDoLightOff();
+      //runTimerDoLightOff();
 
       pirValue = digitalRead(pir);
       if ( oldpirValue != pirValue ) {
@@ -592,10 +598,10 @@ void loop() {
         pirSent = LOW;
       }
 
+
       //  radio.openReadingPipe(1, pipes[0]); -->  5 : door, 65 : roll, 2 : DS18B20
       //  radio.openReadingPipe(2, pipes[2]); --> 15 : ads1115
       //  radio.openReadingPipe(2, pipes[3]); --> 25 : lcd
-
       byte pipeNo;
       if (radio.available(&pipeNo)) {
         // from attiny 85 data size is 11
@@ -612,7 +618,7 @@ void loop() {
         if (len == sizeof(time_rxpayload)) {
           radio.read(&time_rxpayload, sizeof(time_rxpayload));
           time_ackpayload.rx_timestamp = time_rxpayload.rx_timestamp;
-          time_ackpayload.tx_timestamp = numberOfSecondsSinceEpochUTC(year(), month(), day(), hour(), minute(), second());
+          time_ackpayload.tx_timestamp = numberOfSecondsSince1900EpochUTC(year(), month(), day(), hour(), minute(), second());
           time_ackpayload.rx_millisnow = time_rxpayload.rx_millisnow;
           time_ackpayload.tx_millisnow = millisecond();
 
@@ -713,17 +719,18 @@ void loop() {
   } else {
     wifi_connect();
   }
+  Alarm.delay(1);
 }
 
 void runTimerDoLightOff() {
-  if (( relaystatus == HIGH ) && ( hour() == 6 ) && ( minute() == 00 ) && ( second() < 5 )) {
-    if (INFO_PRINT) {
-      syslogPayload = "changing => relaystatus => runTimerLighrOff";
-      syslogPayload += relaystatus;
-      sendUdpSyslog(syslogPayload);
-    }
-    relaystatus = LOW;
+  //if (( relaystatus == HIGH ) && ( hour() == 6 ) && ( minute() == 00 ) && ( second() < 5 )) {
+  if (INFO_PRINT) {
+    syslogPayload = "changing => relaystatus => runTimerLighrOff";
+    syslogPayload += relaystatus;
+    sendUdpSyslog(syslogPayload);
   }
+  relaystatus = LOW;
+  //}
 }
 
 void changelight() {
@@ -855,7 +862,7 @@ byte packetBuffer[NTP_PACKET_SIZE];
 time_t getNtpTime() {
   while (udp.parsePacket() > 0) ;
   sendNTPpacket(time_server);
-  delay(3000);
+  delay(1000);
   uint32_t beginWait = millis();
   while (millis() - beginWait < 1500) {
     int size = udp.parsePacket();
@@ -899,9 +906,15 @@ long DateToMjd (uint16_t y, uint8_t m, uint8_t d) {
     - 2400000;
 }
 
-static unsigned long  numberOfSecondsSinceEpochUTC(uint16_t y, uint8_t m, uint8_t d, uint8_t h, uint8_t mm, uint8_t s) {
+static unsigned long numberOfSecondsSinceEpochUTC(uint16_t y, uint8_t m, uint8_t d, uint8_t h, uint8_t mm, uint8_t s) {
   long Days;
   Days = DateToMjd(y, m, d) - DateToMjd(1970, 1, 1);
+  return (uint16_t)Days * 86400 + h * 3600L + mm * 60L + s - (timeZone * SECS_PER_HOUR);
+}
+
+static unsigned long numberOfSecondsSince1900EpochUTC(uint16_t y, uint8_t m, uint8_t d, uint8_t h, uint8_t mm, uint8_t s) {
+  long Days;
+  Days = DateToMjd(y, m, d) - DateToMjd(1900, 1, 1);
   return (uint16_t)Days * 86400 + h * 3600L + mm * 60L + s - (timeZone * SECS_PER_HOUR);
 }
 //
