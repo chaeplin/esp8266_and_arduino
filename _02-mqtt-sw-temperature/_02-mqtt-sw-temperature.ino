@@ -122,14 +122,24 @@ struct {
 } sensor_data;
 
 struct {
-  uint32_t timestamp;
+  uint32_t rx_timestamp;
+  uint32_t tx_timestamp;
+  int16_t rx_millisnow;
+  int16_t tx_millisnow;
 } time_ackpayload;
 
 struct {
+  uint32_t rx_timestamp;
+  int16_t rx_millisnow;
+} time_rxpayload;
+
+/*
+  struct {
   uint32_t timestamp;
   uint16_t data1;
   uint16_t data2;
-} data_ackpayload;
+  } data_ackpayload;
+*/
 
 // mqtt
 char* topic = "esp8266/arduino/s02";
@@ -328,7 +338,8 @@ void setup() {
   lastReconnectAttempt = 0;
   millisnow = 0;
 
-  time_ackpayload.timestamp = data_ackpayload.timestamp = data_ackpayload.data1 = data_ackpayload.data2 = 0;
+  time_ackpayload.rx_timestamp = time_ackpayload.tx_timestamp = time_ackpayload.rx_millisnow = time_ackpayload.tx_millisnow = 0;
+  time_rxpayload.rx_timestamp = time_rxpayload.rx_millisnow = 0;
 
   getResetInfo = "hello from ESP8266 s02 ";
   getResetInfo += ESP.getResetInfo().substring(0, 30);
@@ -379,9 +390,9 @@ void setup() {
   radio.enableAckPayload();
   radio.enableDynamicPayloads();
   /*
-  radio.enableDynamicAck();
-  radio.enableAckPayload();
-  radio.enableDynamicPayloads();
+    radio.enableDynamicAck();
+    radio.enableAckPayload();
+    radio.enableDynamicPayloads();
   */
   //radio.maskIRQ(1, 1, 0);
   //radio.openWritingPipe(pipes[1]);
@@ -440,11 +451,6 @@ void setup() {
 }
 
 void loop() {
-  if (timeStatus() != timeNotSet) {
-    time_ackpayload.timestamp = data_ackpayload.timestamp = timestamp = numberOfSecondsSinceEpochUTC(year(), month(), day(), hour(), minute(), second());
-    millisnow = millisecond();
-  }
-
   if (WiFi.status() == WL_CONNECTED) {
     if (!client.connected()) {
       if (DEBUG_PRINT) {
@@ -589,100 +595,97 @@ void loop() {
       //  radio.openReadingPipe(1, pipes[0]); -->  5 : door, 65 : roll, 2 : DS18B20
       //  radio.openReadingPipe(2, pipes[2]); --> 15 : ads1115
       //  radio.openReadingPipe(2, pipes[3]); --> 25 : lcd
-      //  radio
+
       byte pipeNo;
       if (radio.available(&pipeNo)) {
         // from attiny 85 data size is 11
         // sensor_data data size = 12
         uint8_t len = radio.getDynamicPayloadSize();
         // avr 8bit, esp 32bit. esp use 4 byte step.
-        if ( (len + 1 ) != sizeof(sensor_data) ) {
+        /*
+          if ( (len + 1 ) != sizeof(sensor_data) && len != sizeof(time_rxpayload)) {
           radio.read(0, 0);
           return;
-        }
-
-        if ( sensor_data.devid == 5 ||  sensor_data.devid == 65) {
-          //radio.writeAckPayload(pipeNo, &time_ackpayload, sizeof(time_ackpayload));
-        } else if ( sensor_data.devid == 25 ) {
-          radio.writeAckPayload(pipeNo, &data_ackpayload, sizeof(data_ackpayload));
-        }
-
-        radio.read(&sensor_data, sizeof(sensor_data));
-
-        //if ( sensor_data.devid != 15 ) {
-        if ( (pipeNo == 1 || pipeNo == 3 ) && sensor_data.devid != 15 ) {
-
-          String radiopayload = "{\"_salt\":";
-          radiopayload += sensor_data._salt;
-          radiopayload += ",\"volt\":";
-          radiopayload += sensor_data.volt;
-          radiopayload += ",\"data1\":";
-
-          if ( sensor_data.data1 == 0 ) {
-            radiopayload += 0;
-          } else {
-            radiopayload += ((float)sensor_data.data1 / 10);
           }
+        */
 
-          radiopayload += ",\"data2\":";
+        if (len == sizeof(time_rxpayload)) {
+          radio.read(&time_rxpayload, sizeof(time_rxpayload));
+          time_ackpayload.rx_timestamp = time_rxpayload.rx_timestamp;
+          time_ackpayload.tx_timestamp = numberOfSecondsSinceEpochUTC(year(), month(), day(), hour(), minute(), second());
+          time_ackpayload.rx_millisnow = time_rxpayload.rx_millisnow;
+          time_ackpayload.tx_millisnow = millisecond();
 
-          if ( sensor_data.data2 == 0 ) {
-            radiopayload += 0;
-          } else {
-            radiopayload += ((float)sensor_data.data2 / 10);
+          radio.writeAckPayload(pipeNo, &time_ackpayload, sizeof(time_ackpayload));
+        } else if ((len + 1 ) == sizeof(sensor_data)) {
+          radio.read(&sensor_data, sizeof(sensor_data));
+          if ( (pipeNo == 1 || pipeNo == 3 ) && sensor_data.devid != 15 ) {
+
+            String radiopayload = "{\"_salt\":";
+            radiopayload += sensor_data._salt;
+            radiopayload += ",\"volt\":";
+            radiopayload += sensor_data.volt;
+            radiopayload += ",\"data1\":";
+
+            if ( sensor_data.data1 == 0 ) {
+              radiopayload += 0;
+            } else {
+              radiopayload += ((float)sensor_data.data1 / 10);
+            }
+
+            radiopayload += ",\"data2\":";
+
+            if ( sensor_data.data2 == 0 ) {
+              radiopayload += 0;
+            } else {
+              radiopayload += ((float)sensor_data.data2 / 10);
+            }
+
+            radiopayload += ",\"devid\":";
+            radiopayload += sensor_data.devid;
+            radiopayload += "}";
+
+            if ( (sensor_data.devid > 0) && (sensor_data.devid < 255) ) {
+              String newRadiotopic = radiotopic;
+              newRadiotopic += "/";
+              newRadiotopic += sensor_data.devid;
+              unsigned int newRadiotopic_length = newRadiotopic.length();
+              char newRadiotopictosend[newRadiotopic_length] ;
+              newRadiotopic.toCharArray(newRadiotopictosend, newRadiotopic_length + 1);
+              sendmqttMsg(newRadiotopictosend, radiopayload);
+            } else {
+              sendmqttMsg(radiofault, radiopayload);
+            }
+          } else if ( pipeNo == 2 && sensor_data.devid == 15 ) {
+            if ( sensor_data.data1 < 0 ) {
+              sensor_data.data1 = 0;
+            }
+
+            if (timeStatus() != timeNotSet) {
+              timestamp = numberOfSecondsSinceEpochUTC(year(), month(), day(), hour(), minute(), second());
+              millisnow = millisecond();
+            }
+
+            String udppayload = "current,test=current,measureno=";
+            udppayload += sensor_data._salt;
+            udppayload += " devid=";
+            udppayload += sensor_data.devid;
+            udppayload += "i,volt=";
+            udppayload += sensor_data.volt;
+            udppayload += "i,ampere=";
+            uint32_t ampere_temp;
+            ampere_temp = sensor_data.data1 * ampereunit[sensor_data.data2];
+            udppayload += ampere_temp;
+            udppayload += " ";
+            udppayload += timestamp;
+            char buf[3];
+            sprintf(buf, "%03d", millisnow);
+            udppayload += buf;
+            udppayload += "000000";
+            sendUdpmsg(udppayload);
           }
-
-          radiopayload += ",\"devid\":";
-          radiopayload += sensor_data.devid;
-          radiopayload += "}";
-
-          if ( (sensor_data.devid > 0) && (sensor_data.devid < 255) ) {
-            String newRadiotopic = radiotopic;
-            newRadiotopic += "/";
-            newRadiotopic += sensor_data.devid;
-            unsigned int newRadiotopic_length = newRadiotopic.length();
-            char newRadiotopictosend[newRadiotopic_length] ;
-            newRadiotopic.toCharArray(newRadiotopictosend, newRadiotopic_length + 1);
-            sendmqttMsg(newRadiotopictosend, radiopayload);
-          } else {
-            sendmqttMsg(radiofault, radiopayload);
-          }
-
-          if (DEBUG_PRINT) {
-            syslogPayload = pipeNo;
-            syslogPayload += " ---> ";
-            syslogPayload += sensor_data.devid;
-            syslogPayload += " ---> ";
-            syslogPayload += data_ackpayload.timestamp;
-            syslogPayload += " ---> ";
-            syslogPayload += data_ackpayload.data1;
-            syslogPayload += " ---> ";
-            syslogPayload += data_ackpayload.data2;
-
-            sendUdpSyslog(syslogPayload);
-          }
-        } else if ( pipeNo == 2 && sensor_data.devid == 15 ) {
-          if ( sensor_data.data1 < 0 ) {
-            sensor_data.data1 = 0;
-          }
-
-          String udppayload = "current,test=current,measureno=";
-          udppayload += sensor_data._salt;
-          udppayload += " devid=";
-          udppayload += sensor_data.devid;
-          udppayload += "i,volt=";
-          udppayload += sensor_data.volt;
-          udppayload += "i,ampere=";
-          uint32_t ampere_temp;
-          ampere_temp = sensor_data.data1 * ampereunit[sensor_data.data2];
-          udppayload += ampere_temp;
-          udppayload += " ";
-          udppayload += timestamp;
-          char buf[3];
-          sprintf(buf, "%03d", millisnow);
-          udppayload += buf;
-          udppayload += "000000";
-          sendUdpmsg(udppayload);
+        } else {
+          radio.read(0, 0);
         }
       }
 
@@ -710,8 +713,6 @@ void loop() {
   } else {
     wifi_connect();
   }
-  data_ackpayload.data1 += 1;
-  data_ackpayload.data2 += 5;
 }
 
 void runTimerDoLightOff() {
@@ -773,7 +774,7 @@ void run_lightcmd() {
 }
 
 #if defined(ENABLE_DHT)
-void ICACHE_RAM_ATTR printEdgeTiming(class PietteTech_DHT *_d) {
+void ICACHE_RAM_ATTR printEdgeTiming(class PietteTech_DHT * _d) {
   byte n;
 #if defined(DHT_DEBUG_TIMING)
   volatile uint8_t *_e = &_d->_edges[0];
