@@ -15,8 +15,8 @@
 */
 #include <TimeLib.h>
 #include <TimeAlarms.h>
-#include "nRF24L01.h"
-#include "RF24.h"
+#include <nRF24L01.h>
+#include <RF24.h>
 #include <OneWire.h>
 #include <PubSubClient.h>
 #include <ESP8266WiFi.h>
@@ -36,15 +36,10 @@ extern "C" {
 #include "user_interface.h"
 }
 
-#define _IS_MY_HOME
-// wifi
-#ifdef _IS_MY_HOME
 #include "/usr/local/src/ap_setting.h"
-#else
-#include "ap_setting.h"
-#endif
 
 //#define ENABLE_DHT
+
 #if defined(ENABLE_DHT)
 #include "PietteTech_DHT.h"
 #define DHT_DEBUG_TIMING
@@ -123,29 +118,19 @@ struct {
 } sensor_data;
 
 struct {
-  uint32_t rx_timestamp;
-  uint32_t tx_timestamp;
-  int16_t rx_millisnow;
-  int16_t tx_millisnow;
-} time_ackpayload;
-
-struct {
-  uint32_t rx_timestamp;
-  int16_t rx_millisnow;
-} time_rxpayload;
-
-/*
-  struct {
   uint32_t timestamp;
   uint16_t data1;
   uint16_t data2;
-  } data_ackpayload;
-*/
+} data_ackpayload;
+
+struct {
+  uint32_t timestamp;
+} time_reqpayload;
 
 // mqtt
-char* topic = "esp8266/arduino/s02";
-char* subtopic = "esp8266/cmd/light";
-char* rslttopic = "esp8266/cmd/light/rlst";
+char* topic      = "esp8266/arduino/s02";
+char* subtopic   = "esp8266/cmd/light";
+char* rslttopic  = "esp8266/cmd/light/rlst";
 char* hellotopic = "HELLO";
 char* radiotopic = "radio/test";
 char* radiofault = "radio/test/fault";
@@ -339,24 +324,19 @@ void setup() {
   lastReconnectAttempt = 0;
   millisnow = 0;
 
-  time_ackpayload.rx_timestamp = time_ackpayload.tx_timestamp = time_ackpayload.rx_millisnow = time_ackpayload.tx_millisnow = 0;
-  time_rxpayload.rx_timestamp = time_rxpayload.rx_millisnow = 0;
+  data_ackpayload.timestamp = data_ackpayload.data1 = data_ackpayload.data2 = 0;
+  time_reqpayload.timestamp = 0;
 
   getResetInfo = "hello from ESP8266 s02 ";
   getResetInfo += ESP.getResetInfo().substring(0, 30);
 
   udp.begin(localPort);
   setSyncProvider(getNtpTime);
-  
-  if (timeStatus() == timeNotSet) {
-    if (INFO_PRINT) {
-      sendUdpSyslog("waiting for sync message");
-      setSyncProvider(getNtpTime);
-    }
-  }
-  // default Interval is 300 sec
-  setSyncInterval(3600);
 
+  if (timeStatus() == timeNotSet) {
+    setSyncProvider(getNtpTime);
+  }
+  
   attachInterrupt(5, run_lightcmd, CHANGE);
 
   pirSent = LOW ;
@@ -598,7 +578,6 @@ void loop() {
         pirSent = LOW;
       }
 
-
       //  radio.openReadingPipe(1, pipes[0]); -->  5 : door, 65 : roll, 2 : DS18B20
       //  radio.openReadingPipe(2, pipes[2]); --> 15 : ads1115
       //  radio.openReadingPipe(2, pipes[3]); --> 25 : lcd
@@ -615,14 +594,22 @@ void loop() {
           }
         */
 
-        if (len == sizeof(time_rxpayload)) {
-          radio.read(&time_rxpayload, sizeof(time_rxpayload));
-          time_ackpayload.rx_timestamp = time_rxpayload.rx_timestamp;
-          time_ackpayload.tx_timestamp = numberOfSecondsSince1900EpochUTC(year(), month(), day(), hour(), minute(), second());
-          time_ackpayload.rx_millisnow = time_rxpayload.rx_millisnow;
-          time_ackpayload.tx_millisnow = millisecond();
+        // use switch ?
+        if (len == sizeof(time_reqpayload)) {
+          data_ackpayload.timestamp = now();
+          data_ackpayload.data1 += 1;
+          data_ackpayload.data2 += 5;
 
-          radio.writeAckPayload(pipeNo, &time_ackpayload, sizeof(time_ackpayload));
+          radio.writeAckPayload(pipeNo, &data_ackpayload, sizeof(data_ackpayload));
+          radio.read(&time_reqpayload, sizeof(time_reqpayload));
+          
+          if (DEBUG_PRINT) {
+            syslogPayload = minute();
+            syslogPayload += "==> ";
+            syslogPayload += second();
+            sendUdpSyslog(syslogPayload);
+          }
+          
         } else if ((len + 1 ) == sizeof(sensor_data)) {
           radio.read(&sensor_data, sizeof(sensor_data));
           if ( (pipeNo == 1 || pipeNo == 3 ) && sensor_data.devid != 15 ) {
@@ -667,10 +654,12 @@ void loop() {
               sensor_data.data1 = 0;
             }
 
-            if (timeStatus() != timeNotSet) {
+            /*
+              if (timeStatus() != timeNotSet) {
               timestamp = numberOfSecondsSinceEpochUTC(year(), month(), day(), hour(), minute(), second());
               millisnow = millisecond();
-            }
+              }
+            */
 
             String udppayload = "current,test=current,measureno=";
             udppayload += sensor_data._salt;
@@ -683,9 +672,11 @@ void loop() {
             ampere_temp = sensor_data.data1 * ampereunit[sensor_data.data2];
             udppayload += ampere_temp;
             udppayload += " ";
-            udppayload += timestamp;
+            //udppayload += timestamp;
+            udppayload += now();
             char buf[3];
-            sprintf(buf, "%03d", millisnow);
+            sprintf(buf, "%03d", millisecond());
+            //sprintf(buf, "%03d", millisnow);
             udppayload += buf;
             udppayload += "000000";
             sendUdpmsg(udppayload);
@@ -725,11 +716,19 @@ void loop() {
 void runTimerDoLightOff() {
   //if (( relaystatus == HIGH ) && ( hour() == 6 ) && ( minute() == 00 ) && ( second() < 5 )) {
   if (INFO_PRINT) {
-    syslogPayload = "changing => relaystatus => runTimerLighrOff";
+    syslogPayload = "changing => relaystatus => runTimerLightOff";
     syslogPayload += relaystatus;
     sendUdpSyslog(syslogPayload);
   }
   relaystatus = LOW;
+
+  /* need to inform mqtt, when light is off. 
+  String lightpayload = "{\"LIGHT\":";
+  lightpayload += relaystatus;
+  lightpayload += "}";
+
+  sendmqttMsg(subtopic, lightpayload);
+  */
   //}
 }
 
@@ -862,9 +861,8 @@ byte packetBuffer[NTP_PACKET_SIZE];
 time_t getNtpTime() {
   while (udp.parsePacket() > 0) ;
   sendNTPpacket(time_server);
-  delay(1000);
   uint32_t beginWait = millis();
-  while (millis() - beginWait < 1500) {
+  while (millis() - beginWait < 2500) {
     int size = udp.parsePacket();
     if (size >= NTP_PACKET_SIZE) {
       udp.read(packetBuffer, NTP_PACKET_SIZE);
