@@ -115,7 +115,15 @@ time_t getNrfTime() {
       uint8_t len = radio.getDynamicPayloadSize();
       if ( len == sizeof(data_ackpayload)) {
         radio.read(&data_ackpayload, sizeof(data_ackpayload));
-        Serial.println(data_ackpayload.timestamp);
+      }
+    }
+    
+    time_reqpayload.timestamp = data_ackpayload.timestamp;
+    radio.write(&time_reqpayload , sizeof(time_reqpayload));
+    if (radio.isAckPayloadAvailable()) {
+      uint8_t len = radio.getDynamicPayloadSize();
+      if ( len == sizeof(data_ackpayload)) {
+        radio.read(&data_ackpayload, sizeof(data_ackpayload));
       }
     }
 
@@ -125,17 +133,13 @@ time_t getNrfTime() {
       uint8_t len = radio.getDynamicPayloadSize();
       if ( len == sizeof(data_ackpayload)) {
         radio.read(&data_ackpayload, sizeof(data_ackpayload));
-        Serial.println(data_ackpayload.timestamp);
-      }
-    }
-
-    time_reqpayload.timestamp = data_ackpayload.timestamp;
-    radio.write(&time_reqpayload , sizeof(time_reqpayload));
-    if (radio.isAckPayloadAvailable()) {
-      uint8_t len = radio.getDynamicPayloadSize();
-      if ( len == sizeof(data_ackpayload)) {
-        radio.read(&data_ackpayload, sizeof(data_ackpayload));
-        Serial.println(data_ackpayload.timestamp);
+        /*
+        Serial.print(data_ackpayload.timestamp);
+        Serial.print(" ==> ");
+        Serial.print(data_ackpayload.data1);
+        Serial.print(" ==> ");
+        Serial.println(data_ackpayload.data2);
+        */
         return (unsigned long)data_ackpayload.timestamp;
       }
     }

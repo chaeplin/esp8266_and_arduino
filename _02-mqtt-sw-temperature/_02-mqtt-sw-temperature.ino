@@ -61,10 +61,6 @@ void sendNTPpacket(IPAddress & address);
 void sendUdpSyslog(String msgtosend);
 void printEdgeTiming(class PietteTech_DHT *_d);
 void dht_wrapper();
-
-static unsigned long numberOfSecondsSinceEpochUTC(uint16_t y, uint8_t m, uint8_t d, uint8_t h, uint8_t mm, uint8_t s);
-static unsigned long numberOfSecondsSince1900EpochUTC(uint16_t y, uint8_t m, uint8_t d, uint8_t h, uint8_t mm, uint8_t s);
-long DateToMjd (uint16_t y, uint8_t m, uint8_t d);
 void sendUdpmsg(String msgtosend);
 // ****************
 
@@ -436,7 +432,18 @@ void setup() {
   Alarm.alarmRepeat(6, 0, 0, runTimerDoLightOff); // 8:30am every day
 }
 
+time_t prevDisplay = 0;
+
 void loop() {
+  /*
+  if (timeStatus() != timeNotSet) {
+    if (now() != prevDisplay) {
+      prevDisplay = now();
+      //do_thing();
+    }
+  }
+  */
+
   if (WiFi.status() == WL_CONNECTED) {
     if (!client.connected()) {
       if (DEBUG_PRINT) {
@@ -587,12 +594,6 @@ void loop() {
         // sensor_data data size = 12
         uint8_t len = radio.getDynamicPayloadSize();
         // avr 8bit, esp 32bit. esp use 4 byte step.
-        /*
-          if ( (len + 1 ) != sizeof(sensor_data) && len != sizeof(time_rxpayload)) {
-          radio.read(0, 0);
-          return;
-          }
-        */
 
         // use switch ?
         if (len == sizeof(time_reqpayload)) {
@@ -604,9 +605,11 @@ void loop() {
           radio.read(&time_reqpayload, sizeof(time_reqpayload));
 
           if (DEBUG_PRINT) {
-            syslogPayload = minute();
-            syslogPayload += "==> ";
-            syslogPayload += second();
+            syslogPayload = data_ackpayload.timestamp;
+            syslogPayload += " ==> ";
+            syslogPayload += data_ackpayload.data1;
+            syslogPayload += " ==> ";
+            syslogPayload += data_ackpayload.data2;
             sendUdpSyslog(syslogPayload);
           }
 
@@ -654,13 +657,6 @@ void loop() {
               sensor_data.data1 = 0;
             }
 
-            /*
-              if (timeStatus() != timeNotSet) {
-              timestamp = numberOfSecondsSinceEpochUTC(year(), month(), day(), hour(), minute(), second());
-              millisnow = millisecond();
-              }
-            */
-
             String udppayload = "current,test=current,measureno=";
             udppayload += sensor_data._salt;
             udppayload += " devid=";
@@ -672,11 +668,10 @@ void loop() {
             ampere_temp = sensor_data.data1 * ampereunit[sensor_data.data2];
             udppayload += ampere_temp;
             udppayload += " ";
-            //udppayload += timestamp;
-            udppayload += now();
+            // UTC
+            udppayload += (now() - timeZone * SECS_PER_HOUR);
             char buf[3];
             sprintf(buf, "%03d", millisecond());
-            //sprintf(buf, "%03d", millisnow);
             udppayload += buf;
             udppayload += "000000";
             sendUdpmsg(udppayload);
@@ -892,27 +887,3 @@ void sendNTPpacket(IPAddress & address) {
   udp.endPacket();
 }
 
-
-long DateToMjd (uint16_t y, uint8_t m, uint8_t d) {
-  return
-    367 * y
-    - 7 * (y + (m + 9) / 12) / 4
-    - 3 * ((y + (m - 9) / 7) / 100 + 1) / 4
-    + 275 * m / 9
-    + d
-    + 1721028
-    - 2400000;
-}
-
-static unsigned long numberOfSecondsSinceEpochUTC(uint16_t y, uint8_t m, uint8_t d, uint8_t h, uint8_t mm, uint8_t s) {
-  long Days;
-  Days = DateToMjd(y, m, d) - DateToMjd(1970, 1, 1);
-  return (uint16_t)Days * 86400 + h * 3600L + mm * 60L + s - (timeZone * SECS_PER_HOUR);
-}
-
-static unsigned long numberOfSecondsSince1900EpochUTC(uint16_t y, uint8_t m, uint8_t d, uint8_t h, uint8_t mm, uint8_t s) {
-  long Days;
-  Days = DateToMjd(y, m, d) - DateToMjd(1900, 1, 1);
-  return (uint16_t)Days * 86400 + h * 3600L + mm * 60L + s - (timeZone * SECS_PER_HOUR);
-}
-//
