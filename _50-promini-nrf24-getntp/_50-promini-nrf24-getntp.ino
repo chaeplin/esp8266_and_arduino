@@ -53,7 +53,8 @@ RF24 radio(CE_PIN, CSN_PIN);
 void setup() {
   Serial.begin(115200);
 
-  data_ackpayload.timestamp = 0 ;
+  time_reqpayload.timestamp = now();
+  data_ackpayload.timestamp = now() ;
   data_ackpayload.data1     = 0;
   data_ackpayload.data2     = 0;
 
@@ -114,22 +115,27 @@ time_t getNrfTime() {
       uint8_t len = radio.getDynamicPayloadSize();
       if ( len == sizeof(data_ackpayload)) {
         radio.read(&data_ackpayload, sizeof(data_ackpayload));
+        Serial.println(data_ackpayload.timestamp);
       }
     }
 
+    time_reqpayload.timestamp = data_ackpayload.timestamp;
     radio.write(&time_reqpayload , sizeof(time_reqpayload));
     if (radio.isAckPayloadAvailable()) {
       uint8_t len = radio.getDynamicPayloadSize();
       if ( len == sizeof(data_ackpayload)) {
         radio.read(&data_ackpayload, sizeof(data_ackpayload));
+        Serial.println(data_ackpayload.timestamp);
       }
     }
 
+    time_reqpayload.timestamp = data_ackpayload.timestamp;
     radio.write(&time_reqpayload , sizeof(time_reqpayload));
     if (radio.isAckPayloadAvailable()) {
       uint8_t len = radio.getDynamicPayloadSize();
       if ( len == sizeof(data_ackpayload)) {
         radio.read(&data_ackpayload, sizeof(data_ackpayload));
+        Serial.println(data_ackpayload.timestamp);
         return (unsigned long)data_ackpayload.timestamp;
       }
     }

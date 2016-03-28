@@ -105,7 +105,7 @@ RF24 radio(3, 15);
 const uint64_t pipes[4] = {   0xFFFFFFFFFFLL,   0xCCCCCCCCCCLL,   0xFFFFFFFFCCLL,   0xFFFFFFFFCDLL  };
 //  radio.openReadingPipe(1, pipes[0]); -->  5 : door, 65 : roll, 2 : DS18B20
 //  radio.openReadingPipe(2, pipes[2]); --> 15 : ads1115
-//  radio.openReadingPipe(2, pipes[3]); --> 25 : lcd
+//  radio.openReadingPipe(3, pipes[3]); --> 25 : lcd
 
 const uint32_t ampereunit[]  = { 0, 1000000, 1, 1000};
 
@@ -336,7 +336,7 @@ void setup() {
   if (timeStatus() == timeNotSet) {
     setSyncProvider(getNtpTime);
   }
-  
+
   attachInterrupt(5, run_lightcmd, CHANGE);
 
   pirSent = LOW ;
@@ -602,14 +602,14 @@ void loop() {
 
           radio.writeAckPayload(pipeNo, &data_ackpayload, sizeof(data_ackpayload));
           radio.read(&time_reqpayload, sizeof(time_reqpayload));
-          
+
           if (DEBUG_PRINT) {
             syslogPayload = minute();
             syslogPayload += "==> ";
             syslogPayload += second();
             sendUdpSyslog(syslogPayload);
           }
-          
+
         } else if ((len + 1 ) == sizeof(sensor_data)) {
           radio.read(&sensor_data, sizeof(sensor_data));
           if ( (pipeNo == 1 || pipeNo == 3 ) && sensor_data.devid != 15 ) {
@@ -722,12 +722,12 @@ void runTimerDoLightOff() {
   }
   relaystatus = LOW;
 
-  /* need to inform mqtt, when light is off. 
-  String lightpayload = "{\"LIGHT\":";
-  lightpayload += relaystatus;
-  lightpayload += "}";
+  /* need to inform mqtt, when light is off.
+    String lightpayload = "{\"LIGHT\":";
+    lightpayload += relaystatus;
+    lightpayload += "}";
 
-  sendmqttMsg(subtopic, lightpayload);
+    sendmqttMsg(subtopic, lightpayload);
   */
   //}
 }
