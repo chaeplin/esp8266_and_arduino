@@ -24,6 +24,7 @@
 #include <ESP8266mDNS.h>
 #include <ArduinoOTA.h>
 #include <WiFiUdp.h>
+#include <ArduinoJson.h>
 
 // radio
 #define DEVICE_ID 1
@@ -115,8 +116,8 @@ struct {
 
 struct {
   uint32_t timestamp;
-  uint16_t data1;
-  uint16_t data2;
+  float data1;
+  float data2;
 } data_ackpayload;
 
 struct {
@@ -124,15 +125,17 @@ struct {
 } time_reqpayload;
 
 // mqtt
-char* topic      = "esp8266/arduino/s02";
-char* subtopic   = "esp8266/cmd/light";
-char* rslttopic  = "esp8266/cmd/light/rlst";
-char* hellotopic = "HELLO";
-char* radiotopic = "radio/test";
-char* radiofault = "radio/test/fault";
+char* topic       = "esp8266/arduino/s02";
+char* subtopic    = "esp8266/cmd/light";
+char* rslttopic   = "esp8266/cmd/light/rlst";
+char* hellotopic  = "HELLO";
+char* radiotopic  = "radio/test";
+char* radiofault  = "radio/test/fault";
 
-char* willTopic = "clients/relay";
+char* willTopic   = "clients/relay";
 char* willMessage = "0";
+
+char* subrpi      = "raspberrypi/data";
 
 //
 unsigned int localPort = 12390;
@@ -238,7 +241,12 @@ boolean reconnect() {
       } else {
         client.publish(hellotopic, "hello again 1 from ESP8266 s02");
       }
+      client.loop();
       client.subscribe(subtopic);
+      client.loop();
+      client.subscribe(subrpi);
+      client.loop();
+
       if (DEBUG_PRINT) {
         sendUdpSyslog("---> mqttconnected");
       }
@@ -261,36 +269,54 @@ void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int lengt
     receivedpayload += (char)inpayload[i];
   }
 
-  if (INFO_PRINT) {
+  if (DEBUG_PRINT) {
     syslogPayload = intopic;
     syslogPayload += " ====> ";
     syslogPayload += receivedpayload;
     sendUdpSyslog(syslogPayload);
   }
 
-  unsigned long now = millis();
+  if ( receivedtopic == "esp8266/cmd/light" ) {
 
-  if ( now < 15000 ) {
-    if ( receivedpayload == "{\"LIGHT\":1}") {
-      relaystatus = HIGH ;
-    }
-    if ( receivedpayload == "{\"LIGHT\":0}") {
-      relaystatus = LOW ;
-    }
-    relayIsReady = LOW;
-  } else if ((now - lastRelayActionmillis) >= BETWEEN_RELAY_ACTIVE ) {
-    if ( receivedpayload == "{\"LIGHT\":1}") {
-      relaystatus = HIGH ;
-    }
-    if ( receivedpayload == "{\"LIGHT\":0}") {
-      relaystatus = LOW ;
-    }
-  }
+    unsigned long now = millis();
 
-  if (INFO_PRINT) {
-    syslogPayload = " => relaystatus => ";
-    syslogPayload += relaystatus;
-    sendUdpSyslog(syslogPayload);
+    if ( now < 15000 ) {
+      if ( receivedpayload == "{\"LIGHT\":1}") {
+        relaystatus = HIGH ;
+      }
+      if ( receivedpayload == "{\"LIGHT\":0}") {
+        relaystatus = LOW ;
+      }
+      relayIsReady = LOW;
+    } else if ((now - lastRelayActionmillis) >= BETWEEN_RELAY_ACTIVE ) {
+      if ( receivedpayload == "{\"LIGHT\":1}") {
+        relaystatus = HIGH ;
+      }
+      if ( receivedpayload == "{\"LIGHT\":0}") {
+        relaystatus = LOW ;
+      }
+    }
+
+    if (INFO_PRINT) {
+      syslogPayload = " => relaystatus => ";
+      syslogPayload += relaystatus;
+      sendUdpSyslog(syslogPayload);
+    }
+  } else if ( receivedtopic == "raspberrypi/data" ) {
+    char json[] = "{\"Humidity\":43.90,\"Temperature\":22.00}";
+
+    receivedpayload.toCharArray(json, 150);
+    StaticJsonBuffer<150> jsonBuffer;
+    JsonObject& root = jsonBuffer.parseObject(json);
+
+    if (!root.success()) {
+      return;
+    }
+
+    if (root.containsKey("data1")) {
+      data_ackpayload.data1 = root["data1"];
+      data_ackpayload.data2 = root["data2"];
+    }
   }
 }
 
@@ -436,12 +462,12 @@ time_t prevDisplay = 0;
 
 void loop() {
   /*
-  if (timeStatus() != timeNotSet) {
+    if (timeStatus() != timeNotSet) {
     if (now() != prevDisplay) {
       prevDisplay = now();
       //do_thing();
     }
-  }
+    }
   */
 
   if (WiFi.status() == WL_CONNECTED) {
@@ -598,8 +624,6 @@ void loop() {
         // use switch ?
         if (len == sizeof(time_reqpayload)) {
           data_ackpayload.timestamp = now();
-          data_ackpayload.data1 += 1;
-          data_ackpayload.data2 += 5;
 
           radio.writeAckPayload(pipeNo, &data_ackpayload, sizeof(data_ackpayload));
           radio.read(&time_reqpayload, sizeof(time_reqpayload));

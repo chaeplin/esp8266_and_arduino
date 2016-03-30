@@ -48,8 +48,8 @@ const uint64_t pipes[1] = { 0xFFFFFFFFCDLL };
 
 struct {
   uint32_t timestamp;
-  uint16_t data1;
-  uint16_t data2;
+  float data1;
+  float data2;
 } data_ackpayload;
 
 struct {
@@ -119,10 +119,13 @@ void digitalClockDisplay() {
     lcd.print("/");
     printDigitsnocolon(day());
   */
-  lcd.setCursor(0, 0);
-  lcd.print(data_ackpayload.data2);
-
   lcd.setCursor(0, 1);
+  lcd.print(data_ackpayload.data1, 0);
+
+  lcd.setCursor(4, 1);
+  lcd.print(data_ackpayload.data2, 2);
+
+  lcd.setCursor(0, 0);
   printDigitsnocolon(hour());
   printDigits(minute());
   printDigits(second());
