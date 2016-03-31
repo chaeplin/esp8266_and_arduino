@@ -14,7 +14,7 @@
   ADC
 */
 #include <TimeLib.h>
-#include <TimeAlarms.h>
+//#include <TimeAlarms.h>
 #include <nRF24L01.h>
 #include <RF24.h>
 #include <OneWire.h>
@@ -455,7 +455,7 @@ void setup() {
   }
 
   // turn off light at 6
-  Alarm.alarmRepeat(6, 0, 0, runTimerDoLightOff); // 8:30am every day
+  //Alarm.alarmRepeat(6, 0, 0, runTimerDoLightOff); // 8:30am every day
 }
 
 time_t prevDisplay = 0;
@@ -570,7 +570,7 @@ void loop() {
         relayIsReady = HIGH;
       }
 
-      //runTimerDoLightOff();
+      runTimerDoLightOff();
 
       pirValue = digitalRead(pir);
       if ( oldpirValue != pirValue ) {
@@ -729,26 +729,26 @@ void loop() {
   } else {
     wifi_connect();
   }
-  Alarm.delay(1);
+  //Alarm.delay(1);
 }
 
 void runTimerDoLightOff() {
-  //if (( relaystatus == HIGH ) && ( hour() == 6 ) && ( minute() == 00 ) && ( second() < 5 )) {
-  if (INFO_PRINT) {
-    syslogPayload = "changing => relaystatus => runTimerLightOff";
-    syslogPayload += relaystatus;
-    sendUdpSyslog(syslogPayload);
+  if (( relaystatus == HIGH ) && ( hour() == 6 ) && ( minute() == 00 ) && ( second() < 5 )) {
+    if (INFO_PRINT) {
+      syslogPayload = "changing => relaystatus => runTimerLightOff";
+      syslogPayload += relaystatus;
+      sendUdpSyslog(syslogPayload);
+    }
+    relaystatus = LOW;
+
+    /* need to inform mqtt, when light is off.
+      String lightpayload = "{\"LIGHT\":";
+      lightpayload += relaystatus;
+      lightpayload += "}";
+
+      sendmqttMsg(subtopic, lightpayload);
+    */
   }
-  relaystatus = LOW;
-
-  /* need to inform mqtt, when light is off.
-    String lightpayload = "{\"LIGHT\":";
-    lightpayload += relaystatus;
-    lightpayload += "}";
-
-    sendmqttMsg(subtopic, lightpayload);
-  */
-  //}
 }
 
 void changelight() {
