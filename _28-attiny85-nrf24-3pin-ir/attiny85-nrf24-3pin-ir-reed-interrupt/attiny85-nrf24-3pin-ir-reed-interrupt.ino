@@ -83,7 +83,7 @@ RF24 radio(CE_PIN, CSN_PIN);
 int16_t doorStatus;
 int16_t rollStatus;
 
-const int min_hour   = 17;
+const int min_hour   = 8;
 const int min_minute = 0;
 
 void setup() {
@@ -152,7 +152,7 @@ void loop() {
     radio.powerDown();
 
     uint32_t alarmtime = numberOfSecondsSinceEpoch(year(), month(), day(), min_hour, min_minute, 0);
-    if (alarmtime > (now() + 8)) {
+    if (alarmtime >= (now() + 8)) {
       int16_t timediff = ( alarmtime - now() ) / 8;
       timedsleep(timediff);
     }

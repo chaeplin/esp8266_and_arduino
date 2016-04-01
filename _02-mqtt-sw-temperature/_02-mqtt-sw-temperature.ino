@@ -359,6 +359,8 @@ void setup() {
     setSyncProvider(getNtpTime);
   }
 
+  timestamp = now();
+
   attachInterrupt(5, run_lightcmd, CHANGE);
 
   pirSent = LOW ;
@@ -471,6 +473,9 @@ void loop() {
     }
   */
 
+  uint32_t alarmtime = numberOfSecondsSinceEpoch(year(), month(), day(), 6, 0, 0);
+  timestamp = now();
+
   if (WiFi.status() == WL_CONNECTED) {
     if (!client.connected()) {
       if (DEBUG_PRINT) {
@@ -571,7 +576,9 @@ void loop() {
         relayIsReady = HIGH;
       }
 
-      runTimerDoLightOff();
+      if ( timestamp == alarmtime ) {
+        runTimerDoLightOff();
+      }
 
       pirValue = digitalRead(pir);
       if ( oldpirValue != pirValue ) {
@@ -624,12 +631,11 @@ void loop() {
 
         // use switch ?
         if (len == sizeof(time_reqpayload) && pipeNo == 3) {
-          data_ackpayload.timestamp = now();
+          data_ackpayload.timestamp = timestamp;
 
           radio.writeAckPayload(pipeNo, &data_ackpayload, sizeof(data_ackpayload));
           radio.read(&time_reqpayload, sizeof(time_reqpayload));
 
-          /*
           if (DEBUG_PRINT) {
             syslogPayload = data_ackpayload.timestamp;
             syslogPayload += " ==> ";
@@ -642,9 +648,8 @@ void loop() {
             syslogPayload += "3";
             sendUdpSyslog(syslogPayload);
           }
-          */
         } else if (len == sizeof(time_reqpayload) && pipeNo == 4) {
-          data_ackpayload.timestamp = now();
+          data_ackpayload.timestamp = timestamp;
 
           radio.writeAckPayload(pipeNo, &data_ackpayload, sizeof(data_ackpayload));
           radio.read(&time_reqpayload, sizeof(time_reqpayload));
@@ -717,7 +722,7 @@ void loop() {
             udppayload += ampere_temp;
             udppayload += " ";
             // UTC
-            udppayload += (now() - timeZone * SECS_PER_HOUR);
+            udppayload += (timestamp - timeZone * SECS_PER_HOUR);
             char buf[3];
             sprintf(buf, "%03d", millisecond());
             udppayload += buf;
@@ -757,7 +762,7 @@ void loop() {
 }
 
 void runTimerDoLightOff() {
-  if (( relaystatus == HIGH ) && ( hour() == 6 ) && ( minute() == 00 ) && ( second() < 5 )) {
+  if (( relaystatus == HIGH )) {  // && ( hour() == 6 ) && ( minute() == 00 ) && ( second() < 5 )) {
     if (INFO_PRINT) {
       syslogPayload = "changing => relaystatus => runTimerLightOff";
       syslogPayload += relaystatus;
@@ -934,4 +939,23 @@ void sendNTPpacket(IPAddress & address) {
   udp.write(packetBuffer, NTP_PACKET_SIZE);
   udp.endPacket();
 }
+
+
+long DateToMjd (uint16_t y, uint8_t m, uint8_t d) {
+  return
+    367 * y
+    - 7 * (y + (m + 9) / 12) / 4
+    - 3 * ((y + (m - 9) / 7) / 100 + 1) / 4
+    + 275 * m / 9
+    + d
+    + 1721028
+    - 2400000;
+}
+
+static unsigned long numberOfSecondsSinceEpoch(uint16_t y, uint8_t m, uint8_t d, uint8_t h, uint8_t mm, uint8_t s) {
+  long Days;
+  Days = DateToMjd(y, m, d) - DateToMjd(1970, 1, 1);
+  return (uint16_t)Days * 86400 + h * 3600L + mm * 60L + s;
+}
+// end
 
