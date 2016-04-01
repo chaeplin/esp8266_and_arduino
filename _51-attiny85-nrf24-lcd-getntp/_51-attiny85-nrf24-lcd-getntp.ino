@@ -1,8 +1,8 @@
 // base is _02-mqtt-sw-temperature
 /* base config / esp8266 plus nrf24l01 */
 /*
-byte pipeNo;
-if (radio.available(&pipeNo)) {
+  byte pipeNo;
+  if (radio.available(&pipeNo)) {
   uint8_t len = radio.getDynamicPayloadSize();
 
   if (len == sizeof(time_reqpayload)) {
@@ -15,7 +15,7 @@ if (radio.available(&pipeNo)) {
   } else {
     //
   }
-}
+  }
 */
 // https://github.com/PaulStoffregen/Time
 #include <TimeLib.h>
@@ -83,8 +83,8 @@ void setup() {
   lcd.clear();
 
   setSyncProvider(getNrfTime);
-  // default is 300s(5 min)
-  setSyncInterval(60);
+  //default is 300s(5 min)
+  //setSyncInterval(60);
 }
 
 time_t prevDisplay = 0;
@@ -94,17 +94,9 @@ void loop() {
     if (now() != prevDisplay) { //update the display only if time has changed
       prevDisplay = now();
 
-      /*
-        USICR =  (1 << USIWM0) | (1 << USICS1) | (1 << USICLK) | (1 << USITC);
-        SPI.begin();
-        radio.write(&time_reqpayload , sizeof(time_reqpayload));
-        if (radio.isAckPayloadAvailable()) {
-        uint8_t len = radio.getDynamicPayloadSize();
-        if ( len == sizeof(data_ackpayload)) {
-          radio.read(&data_ackpayload, sizeof(data_ackpayload));
-        }
-        }
-      */
+      if ( second() % 10 == 0 ) {
+        getnrfdata();
+      }
 
       USICR =  (1 << USIWM1) | (0 << USIWM0);
       digitalClockDisplay();
@@ -146,8 +138,21 @@ void printDigits(int digits) {
   lcd.print(digits);
 }
 
-time_t getNrfTime() {
+void getnrfdata() {
+  USICR =  (1 << USIWM0) | (1 << USICS1) | (1 << USICLK) | (1 << USITC);
+  SPI.begin();
 
+  time_reqpayload.timestamp = data_ackpayload.timestamp;
+  radio.write(&time_reqpayload , sizeof(time_reqpayload));
+  if (radio.isAckPayloadAvailable()) {
+    uint8_t len = radio.getDynamicPayloadSize();
+    if ( len == sizeof(data_ackpayload)) {
+      radio.read(&data_ackpayload, sizeof(data_ackpayload));
+    }
+  }
+}
+
+time_t getNrfTime() {
   USICR =  (1 << USIWM0) | (1 << USICS1) | (1 << USICLK) | (1 << USITC);
   SPI.begin();
 

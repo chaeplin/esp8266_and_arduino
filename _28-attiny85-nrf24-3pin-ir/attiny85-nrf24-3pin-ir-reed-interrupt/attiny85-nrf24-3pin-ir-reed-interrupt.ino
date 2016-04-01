@@ -19,11 +19,13 @@
    6  mosi  6
    7  miso  5
 */
+#include <LowPower.h>
+#include <TimeLib.h>
 #include <avr/wdt.h>
 #include <avr/interrupt.h>
 #include <avr/sleep.h>
 #include <avr/pgmspace.h>
-#include <avr/power.h>
+//#include <avr/power.h>
 #include <nRF24L01.h>
 #include <RF24.h>
 
@@ -53,17 +55,25 @@
 #define DEVICE_ID 65
 #define CHANNEL 100
 
-const uint64_t pipes[2] = { 0xFFFFFFFFFFLL, 0xCCCCCCCCCCLL };
+const uint64_t pipes[2] = { 0xFFFFFFFFFFLL, 0xFFFFFFFFDDLL };
 
-typedef struct {
+struct {
   uint32_t _salt;
   uint16_t volt;
   int16_t data1;
   int16_t data2;
   uint8_t devid;
-} data;
+} payload;
 
-data payload;
+struct {
+  uint32_t timestamp;
+  float data1;
+  float data2;
+} data_ackpayload;
+
+struct {
+  uint32_t timestamp;
+} time_reqpayload;
 
 RF24 radio(CE_PIN, CSN_PIN);
 
@@ -73,8 +83,16 @@ RF24 radio(CE_PIN, CSN_PIN);
 int16_t doorStatus;
 int16_t rollStatus;
 
+const int min_hour   = 17;
+const int min_minute = 0;
+
 void setup() {
-  delay(20);
+  delay(100);
+  time_reqpayload.timestamp = 0;
+  data_ackpayload.timestamp = 0;
+  data_ackpayload.data1     = 0;
+  data_ackpayload.data2     = 0;
+
   adc_disable();
   unsigned long startmilis = millis();
 
@@ -87,19 +105,35 @@ void setup() {
   radio.setPALevel(RF24_PA_LOW);
   radio.setDataRate(RF24_1MBPS);
   radio.setRetries(15, 15);
+  radio.setAutoAck(true);
+  radio.enableAckPayload();
   radio.enableDynamicPayloads();
-  radio.openWritingPipe(pipes[0]);
-  radio.stopListening();
+  radio.openWritingPipe(pipes[1]);
   radio.powerDown();
 
   unsigned long stopmilis = millis();
   payload.data2 = ( stopmilis - startmilis ) * 10 ;
-  payload.data1  = rollStatus = digitalRead(DATA1PIN) * 10 ;
+
+  while (digitalRead(DATA1PIN) == 1 ) {
+    delay(1000);
+  }
+  delay(1000);
+  payload.data1 = rollStatus = digitalRead(DATA1PIN) * 10 ;
   payload._salt = 0;
-  payload.volt = readVcc();
+  payload.volt  = readVcc();
   payload.devid = DEVICE_ID;
 
+  // get time
+  setSyncProvider( requestSync);
   radio.powerUp();
+  radio.stopListening();
+  radio.openWritingPipe(pipes[1]);
+  getNrfTime();
+  radio.powerDown();
+
+  radio.powerUp();
+  radio.stopListening();
+  radio.openWritingPipe(pipes[0]);
   radio.write(&payload , sizeof(payload));
   radio.powerDown();
 }
@@ -111,6 +145,18 @@ void loop() {
   if (doorStatus == 1 ) {
     return;
   } else {
+    radio.powerUp();
+    radio.stopListening();
+    radio.openWritingPipe(pipes[1]);
+    getNrfTime();
+    radio.powerDown();
+
+    uint32_t alarmtime = numberOfSecondsSinceEpoch(year(), month(), day(), min_hour, min_minute, 0);
+    if (alarmtime > (now() + 8)) {
+      int16_t timediff = ( alarmtime - now() ) / 8;
+      timedsleep(timediff);
+    }
+
     unsigned long startmilis = millis();
     payload._salt++;
     payload.volt = readVcc();
@@ -119,31 +165,24 @@ void loop() {
     delay(1);
     payload.data1 = digitalRead(DATA1PIN) * 10;
     digitalWrite(IRENPIN, LOW);
-    
-    //if (payload.data1 == 10) {
+
     if ( rollStatus != payload.data1 ) {
       radio.powerUp();
+      radio.stopListening();
+      radio.openWritingPipe(pipes[0]);
       radio.write(&payload , sizeof(payload));
       radio.powerDown();
       rollStatus = payload.data1;
     }
+    
     unsigned long stopmilis = millis();
     payload.data2 = ( stopmilis - startmilis ) * 10 ;
   }
 }
 
-// http://www.gammon.com.au/forum/?id=12769
-// watchdog interrupt
-ISR (WDT_vect)
-{
-  wdt_disable();  // disable watchdog
-}
-
-void goToSleep ()
-{
+void goToSleep () {
   set_sleep_mode (SLEEP_MODE_PWR_DOWN);
   noInterrupts ();       // timed sequence coming up
-
   // pat the dog
   wdt_reset();
 
@@ -160,6 +199,12 @@ void goToSleep ()
   sleep_disable ();      // precaution
 }  // end of goToSleep
 
+/*
+  void goToSleep () {
+  LowPower.powerDown(SLEEP_2S, ADC_OFF, BOD_OFF);
+  }
+*/
+
 ISR(PCINT0_vect) {
   cli();
   PCMSK &= ~_BV(PCINT3);
@@ -174,6 +219,12 @@ void pinint_sleep() {
   sleep_enable();
   sei();
   sleep_cpu();
+}
+
+void timedsleep(int16_t n) {
+  for (int i = 0; i < n; i++) {
+    LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF);
+  }
 }
 
 int readVcc() {
@@ -197,3 +248,60 @@ int readVcc() {
 
   return (int)result; // Vcc in millivolts
 }
+
+
+void getNrfTime() {
+  uint32_t beginWait = millis();
+  while (millis() - beginWait < 500) {
+    time_reqpayload.timestamp = now();
+    radio.write(&time_reqpayload , sizeof(time_reqpayload));
+    if (radio.isAckPayloadAvailable()) {
+      uint8_t len = radio.getDynamicPayloadSize();
+      if ( len == sizeof(data_ackpayload)) {
+        radio.read(&data_ackpayload, sizeof(data_ackpayload));
+      }
+    }
+
+    time_reqpayload.timestamp = now();
+    radio.write(&time_reqpayload , sizeof(time_reqpayload));
+    if (radio.isAckPayloadAvailable()) {
+      uint8_t len = radio.getDynamicPayloadSize();
+      if ( len == sizeof(data_ackpayload)) {
+        radio.read(&data_ackpayload, sizeof(data_ackpayload));
+      }
+    }
+
+    time_reqpayload.timestamp = now();
+    radio.write(&time_reqpayload , sizeof(time_reqpayload));
+    if (radio.isAckPayloadAvailable()) {
+      uint8_t len = radio.getDynamicPayloadSize();
+      if ( len == sizeof(data_ackpayload)) {
+        radio.read(&data_ackpayload, sizeof(data_ackpayload));
+        setTime((unsigned long)data_ackpayload.timestamp);
+        return;
+      }
+    }
+  }
+}
+
+time_t requestSync() {
+  return 0;
+}
+
+long DateToMjd (uint16_t y, uint8_t m, uint8_t d) {
+  return
+    367 * y
+    - 7 * (y + (m + 9) / 12) / 4
+    - 3 * ((y + (m - 9) / 7) / 100 + 1) / 4
+    + 275 * m / 9
+    + d
+    + 1721028
+    - 2400000;
+}
+
+static unsigned long numberOfSecondsSinceEpoch(uint16_t y, uint8_t m, uint8_t d, uint8_t h, uint8_t mm, uint8_t s) {
+  long Days;
+  Days = DateToMjd(y, m, d) - DateToMjd(1970, 1, 1);
+  return (uint16_t)Days * 86400 + h * 3600L + mm * 60L + s;
+}
+// end

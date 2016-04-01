@@ -99,7 +99,7 @@ DeviceAddress outsideThermometer;
 RF24 radio(3, 15);
 
 // Topology
-const uint64_t pipes[4] = {   0xFFFFFFFFFFLL,   0xCCCCCCCCCCLL,   0xFFFFFFFFCCLL,   0xFFFFFFFFCDLL  };
+const uint64_t pipes[5] = {   0xFFFFFFFFFFLL,   0xCCCCCCCCCCLL,   0xFFFFFFFFCCLL,   0xFFFFFFFFCDLL, 0xFFFFFFFFDDLL  };
 //  radio.openReadingPipe(1, pipes[0]); -->  5 : door, 65 : roll, 2 : DS18B20
 //  radio.openReadingPipe(2, pipes[2]); --> 15 : ads1115
 //  radio.openReadingPipe(3, pipes[3]); --> 25 : lcd
@@ -405,6 +405,7 @@ void setup() {
   radio.openReadingPipe(1, pipes[0]);
   radio.openReadingPipe(2, pipes[2]);
   radio.openReadingPipe(3, pipes[3]);
+  radio.openReadingPipe(4, pipes[4]);
   radio.startListening();
 
   //OTA
@@ -613,7 +614,7 @@ void loop() {
 
       //  radio.openReadingPipe(1, pipes[0]); -->  5 : door, 65 : roll, 2 : DS18B20
       //  radio.openReadingPipe(2, pipes[2]); --> 15 : ads1115
-      //  radio.openReadingPipe(2, pipes[3]); --> 25 : lcd
+      //  radio.openReadingPipe(3, pipes[3]); --> 25 : lcd
       byte pipeNo;
       if (radio.available(&pipeNo)) {
         // from attiny 85 data size is 11
@@ -622,7 +623,27 @@ void loop() {
         // avr 8bit, esp 32bit. esp use 4 byte step.
 
         // use switch ?
-        if (len == sizeof(time_reqpayload)) {
+        if (len == sizeof(time_reqpayload) && pipeNo == 3) {
+          data_ackpayload.timestamp = now();
+
+          radio.writeAckPayload(pipeNo, &data_ackpayload, sizeof(data_ackpayload));
+          radio.read(&time_reqpayload, sizeof(time_reqpayload));
+
+          /*
+          if (DEBUG_PRINT) {
+            syslogPayload = data_ackpayload.timestamp;
+            syslogPayload += " ==> ";
+            syslogPayload += data_ackpayload.data1;
+            syslogPayload += " ==> ";
+            syslogPayload += data_ackpayload.data2;
+            syslogPayload += " ==> ";
+            syslogPayload += time_reqpayload.timestamp;
+            syslogPayload += " ==> ";
+            syslogPayload += "3";
+            sendUdpSyslog(syslogPayload);
+          }
+          */
+        } else if (len == sizeof(time_reqpayload) && pipeNo == 4) {
           data_ackpayload.timestamp = now();
 
           radio.writeAckPayload(pipeNo, &data_ackpayload, sizeof(data_ackpayload));
@@ -634,9 +655,12 @@ void loop() {
             syslogPayload += data_ackpayload.data1;
             syslogPayload += " ==> ";
             syslogPayload += data_ackpayload.data2;
+            syslogPayload += " ==> ";
+            syslogPayload += time_reqpayload.timestamp;
+            syslogPayload += " ==> ";
+            syslogPayload += "4";
             sendUdpSyslog(syslogPayload);
           }
-
         } else if ((len + 1 ) == sizeof(sensor_data)) {
           radio.read(&sensor_data, sizeof(sensor_data));
           if ( (pipeNo == 1 || pipeNo == 3 ) && sensor_data.devid != 15 ) {
