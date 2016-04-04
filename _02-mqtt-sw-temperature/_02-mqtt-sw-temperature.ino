@@ -128,11 +128,7 @@ struct {
 struct {
   int16_t ax;
   int16_t ay;
-  int16_t az;
-  int16_t gx;
-  int16_t gy;
-  int16_t gz;
-} data_accelgyro;
+} data_scale;
 
 // mqtt
 char* topic       = "esp8266/arduino/s02";
@@ -641,7 +637,7 @@ void loop() {
         // avr 8bit, esp 32bit. esp use 4 byte step.
 
         // use switch ?
-        if (len == sizeof(time_reqpayload) && pipeNo == 3) {
+        if (len == sizeof(time_reqpayload) && (pipeNo == 3 || pipeNo == 4 )) {
           data_ackpayload.timestamp = timestamp;
 
           radio.writeAckPayload(pipeNo, &data_ackpayload, sizeof(data_ackpayload));
@@ -656,33 +652,25 @@ void loop() {
             syslogPayload += " ==> ";
             syslogPayload += time_reqpayload.timestamp;
             syslogPayload += " ==> ";
-            syslogPayload += "3";
+            syslogPayload += pipeNo;
             sendUdpSyslog(syslogPayload);
           }
-        } else if (len == sizeof(data_accelgyro) && pipeNo == 4) {
-          radio.read(&data_accelgyro, sizeof(data_accelgyro));
+        } else if (len == sizeof(data_scale) && pipeNo == 4) {
+          radio.read(&data_scale, sizeof(data_scale));
 
-          String accelgyropayload = "accelgyro,test=accelgyro ";
-          accelgyropayload += "ax=";
-          accelgyropayload += data_accelgyro.ax;
-          accelgyropayload += "i,ay=";
-          accelgyropayload += data_accelgyro.ay;
-          accelgyropayload += "i,az=";
-          accelgyropayload += data_accelgyro.az;
-          accelgyropayload += "i,gx=";
-          accelgyropayload += data_accelgyro.gx;
-          accelgyropayload += "i,gy=";
-          accelgyropayload += data_accelgyro.gy;
-          accelgyropayload += "i,gz=";
-          accelgyropayload += data_accelgyro.gz;
-          accelgyropayload += "i ";
-          accelgyropayload += (timestamp - timeZone * SECS_PER_HOUR);
-          char accelgyropayloadbuf[3];
-          sprintf(accelgyropayloadbuf, "%03d", millisecond());
-          accelgyropayload += accelgyropayloadbuf;
-          accelgyropayload += "000000";
-          //sendUdpmsg(accelgyropayload);
-          sendUdpSyslog(accelgyropayload);
+          String scalepayload = "scale,test=scale ";
+          scalepayload += "ax=";
+          scalepayload += data_scale.ax;
+          scalepayload += "i,ay=";
+          scalepayload += data_scale.ay;
+          scalepayload += "i ";
+          scalepayload += (timestamp - timeZone * SECS_PER_HOUR);
+          char scalepayloadbuf[3];
+          sprintf(scalepayloadbuf, "%03d", millisecond());
+          scalepayload += scalepayloadbuf;
+          scalepayload += "000000";
+          //sendUdpmsg(scalepayload);
+          sendUdpSyslog(scalepayload);
 
         } else if ((len + 1 ) == sizeof(sensor_data)) {
           radio.read(&sensor_data, sizeof(sensor_data));

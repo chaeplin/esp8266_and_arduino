@@ -76,7 +76,7 @@ void getMPU_data() {
   TinyWireM.write(0x3B);
   TinyWireM.endTransmission();
   
-  delay(100);
+  //delay(100);
   TinyWireM.requestFrom(MPU_addr, 14);
   
   int i = 0;
