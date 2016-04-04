@@ -47,7 +47,7 @@ extern "C" {
 #endif
 
 #define INFO_PRINT 0
-#define DEBUG_PRINT 1
+#define DEBUG_PRINT 0
 
 // ****************
 
@@ -99,10 +99,11 @@ DeviceAddress outsideThermometer;
 RF24 radio(3, 15);
 
 // Topology
-const uint64_t pipes[5] = {   0xFFFFFFFFFFLL,   0xCCCCCCCCCCLL,   0xFFFFFFFFCCLL,   0xFFFFFFFFCDLL, 0xFFFFFFFFDDLL  };
+const uint64_t pipes[5] = {   0xFFFFFFFFFFLL,   0xCCCCCCCCCCLL,   0xFFFFFFFFCCLL,   0xFFFFFFFFCDLL, 0xFFFFFFFFDDLL };
 //  radio.openReadingPipe(1, pipes[0]); -->  5 : door, 65 : roll, 2 : DS18B20
 //  radio.openReadingPipe(2, pipes[2]); --> 15 : ads1115
 //  radio.openReadingPipe(3, pipes[3]); --> 25 : lcd
+//  radio.openReadingPipe(4, pipes[4]); --> 35 : scale
 
 const uint32_t ampereunit[]  = { 0, 1000000, 1, 1000};
 
@@ -123,6 +124,15 @@ struct {
 struct {
   uint32_t timestamp;
 } time_reqpayload;
+
+struct {
+  int16_t ax;
+  int16_t ay;
+  int16_t az;
+  int16_t gx;
+  int16_t gy;
+  int16_t gz;
+} data_accelgyro;
 
 // mqtt
 char* topic       = "esp8266/arduino/s02";
@@ -622,6 +632,7 @@ void loop() {
       //  radio.openReadingPipe(1, pipes[0]); -->  5 : door, 65 : roll, 2 : DS18B20
       //  radio.openReadingPipe(2, pipes[2]); --> 15 : ads1115
       //  radio.openReadingPipe(3, pipes[3]); --> 25 : lcd
+      //  radio.openReadingPipe(4, pipes[4]); --> 35 : scale
       byte pipeNo;
       if (radio.available(&pipeNo)) {
         // from attiny 85 data size is 11
@@ -648,27 +659,34 @@ void loop() {
             syslogPayload += "3";
             sendUdpSyslog(syslogPayload);
           }
-        } else if (len == sizeof(time_reqpayload) && pipeNo == 4) {
-          data_ackpayload.timestamp = timestamp;
+        } else if (len == sizeof(data_accelgyro) && pipeNo == 4) {
+          radio.read(&data_accelgyro, sizeof(data_accelgyro));
 
-          radio.writeAckPayload(pipeNo, &data_ackpayload, sizeof(data_ackpayload));
-          radio.read(&time_reqpayload, sizeof(time_reqpayload));
+          String accelgyropayload = "accelgyro,test=accelgyro ";
+          accelgyropayload += "ax=";
+          accelgyropayload += data_accelgyro.ax;
+          accelgyropayload += "i,ay=";
+          accelgyropayload += data_accelgyro.ay;
+          accelgyropayload += "i,az=";
+          accelgyropayload += data_accelgyro.az;
+          accelgyropayload += "i,gx=";
+          accelgyropayload += data_accelgyro.gx;
+          accelgyropayload += "i,gy=";
+          accelgyropayload += data_accelgyro.gy;
+          accelgyropayload += "i,gz=";
+          accelgyropayload += data_accelgyro.gz;
+          accelgyropayload += "i ";
+          accelgyropayload += (timestamp - timeZone * SECS_PER_HOUR);
+          char accelgyropayloadbuf[3];
+          sprintf(accelgyropayloadbuf, "%03d", millisecond());
+          accelgyropayload += accelgyropayloadbuf;
+          accelgyropayload += "000000";
+          //sendUdpmsg(accelgyropayload);
+          sendUdpSyslog(accelgyropayload);
 
-          if (DEBUG_PRINT) {
-            syslogPayload = data_ackpayload.timestamp;
-            syslogPayload += " ==> ";
-            syslogPayload += data_ackpayload.data1;
-            syslogPayload += " ==> ";
-            syslogPayload += data_ackpayload.data2;
-            syslogPayload += " ==> ";
-            syslogPayload += time_reqpayload.timestamp;
-            syslogPayload += " ==> ";
-            syslogPayload += "4";
-            sendUdpSyslog(syslogPayload);
-          }
         } else if ((len + 1 ) == sizeof(sensor_data)) {
           radio.read(&sensor_data, sizeof(sensor_data));
-          if ( (pipeNo == 1 || pipeNo == 3 ) && sensor_data.devid != 15 ) {
+          if ((pipeNo == 1 || pipeNo == 3 ) && sensor_data.devid != 15 ) {
 
             String radiopayload = "{\"_salt\":";
             radiopayload += sensor_data._salt;
