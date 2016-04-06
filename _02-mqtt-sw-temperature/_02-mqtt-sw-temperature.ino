@@ -47,7 +47,7 @@ extern "C" {
 #endif
 
 #define INFO_PRINT 0
-#define DEBUG_PRINT 0
+#define DEBUG_PRINT 1
 
 // ****************
 
@@ -117,13 +117,26 @@ struct {
 
 struct {
   uint32_t timestamp;
-  float data1;
-  float data2;
-} data_ackpayload;
+} time_ackpayload;
 
 struct {
   uint32_t timestamp;
 } time_reqpayload;
+
+struct {
+  uint16_t powerAvg;
+  uint16_t WeightAvg;
+  uint16_t Humidity;
+  uint16_t data1;
+  uint8_t  data2;
+  uint8_t  data3;
+  int8_t   Temperature1;
+  int8_t   Temperature2;
+} solar_ackpayload;
+
+struct {
+  uint8_t data1;
+} solar_reqpayload;
 
 struct {
   int16_t ax;
@@ -132,18 +145,28 @@ struct {
 
 // mqtt
 char* topic       = "esp8266/arduino/s02";
-char* subtopic    = "esp8266/cmd/light";
 char* rslttopic   = "esp8266/cmd/light/rlst";
+//
 char* hellotopic  = "HELLO";
+//
 char* radiotopic  = "radio/test";
 char* radiofault  = "radio/test/fault";
 
 char* willTopic   = "clients/relay";
 char* willMessage = "0";
 
-char* subrpi      = "raspberrypi/data";
-
+// subscribe
 //
+const char subtopic[]   = "esp8266/cmd/light";   // light command
+const char subrpi[]     = "raspberrypi/data";
+const char subtopic_0[] = "esp8266/arduino/s03"; // lcd temp
+const char subtopic_1[] = "esp8266/arduino/s07"; // power
+const char subtopic_2[] = "esp8266/arduino/s06"; // nemo scale
+const char subtopic_3[] = "radio/test/2";        //Outside temp
+
+
+const char* substopic[6] = { subtopic, subrpi, subtopic_0, subtopic_1, subtopic_2, subtopic_3 } ;
+
 unsigned int localPort = 12390;
 const int timeZone = 9;
 
@@ -245,13 +268,14 @@ boolean reconnect() {
         client.publish(hellotopic, (char*) getResetInfo.c_str());
         ResetInfo = HIGH;
       } else {
-        client.publish(hellotopic, "hello again 1 from ESP8266 s02");
+        client.publish(hellotopic, "hello again 1 from switch");
       }
+
       client.loop();
-      client.subscribe(subtopic);
-      client.loop();
-      client.subscribe(subrpi);
-      client.loop();
+      for (int i = 0; i < 6; ++i) {
+        client.subscribe(substopic[i]);
+        client.loop();
+      }
 
       if (DEBUG_PRINT) {
         sendUdpSyslog("---> mqttconnected");
@@ -275,14 +299,15 @@ void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int lengt
     receivedpayload += (char)inpayload[i];
   }
 
-  if (DEBUG_PRINT) {
+  if (INFO_PRINT) {
     syslogPayload = intopic;
     syslogPayload += " ====> ";
     syslogPayload += receivedpayload;
     sendUdpSyslog(syslogPayload);
   }
 
-  if ( receivedtopic == "esp8266/cmd/light" ) {
+  //if ( receivedtopic == "esp8266/cmd/light" ) {
+  if ( receivedtopic == substopic[0] ) {
 
     unsigned long now = millis();
 
@@ -308,20 +333,58 @@ void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int lengt
       syslogPayload += relaystatus;
       sendUdpSyslog(syslogPayload);
     }
-  } else if ( receivedtopic == "raspberrypi/data" ) {
-    char json[] = "{\"Humidity\":43.90,\"Temperature\":22.00}";
+  } else {
+    parseMqttMsg(receivedpayload, receivedtopic);
+  }
+}
 
-    receivedpayload.toCharArray(json, 150);
-    StaticJsonBuffer<150> jsonBuffer;
-    JsonObject& root = jsonBuffer.parseObject(json);
+void parseMqttMsg(String receivedpayload, String receivedtopic) {
+  char json[] = "{\"Humidity\":43.90,\"Temperature\":22.00,\"DS18B20\":22.00,\"PIRSTATUS\":0,\"FreeHeap\":43552,\"acquireresult\":0,\"acquirestatus\":0,\"DHTnextSampleTime\":2121587,\"bDHTstarted\":0,\"RSSI\":-48,\"millis\":2117963}";
 
-    if (!root.success()) {
-      return;
+  receivedpayload.toCharArray(json, 400);
+  StaticJsonBuffer<400> jsonBuffer;
+  JsonObject& root = jsonBuffer.parseObject(json);
+
+  if (!root.success()) {
+    return;
+  }
+
+  if ( receivedtopic == substopic[1] ) {
+    if (root.containsKey("data1")) {
+      solar_ackpayload.data1 = root["data1"];
+    }
+    if (root.containsKey("data2")) {
+      String tempdata2 = root["data2"];
+      solar_ackpayload.data2 = tempdata2.substring(0, tempdata2.indexOf('.')).toInt();
+      solar_ackpayload.data3 = tempdata2.substring(tempdata2.indexOf('.') + 1, tempdata2.indexOf('.') + 2).toInt();
+    }
+  }
+
+  if ( receivedtopic == substopic[2] ) {
+    if (root.containsKey("Humidity")) {
+      solar_ackpayload.Humidity = root["Humidity"];
     }
 
+    if (root.containsKey("Temperature")) {
+      solar_ackpayload.Temperature1 = ( float(root["Temperature"]) + tempCoutside ) / 2 ;
+    }
+  }
+
+  if ( receivedtopic == substopic[3] ) {
+    if (root.containsKey("powerAvg")) {
+      solar_ackpayload.powerAvg = root["powerAvg"];
+    }
+  }
+
+  if ( receivedtopic == substopic[4] ) {
+    if (root.containsKey("WeightAvg")) {
+      solar_ackpayload.WeightAvg = root["WeightAvg"];
+    }
+  }
+
+  if ( receivedtopic == substopic[5] ) {
     if (root.containsKey("data1")) {
-      data_ackpayload.data1 = root["data1"];
-      data_ackpayload.data2 = root["data2"];
+      solar_ackpayload.Temperature2 = atoi(root["data1"]);
     }
   }
 }
@@ -352,11 +415,14 @@ void setup() {
   lastReconnectAttempt = 0;
   millisnow = 0;
 
-  data_ackpayload.timestamp = data_ackpayload.data1 = data_ackpayload.data2 = 0;
+  time_ackpayload.timestamp = 0;
   time_reqpayload.timestamp = 0;
+  solar_ackpayload.data1 = solar_ackpayload.data2 = solar_ackpayload.data3 = 0;
+  solar_ackpayload.Humidity = solar_ackpayload.Temperature1 = solar_ackpayload.Temperature2 = solar_ackpayload.powerAvg = solar_ackpayload.WeightAvg = 0;
+  solar_reqpayload.data1 = 0;
 
-  getResetInfo = "hello from ESP8266 s02 ";
-  getResetInfo += ESP.getResetInfo().substring(0, 30);
+  getResetInfo = "hello from switch ";
+  getResetInfo += ESP.getResetInfo().substring(0, 50);
 
   udp.begin(localPort);
   setSyncProvider(getNtpTime);
@@ -384,7 +450,6 @@ void setup() {
   tempCoutside = sensors.getTempC(outsideThermometer);
   sensors.setWaitForConversion(false);
 
-  //if ( isnan(tempCoutside) ) {
   if ( tempCoutside < -30 ) {
     if (INFO_PRINT) {
       sendUdpSyslog("Failed to read from DS18B20 sensor!");
@@ -402,13 +467,8 @@ void setup() {
   radio.setAutoAck(true);
   radio.enableAckPayload();
   radio.enableDynamicPayloads();
-  /*
-    radio.enableDynamicAck();
-    radio.enableAckPayload();
-    radio.enableDynamicPayloads();
-  */
+
   //radio.maskIRQ(1, 1, 0);
-  //radio.openWritingPipe(pipes[1]);
   //
   radio.openReadingPipe(1, pipes[0]);
   radio.openReadingPipe(2, pipes[2]);
@@ -458,27 +518,15 @@ void setup() {
 #endif
 
   if (DEBUG_PRINT) {
-    syslogPayload = "------------------> unit started : pin 2 status : ";
+    syslogPayload = "------------------> switch started : pin 2 status : ";
     syslogPayload += digitalRead(2);
     sendUdpSyslog(syslogPayload);
   }
-
-  // turn off light at 6
-  //Alarm.alarmRepeat(6, 0, 0, runTimerDoLightOff); // 8:30am every day
 }
 
 time_t prevDisplay = 0;
 
 void loop() {
-  /*
-    if (timeStatus() != timeNotSet) {
-    if (now() != prevDisplay) {
-      prevDisplay = now();
-      //do_thing();
-    }
-    }
-  */
-
   uint32_t alarmtime = numberOfSecondsSinceEpoch(year(), month(), day(), 6, 0, 0);
   timestamp = now();
 
@@ -627,7 +675,7 @@ void loop() {
 
       //  radio.openReadingPipe(1, pipes[0]); -->  5 : door, 65 : roll, 2 : DS18B20
       //  radio.openReadingPipe(2, pipes[2]); --> 15 : ads1115
-      //  radio.openReadingPipe(3, pipes[3]); --> 25 : lcd
+      //  radio.openReadingPipe(3, pipes[3]); --> 25 : lcd / solar
       //  radio.openReadingPipe(4, pipes[4]); --> 35 : scale
       byte pipeNo;
       if (radio.available(&pipeNo)) {
@@ -637,24 +685,50 @@ void loop() {
         // avr 8bit, esp 32bit. esp use 4 byte step.
 
         // use switch ?
+        // time request
         if (len == sizeof(time_reqpayload) && (pipeNo == 3 || pipeNo == 4 )) {
-          data_ackpayload.timestamp = timestamp;
+          time_ackpayload.timestamp = timestamp;
 
-          radio.writeAckPayload(pipeNo, &data_ackpayload, sizeof(data_ackpayload));
+          radio.writeAckPayload(pipeNo, &time_ackpayload, sizeof(time_ackpayload));
           radio.read(&time_reqpayload, sizeof(time_reqpayload));
 
           if (DEBUG_PRINT) {
-            syslogPayload = data_ackpayload.timestamp;
-            syslogPayload += " ==> ";
-            syslogPayload += data_ackpayload.data1;
-            syslogPayload += " ==> ";
-            syslogPayload += data_ackpayload.data2;
+            syslogPayload = time_ackpayload.timestamp;
             syslogPayload += " ==> ";
             syslogPayload += time_reqpayload.timestamp;
             syslogPayload += " ==> ";
             syslogPayload += pipeNo;
             sendUdpSyslog(syslogPayload);
           }
+          // solar data req
+          //} else if (len == sizeof(uint8_t) && pipeNo == 3) {
+        } else if (len == 1 && pipeNo == 3) {
+          radio.writeAckPayload(pipeNo, &solar_ackpayload, sizeof(solar_ackpayload));
+          radio.read(&solar_reqpayload, sizeof(uint8_t));
+
+          if (DEBUG_PRINT) {
+            syslogPayload = "solar_data1 : ";
+            syslogPayload += solar_ackpayload.data1;
+            syslogPayload += " ==> data2 : ";
+            syslogPayload += solar_ackpayload.data2;
+            syslogPayload += " ==> data3 : ";
+            syslogPayload += solar_ackpayload.data3;
+            syslogPayload += " ==> powerAvg : ";
+            syslogPayload += solar_ackpayload.powerAvg;
+            syslogPayload += " ==> WeightAvg: ";
+            syslogPayload += solar_ackpayload.WeightAvg;
+            syslogPayload += " ==> Humidity : ";
+            syslogPayload += solar_ackpayload.Humidity;
+            syslogPayload += " ==> Temperature1 : ";
+            syslogPayload += solar_ackpayload.Temperature1;
+            syslogPayload += " ==> Temperature2 : ";
+            syslogPayload += solar_ackpayload.Temperature2;
+            syslogPayload += " ==> pipeNo : ";
+            syslogPayload += pipeNo;
+            sendUdpSyslog(syslogPayload);
+          }
+
+          // scale data
         } else if (len == sizeof(data_scale) && pipeNo == 4) {
           radio.read(&data_scale, sizeof(data_scale));
 
@@ -671,7 +745,7 @@ void loop() {
           scalepayload += "000000";
           //sendUdpmsg(scalepayload);
           sendUdpSyslog(scalepayload);
-
+          // door, roll, ds18b20, ads1115 data
         } else if ((len + 1 ) == sizeof(sensor_data)) {
           radio.read(&sensor_data, sizeof(sensor_data));
           if ((pipeNo == 1 || pipeNo == 3 ) && sensor_data.devid != 15 ) {
@@ -764,7 +838,6 @@ void loop() {
   } else {
     wifi_connect();
   }
-  //Alarm.delay(1);
 }
 
 void runTimerDoLightOff() {
@@ -775,14 +848,6 @@ void runTimerDoLightOff() {
       sendUdpSyslog(syslogPayload);
     }
     relaystatus = LOW;
-
-    /* need to inform mqtt, when light is off.
-      String lightpayload = "{\"LIGHT\":";
-      lightpayload += relaystatus;
-      lightpayload += "}";
-
-      sendmqttMsg(subtopic, lightpayload);
-    */
   }
 }
 

@@ -67,9 +67,7 @@ struct {
 
 struct {
   uint32_t timestamp;
-  float data1;
-  float data2;
-} data_ackpayload;
+} time_ackpayload;
 
 struct {
   uint32_t timestamp;
@@ -89,9 +87,7 @@ const int min_minute = 0;
 void setup() {
   delay(100);
   time_reqpayload.timestamp = 0;
-  data_ackpayload.timestamp = 0;
-  data_ackpayload.data1     = 0;
-  data_ackpayload.data2     = 0;
+  time_ackpayload.timestamp = 0;
 
   adc_disable();
   unsigned long startmilis = millis();
@@ -257,8 +253,8 @@ void getNrfTime() {
     radio.write(&time_reqpayload , sizeof(time_reqpayload));
     if (radio.isAckPayloadAvailable()) {
       uint8_t len = radio.getDynamicPayloadSize();
-      if ( len == sizeof(data_ackpayload)) {
-        radio.read(&data_ackpayload, sizeof(data_ackpayload));
+      if ( len == sizeof(time_ackpayload)) {
+        radio.read(&time_ackpayload, sizeof(time_ackpayload));
       }
     }
 
@@ -266,8 +262,8 @@ void getNrfTime() {
     radio.write(&time_reqpayload , sizeof(time_reqpayload));
     if (radio.isAckPayloadAvailable()) {
       uint8_t len = radio.getDynamicPayloadSize();
-      if ( len == sizeof(data_ackpayload)) {
-        radio.read(&data_ackpayload, sizeof(data_ackpayload));
+      if ( len == sizeof(time_ackpayload)) {
+        radio.read(&time_ackpayload, sizeof(time_ackpayload));
       }
     }
 
@@ -275,9 +271,9 @@ void getNrfTime() {
     radio.write(&time_reqpayload , sizeof(time_reqpayload));
     if (radio.isAckPayloadAvailable()) {
       uint8_t len = radio.getDynamicPayloadSize();
-      if ( len == sizeof(data_ackpayload)) {
-        radio.read(&data_ackpayload, sizeof(data_ackpayload));
-        setTime((unsigned long)data_ackpayload.timestamp);
+      if ( len == sizeof(time_ackpayload)) {
+        radio.read(&time_ackpayload, sizeof(time_ackpayload));
+        setTime((unsigned long)time_ackpayload.timestamp);
         return;
       }
     }

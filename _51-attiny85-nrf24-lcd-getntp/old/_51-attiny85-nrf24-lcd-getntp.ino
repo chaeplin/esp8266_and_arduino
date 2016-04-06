@@ -1,3 +1,22 @@
+// base is _02-mqtt-sw-temperature
+/* base config / esp8266 plus nrf24l01 */
+/*
+  byte pipeNo;
+  if (radio.available(&pipeNo)) {
+  uint8_t len = radio.getDynamicPayloadSize();
+
+  if (len == sizeof(time_reqpayload)) {
+    data_ackpayload.timestamp = now();
+    data_ackpayload.data1 += 1;
+    data_ackpayload.data2 += 5;
+
+    radio.writeAckPayload(pipeNo, &data_ackpayload, sizeof(data_ackpayload));
+    radio.read(&time_reqpayload, sizeof(time_reqpayload));
+  } else {
+    //
+  }
+  }
+*/
 // https://github.com/PaulStoffregen/Time
 #include <TimeLib.h>
 #include <avr/wdt.h>
@@ -14,9 +33,12 @@
 // https://github.com/chaeplin/LiquidCrystal_I2C
 #include <LiquidCrystal_I2C.h>
 
+#define adc_disable() (ADCSRA &= ~(1<<ADEN)) // disable ADC
+#define adc_enable()  (ADCSRA |=  (1<<ADEN)) // re-enable ADC
+
 // If CEN_PIN is moved to D5, D3 is available.
-#define CE_PIN  5
-//#define CE_PIN  3
+// define CE_PIN  5
+#define CE_PIN  3
 #define CSN_PIN 4
 
 #define DEVICE_ID 25
@@ -26,46 +48,22 @@ const uint64_t pipes[1] = { 0xFFFFFFFFCDLL };
 
 struct {
   uint32_t timestamp;
-} time_ackpayload;
+  float data1;
+  float data2;
+} data_ackpayload;
 
 struct {
   uint32_t timestamp;
 } time_reqpayload;
 
-struct {
-  uint16_t powerAvg;
-  uint16_t WeightAvg;
-  uint16_t Humidity;
-  uint16_t data1;
-  uint8_t  data2;
-  uint8_t  data3;
-  int8_t   Temperature1;
-  int8_t   Temperature2;
-} solar_ackpayload;
-
-
-struct {
-  uint8_t data1;
-} solar_reqpayload;
-
 RF24 radio(CE_PIN, CSN_PIN);
-LiquidCrystal_I2C lcd(0x27, 20, 4);
+LiquidCrystal_I2C lcd(0x27, 16, 2);
 
 void setup() {
   time_reqpayload.timestamp = 0;
-  //
-  time_ackpayload.timestamp = 0;
-  //
-  solar_reqpayload.data1    = 0;
-  //
-  solar_ackpayload.data1        = 0;
-  solar_ackpayload.data2        = 0;
-  solar_ackpayload.data3        = 0;
-  solar_ackpayload.powerAvg     = 0;
-  solar_ackpayload.WeightAvg    = 0;
-  solar_ackpayload.Humidity     = 0;
-  solar_ackpayload.Temperature1 = 0;
-  solar_ackpayload.Temperature2 = 0;
+  data_ackpayload.timestamp = 0;
+  data_ackpayload.data1     = 0;
+  data_ackpayload.data2     = 0;
 
   //
   radio.begin();
@@ -85,18 +83,20 @@ void setup() {
   lcd.clear();
 
   setSyncProvider(getNrfTime);
+  //default is 300s(5 min)
+  //setSyncInterval(60);
 }
 
 time_t prevDisplay = 0;
 
 void loop() {
   if (timeStatus() != timeNotSet) {
-    if (now() != prevDisplay) {
+    if (now() != prevDisplay) { //update the display only if time has changed
       prevDisplay = now();
 
-      //if ( second() % 5 == 0 ) {
-      //  getnrfsolar();
-      //}
+      if ( second() % 10 == 0 ) {
+        getnrfdata();
+      }
 
       USICR =  (1 << USIWM1) | (0 << USIWM0);
       digitalClockDisplay();
@@ -104,23 +104,23 @@ void loop() {
   }
 }
 
-
 void digitalClockDisplay() {
-  lcd.setCursor(0, 0);
-  lcd.print("[");
-  lcd.setCursor(1, 0);
-  printDigitsnocolon(month());
-  lcd.print("/");
-  printDigitsnocolon(day());
+  /*
+    lcd.setCursor(0, 0);
+    printDigitsnocolon(month());
+    lcd.print("/");
+    printDigitsnocolon(day());
+  */
+  lcd.setCursor(0, 1);
+  lcd.print(data_ackpayload.data1, 0);
 
-  lcd.setCursor(7, 0);
-  lcd.print(dayShortStr(weekday()));
-  lcd.setCursor(11, 0);
+  lcd.setCursor(4, 1);
+  lcd.print(data_ackpayload.data2, 2);
+
+  lcd.setCursor(0, 0);
   printDigitsnocolon(hour());
   printDigits(minute());
   printDigits(second());
-  lcd.setCursor(19, 0);
-  lcd.print("]");
 }
 
 void printDigitsnocolon(int digits) {
@@ -138,14 +138,16 @@ void printDigits(int digits) {
   lcd.print(digits);
 }
 
-void getnrfsolar() {
+void getnrfdata() {
   USICR =  (1 << USIWM0) | (1 << USICS1) | (1 << USICLK) | (1 << USITC);
   SPI.begin();
-  radio.write(&solar_reqpayload , sizeof(uint8_t));
+
+  time_reqpayload.timestamp = data_ackpayload.timestamp;
+  radio.write(&time_reqpayload , sizeof(time_reqpayload));
   if (radio.isAckPayloadAvailable()) {
     uint8_t len = radio.getDynamicPayloadSize();
-    if ( len == sizeof(solar_ackpayload)) {
-      radio.read(&solar_ackpayload, sizeof(solar_ackpayload));
+    if ( len == sizeof(data_ackpayload)) {
+      radio.read(&data_ackpayload, sizeof(data_ackpayload));
     }
   }
 }
@@ -155,29 +157,31 @@ time_t getNrfTime() {
   SPI.begin();
 
   uint32_t beginWait = millis();
-  while (millis() - beginWait < 2000) {
+  while (millis() - beginWait < 2500) {
     radio.write(&time_reqpayload , sizeof(time_reqpayload));
     if (radio.isAckPayloadAvailable()) {
       uint8_t len = radio.getDynamicPayloadSize();
-      if ( len == sizeof(time_ackpayload)) {
-        radio.read(&time_ackpayload, sizeof(time_ackpayload));
+      if ( len == sizeof(data_ackpayload)) {
+        radio.read(&data_ackpayload, sizeof(data_ackpayload));
       }
     }
 
+    time_reqpayload.timestamp = data_ackpayload.timestamp;
     radio.write(&time_reqpayload , sizeof(time_reqpayload));
     if (radio.isAckPayloadAvailable()) {
       uint8_t len = radio.getDynamicPayloadSize();
-      if ( len == sizeof(time_ackpayload)) {
-        radio.read(&time_ackpayload, sizeof(time_ackpayload));
+      if ( len == sizeof(data_ackpayload)) {
+        radio.read(&data_ackpayload, sizeof(data_ackpayload));
       }
     }
-    
+
+    time_reqpayload.timestamp = data_ackpayload.timestamp;
     radio.write(&time_reqpayload , sizeof(time_reqpayload));
     if (radio.isAckPayloadAvailable()) {
       uint8_t len = radio.getDynamicPayloadSize();
-      if ( len == sizeof(time_ackpayload)) {
-        radio.read(&time_ackpayload, sizeof(time_ackpayload));
-        return (unsigned long)time_ackpayload.timestamp;
+      if ( len == sizeof(data_ackpayload)) {
+        radio.read(&data_ackpayload, sizeof(data_ackpayload));
+        return (unsigned long)data_ackpayload.timestamp;
       }
     }
   }
