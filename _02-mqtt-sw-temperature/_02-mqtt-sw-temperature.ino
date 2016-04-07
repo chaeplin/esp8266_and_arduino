@@ -50,7 +50,6 @@ extern "C" {
 #define DEBUG_PRINT 1
 
 // ****************
-
 time_t getNtpTime();
 String macToStr(const uint8_t* mac);
 void callback(char* intopic, byte* inpayload, unsigned int length);
@@ -124,21 +123,6 @@ struct {
 } time_reqpayload;
 
 struct {
-  uint16_t powerAvg;
-  uint16_t WeightAvg;
-  uint16_t Humidity;
-  uint16_t data1;
-  uint8_t  data2;
-  uint8_t  data3;
-  int8_t   Temperature1;
-  int8_t   Temperature2;
-} solar_ackpayload;
-
-struct {
-  uint8_t data1;
-} solar_reqpayload;
-
-struct {
   int16_t ax;
   int16_t ay;
 } data_scale;
@@ -158,14 +142,8 @@ char* willMessage = "0";
 // subscribe
 //
 const char subtopic[]   = "esp8266/cmd/light";   // light command
-const char subrpi[]     = "raspberrypi/data";
-const char subtopic_0[] = "esp8266/arduino/s03"; // lcd temp
-const char subtopic_1[] = "esp8266/arduino/s07"; // power
-const char subtopic_2[] = "esp8266/arduino/s06"; // nemo scale
-const char subtopic_3[] = "radio/test/2";        //Outside temp
 
-
-const char* substopic[6] = { subtopic, subrpi, subtopic_0, subtopic_1, subtopic_2, subtopic_3 } ;
+const char* substopic[1] = { subtopic } ;
 
 unsigned int localPort = 12390;
 const int timeZone = 9;
@@ -272,7 +250,7 @@ boolean reconnect() {
       }
 
       client.loop();
-      for (int i = 0; i < 6; ++i) {
+      for (int i = 0; i < 1; ++i) {
         client.subscribe(substopic[i]);
         client.loop();
       }
@@ -333,59 +311,6 @@ void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int lengt
       syslogPayload += relaystatus;
       sendUdpSyslog(syslogPayload);
     }
-  } else {
-    parseMqttMsg(receivedpayload, receivedtopic);
-  }
-}
-
-void parseMqttMsg(String receivedpayload, String receivedtopic) {
-  char json[] = "{\"Humidity\":43.90,\"Temperature\":22.00,\"DS18B20\":22.00,\"PIRSTATUS\":0,\"FreeHeap\":43552,\"acquireresult\":0,\"acquirestatus\":0,\"DHTnextSampleTime\":2121587,\"bDHTstarted\":0,\"RSSI\":-48,\"millis\":2117963}";
-
-  receivedpayload.toCharArray(json, 400);
-  StaticJsonBuffer<400> jsonBuffer;
-  JsonObject& root = jsonBuffer.parseObject(json);
-
-  if (!root.success()) {
-    return;
-  }
-
-  if ( receivedtopic == substopic[1] ) {
-    if (root.containsKey("data1")) {
-      solar_ackpayload.data1 = root["data1"];
-    }
-    if (root.containsKey("data2")) {
-      String tempdata2 = root["data2"];
-      solar_ackpayload.data2 = tempdata2.substring(0, tempdata2.indexOf('.')).toInt();
-      solar_ackpayload.data3 = tempdata2.substring(tempdata2.indexOf('.') + 1, tempdata2.indexOf('.') + 2).toInt();
-    }
-  }
-
-  if ( receivedtopic == substopic[2] ) {
-    if (root.containsKey("Humidity")) {
-      solar_ackpayload.Humidity = root["Humidity"];
-    }
-
-    if (root.containsKey("Temperature")) {
-      solar_ackpayload.Temperature1 = ( float(root["Temperature"]) + tempCoutside ) / 2 ;
-    }
-  }
-
-  if ( receivedtopic == substopic[3] ) {
-    if (root.containsKey("powerAvg")) {
-      solar_ackpayload.powerAvg = root["powerAvg"];
-    }
-  }
-
-  if ( receivedtopic == substopic[4] ) {
-    if (root.containsKey("WeightAvg")) {
-      solar_ackpayload.WeightAvg = root["WeightAvg"];
-    }
-  }
-
-  if ( receivedtopic == substopic[5] ) {
-    if (root.containsKey("data1")) {
-      solar_ackpayload.Temperature2 = atoi(root["data1"]);
-    }
   }
 }
 
@@ -417,9 +342,6 @@ void setup() {
 
   time_ackpayload.timestamp = 0;
   time_reqpayload.timestamp = 0;
-  solar_ackpayload.data1 = solar_ackpayload.data2 = solar_ackpayload.data3 = 0;
-  solar_ackpayload.Humidity = solar_ackpayload.Temperature1 = solar_ackpayload.Temperature2 = solar_ackpayload.powerAvg = solar_ackpayload.WeightAvg = 0;
-  solar_reqpayload.data1 = 0;
 
   getResetInfo = "hello from switch ";
   getResetInfo += ESP.getResetInfo().substring(0, 50);
@@ -700,35 +622,7 @@ void loop() {
             syslogPayload += pipeNo;
             sendUdpSyslog(syslogPayload);
           }
-          // solar data req
-          //} else if (len == sizeof(uint8_t) && pipeNo == 3) {
-        } else if (len == 1 && pipeNo == 3) {
-          radio.writeAckPayload(pipeNo, &solar_ackpayload, sizeof(solar_ackpayload));
-          radio.read(&solar_reqpayload, sizeof(uint8_t));
-
-          if (DEBUG_PRINT) {
-            syslogPayload = "solar_data1 : ";
-            syslogPayload += solar_ackpayload.data1;
-            syslogPayload += " ==> data2 : ";
-            syslogPayload += solar_ackpayload.data2;
-            syslogPayload += " ==> data3 : ";
-            syslogPayload += solar_ackpayload.data3;
-            syslogPayload += " ==> powerAvg : ";
-            syslogPayload += solar_ackpayload.powerAvg;
-            syslogPayload += " ==> WeightAvg: ";
-            syslogPayload += solar_ackpayload.WeightAvg;
-            syslogPayload += " ==> Humidity : ";
-            syslogPayload += solar_ackpayload.Humidity;
-            syslogPayload += " ==> Temperature1 : ";
-            syslogPayload += solar_ackpayload.Temperature1;
-            syslogPayload += " ==> Temperature2 : ";
-            syslogPayload += solar_ackpayload.Temperature2;
-            syslogPayload += " ==> pipeNo : ";
-            syslogPayload += pipeNo;
-            sendUdpSyslog(syslogPayload);
-          }
-
-          // scale data
+        // scale data
         } else if (len == sizeof(data_scale) && pipeNo == 4) {
           radio.read(&data_scale, sizeof(data_scale));
 
