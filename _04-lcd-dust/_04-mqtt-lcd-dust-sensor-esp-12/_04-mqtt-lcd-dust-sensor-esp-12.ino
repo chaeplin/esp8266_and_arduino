@@ -1,4 +1,4 @@
-// 80MHz / 4M / 1M / ESP-01 (flash chip is changed) / esp-lcd
+// 80MHz / 1M / 64K / ESP-01 (flash chip is changed) / esp-lcd
 /*
   D1(TX)    - for rtc int(not used)
   D3(RX)    - DHT22
