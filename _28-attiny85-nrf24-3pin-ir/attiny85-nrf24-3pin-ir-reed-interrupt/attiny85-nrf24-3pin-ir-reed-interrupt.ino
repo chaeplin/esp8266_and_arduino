@@ -55,7 +55,7 @@
 #define DEVICE_ID 65
 #define CHANNEL 100
 
-const uint64_t pipes[2] = { 0xFFFFFFFFFFLL, 0xFFFFFFFFDDLL };
+const uint64_t pipes[1] = { 0xFFFFFFFFFFLL };
 
 struct {
   uint32_t _salt;
@@ -104,16 +104,16 @@ void setup() {
   radio.setAutoAck(true);
   radio.enableAckPayload();
   radio.enableDynamicPayloads();
-  radio.openWritingPipe(pipes[1]);
+  radio.openWritingPipe(pipes[0]);
   radio.powerDown();
 
   unsigned long stopmilis = millis();
   payload.data2 = ( stopmilis - startmilis ) * 10 ;
 
   while (digitalRead(DATA1PIN) == 1 ) {
-    delay(1000);
+    LowPower.powerDown(SLEEP_1S, ADC_OFF, BOD_OFF);
   }
-  delay(1000);
+  
   payload.data1 = rollStatus = digitalRead(DATA1PIN) * 10 ;
   payload._salt = 0;
   payload.volt  = readVcc();
@@ -122,14 +122,7 @@ void setup() {
   // get time
   setSyncProvider( requestSync);
   radio.powerUp();
-  radio.stopListening();
-  radio.openWritingPipe(pipes[1]);
   getNrfTime();
-  radio.powerDown();
-
-  radio.powerUp();
-  radio.stopListening();
-  radio.openWritingPipe(pipes[0]);
   radio.write(&payload , sizeof(payload));
   radio.powerDown();
 }
@@ -142,8 +135,6 @@ void loop() {
     return;
   } else {
     radio.powerUp();
-    radio.stopListening();
-    radio.openWritingPipe(pipes[1]);
     getNrfTime();
     radio.powerDown();
 
@@ -164,8 +155,6 @@ void loop() {
 
     if ( rollStatus != payload.data1 ) {
       radio.powerUp();
-      radio.stopListening();
-      radio.openWritingPipe(pipes[0]);
       radio.write(&payload , sizeof(payload));
       radio.powerDown();
       rollStatus = payload.data1;

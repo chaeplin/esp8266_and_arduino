@@ -608,7 +608,7 @@ void loop() {
 
         // use switch ?
         // time request
-        if (len == sizeof(time_reqpayload) && (pipeNo == 3 || pipeNo == 4 )) {
+        if (len == sizeof(time_reqpayload) && (pipeNo == 1 || pipeNo == 3 || pipeNo == 4 )) {
           time_ackpayload.timestamp = timestamp;
 
           radio.writeAckPayload(pipeNo, &time_ackpayload, sizeof(time_ackpayload));
