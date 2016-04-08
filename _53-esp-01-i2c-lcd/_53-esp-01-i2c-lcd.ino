@@ -1,3 +1,4 @@
+// esp-01 4M / 3M flash / esp-solar
 #include <TimeLib.h>
 #include <PubSubClient.h>
 #include <ESP8266WiFi.h>
@@ -83,6 +84,10 @@ PubSubClient client(mqtt_server, 1883, callback, wifiClient);
 WiFiUDP udp;
 
 long lastReconnectAttempt = 0;
+volatile bool msgcallback;
+
+//
+volatile uint32_t lastTime;
 
 byte termometru[8]      = { B00100, B01010, B01010, B01110, B01110, B11111, B11111, B01110, };
 byte picatura[8]        = { B00100, B00100, B01010, B01010, B10001, B10001, B10001, B01110, };
@@ -92,10 +97,10 @@ byte nemoicon[8]        = { B11011, B11011, B00100, B11111, B10101, B11111, B010
 
 void wifi_connect() {
   /*
-  wifi_set_phy_mode(PHY_MODE_11N);
-  system_phy_set_max_tpw(10);
+    wifi_set_phy_mode(PHY_MODE_11N);
+    system_phy_set_max_tpw(10);
   */
-  
+
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
   WiFi.hostname("esp-solar");
@@ -176,6 +181,7 @@ void parseMqttMsg(String receivedpayload, String receivedtopic) {
     if (root.containsKey("data2")) {
       solar_data.data2 = root["data2"];
     }
+    lastTime = millis();
   }
 
   if ( receivedtopic == substopic[1] ) {
@@ -205,6 +211,7 @@ void parseMqttMsg(String receivedpayload, String receivedtopic) {
       solar_data.Temperature2 = root["data1"];
     }
   }
+  msgcallback = !msgcallback;
 }
 
 void setup() {
@@ -221,9 +228,14 @@ void setup() {
 
   //
   lastReconnectAttempt = 0;
+  msgcallback = false;
 
   getResetInfo = "hello from solar ";
   getResetInfo += ESP.getResetInfo().substring(0, 50);
+
+  //
+  solar_data.Temperature1 = solar_data.Temperature2 = solar_data.Humidity = solar_data.data1 = solar_data.data2 = solar_data.powerAvg = solar_data.WeightAvg = 0;
+  lastTime = millis();
 
   // lcd
   lcd.init();
@@ -236,31 +248,6 @@ void setup() {
   lcd.createChar(6, powericon);
   lcd.createChar(7, nemoicon);
 
-  lcd.setCursor(0, 1);
-  lcd.write(1);
-
-  lcd.setCursor(0, 2);
-  lcd.write(2);
-
-  lcd.setCursor(8, 2);  // power
-  lcd.write(6);
-
-  lcd.setCursor(0, 3);  // nemo
-  lcd.write(7);
-
-  lcd.setCursor(8, 3); // dust
-  lcd.write(3);
-
-  //
-  lcd.setCursor(6, 1);
-  lcd.print((char)223);
-
-  lcd.setCursor(12, 1);
-  lcd.print((char)223);
-
-  lcd.setCursor(6, 2);
-  lcd.print("%");
-
   WiFiClient::setLocalPortStart(analogRead(A0));
   wifi_connect();
 
@@ -270,7 +257,7 @@ void setup() {
   if (timeStatus() == timeNotSet) {
     setSyncProvider(getNtpTime);
   }
-  
+
 
   //OTA
   ArduinoOTA.setPort(8266);
@@ -302,6 +289,33 @@ void setup() {
     syslogPayload = "------------------> solar started";
     sendUdpSyslog(syslogPayload);
   }
+
+
+  lcd.setCursor(0, 1);
+  lcd.write(1);
+
+  lcd.setCursor(0, 2);
+  lcd.write(2);
+
+  lcd.setCursor(8, 2);  // power
+  lcd.write(6);
+
+  lcd.setCursor(0, 3);  // nemo
+  lcd.write(7);
+
+  lcd.setCursor(8, 3); // dust
+  lcd.write(3);
+
+  //
+  lcd.setCursor(6, 1);
+  lcd.print((char)223);
+
+  lcd.setCursor(12, 1);
+  lcd.print((char)223);
+
+  lcd.setCursor(6, 2);
+  lcd.print("%");
+
 }
 
 time_t prevDisplay = 0;
@@ -330,6 +344,22 @@ void loop() {
           displayNemoWeight();
           displaypowerAvg();
           displayData();
+
+          if (msgcallback) {
+            lcd.setCursor(19, 0);
+            lcd.write(5);
+          } else {
+            lcd.setCursor(19, 0);
+            lcd.print(" ");
+          }
+
+          if (( millis() - lastTime ) > 120000 ) {
+            lcd.setCursor(19, 3);
+            lcd.write(5);
+          } else {
+            lcd.setCursor(19, 3);
+            lcd.print(" ");
+          }
         }
       }
       client.loop();
@@ -345,7 +375,7 @@ void displayData() {
   lcd.print(solar_data.data1, 0);
 
   lcd.setCursor(12, 3);
-  lcd.print(solar_data.data2, 2);  
+  lcd.print(solar_data.data2, 2);
 }
 
 void displaypowerAvg() {
@@ -418,20 +448,16 @@ void displayTemperature() {
 void digitalClockDisplay() {
   // digital clock display of the time
   lcd.setCursor(0, 0);
-  lcd.print("[");
-  lcd.setCursor(1, 0);
   printDigitsnocolon(month());
   lcd.print("/");
   printDigitsnocolon(day());
 
-  lcd.setCursor(7, 0);
+  lcd.setCursor(6, 0);
   lcd.print(dayShortStr(weekday()));
-  lcd.setCursor(11, 0);
+  lcd.setCursor(10, 0);
   printDigitsnocolon(hour());
   printDigits(minute());
   printDigits(second());
-  lcd.setCursor(19, 0);
-  lcd.print("]");  
 }
 
 void printDigitsnocolon(int digits) {
