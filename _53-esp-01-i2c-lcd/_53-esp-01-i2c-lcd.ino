@@ -89,11 +89,14 @@ volatile bool msgcallback;
 //
 volatile uint32_t lastTime;
 
-byte termometru[8]      = { B00100, B01010, B01010, B01110, B01110, B11111, B11111, B01110, };
-byte picatura[8]        = { B00100, B00100, B01010, B01010, B10001, B10001, B10001, B01110, };
-byte pirfill[8]         = { B00111, B00111, B00111, B00111, B00111, B00111, B00111, B00111, };
-byte powericon[8]       = { B11111, B11011, B10001, B11011, B11111, B11000, B11000, B11000, };
-byte nemoicon[8]        = { B11011, B11011, B00100, B11111, B10101, B11111, B01010, B11011, };
+// https://omerk.github.io/lcdchargen/
+byte termometru[8]      = { B00100, B01010, B01010, B01110, B01110, B11111, B11111, B01110 };
+byte picatura[8]        = { B00100, B00100, B01010, B01010, B10001, B10001, B10001, B01110 };
+byte pirfill[8]         = { B00111, B00111, B00111, B00111, B00111, B00111, B00111, B00111 };
+byte powericon[8]       = { B11111, B11011, B10001, B11011, B11111, B11000, B11000, B11000 };
+byte nemoicon[8]        = { B11011, B11011, B00100, B11111, B10101, B11111, B01010, B11011 };
+byte customCharB[8]     = { B11110, B10001, B10001, B11110, B11110, B10001, B10001, B11110 };
+byte customCharfill[8]  = { B10101, B01010, B10001, B00100, B00100, B10001, B01010, B10101 };
 
 void wifi_connect() {
   /*
@@ -248,6 +251,23 @@ void setup() {
   lcd.createChar(6, powericon);
   lcd.createChar(7, nemoicon);
 
+  lcd.createChar(3, customCharB);
+  lcd.createChar(4, customCharfill);
+  
+  for ( int i= 1 ; i< 19 ; i++) {
+    lcd.setCursor(i, 0);
+    lcd.write(4);
+    lcd.setCursor(i, 3);
+    lcd.write(4);
+  }
+
+  for ( int i= 0 ; i< 4 ; i++) {
+    lcd.setCursor(0, i);
+    lcd.write(4);
+    lcd.setCursor(19, i);
+    lcd.write(4);    
+  }
+  
   WiFiClient::setLocalPortStart(analogRead(A0));
   wifi_connect();
 
@@ -257,7 +277,6 @@ void setup() {
   if (timeStatus() == timeNotSet) {
     setSyncProvider(getNtpTime);
   }
-
 
   //OTA
   ArduinoOTA.setPort(8266);
@@ -290,7 +309,7 @@ void setup() {
     sendUdpSyslog(syslogPayload);
   }
 
-
+  lcd.clear();
   lcd.setCursor(0, 1);
   lcd.write(1);
 
@@ -303,7 +322,7 @@ void setup() {
   lcd.setCursor(0, 3);  // nemo
   lcd.write(7);
 
-  lcd.setCursor(8, 3); // dust
+  lcd.setCursor(8, 3);  // b
   lcd.write(3);
 
   //
@@ -371,10 +390,13 @@ void loop() {
 }
 
 void displayData() {
-  lcd.setCursor(8, 3);
+  lcd.setCursor(10, 3);
+  if ( solar_data.data1 < 1000 ) {
+    lcd.print(" ");
+  }
   lcd.print(solar_data.data1, 0);
 
-  lcd.setCursor(12, 3);
+  lcd.setCursor(15, 3);
   lcd.print(solar_data.data2, 2);
 }
 
