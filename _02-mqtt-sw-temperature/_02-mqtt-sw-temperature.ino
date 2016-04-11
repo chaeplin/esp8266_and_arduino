@@ -46,8 +46,8 @@ extern "C" {
 #define DHT_DEBUG_TIMING
 #endif
 
-#define INFO_PRINT 1
-#define DEBUG_PRINT 1
+#define INFO_PRINT 0
+#define DEBUG_PRINT 0
 
 // ****************
 time_t getNtpTime();
@@ -55,7 +55,7 @@ String macToStr(const uint8_t* mac);
 void callback(char* intopic, byte* inpayload, unsigned int length);
 void run_lightcmd();
 void changelight();
-void sendmqttMsg(char* topictosend, String payload);
+void sendmqttMsg(char* topictosend, String payload, bool retain);
 void runTimerDoLightOff();
 void sendNTPpacket(IPAddress & address);
 void sendUdpSyslog(String msgtosend);
@@ -142,6 +142,12 @@ char* radiofault  = "radio/test/fault";
 
 char* willTopic   = "clients/relay";
 char* willMessage = "0";
+
+//
+char* topicAverage  = "esp8266/arduino/s06";
+
+//
+char* lowpower      = "lowpower";
 
 // subscribe
 //
@@ -519,7 +525,7 @@ void loop() {
         lightpayload += ",\"READY\":0";
         lightpayload += "}";
 
-        sendmqttMsg(rslttopic, lightpayload);
+        sendmqttMsg(rslttopic, lightpayload, 1);
 
       }
 
@@ -536,7 +542,7 @@ void loop() {
         lightpayload += ",\"READY\":1";
         lightpayload += "}";
 
-        sendmqttMsg(rslttopic, lightpayload);
+        sendmqttMsg(rslttopic, lightpayload, 1);
         relayIsReady = HIGH;
 
       } else if ((relayIsReady == LOW ) &&  (( millis() - lastRelayActionmillis) > BETWEEN_RELAY_ACTIVE ) && ( relaystatus == oldrelaystatus )) {
@@ -552,7 +558,7 @@ void loop() {
         lightpayload += ",\"READY\":1";
         lightpayload += "}";
 
-        sendmqttMsg(rslttopic, lightpayload);
+        sendmqttMsg(rslttopic, lightpayload, 1);
         relayIsReady = HIGH;
       }
 
@@ -595,7 +601,7 @@ void loop() {
       payload += "}";
 
       if ( pirSent == HIGH ) {
-        sendmqttMsg(topic, payload);
+        sendmqttMsg(topic, payload, 1);
         pirSent = LOW;
       }
 
@@ -658,8 +664,22 @@ void loop() {
             scalepayload += "000000";
             sendUdpmsg(scalepayload);
             //sendUdpSyslog(scalepayload);
-          }
 
+
+            if ( scale_payload.avetype == 1 ) {
+              payload = "{\"WeightAvg\":";
+              payload += scale_payload.avemean;
+              payload += ",\"WeightStddev\":";
+              payload += scale_payload.avestddev;
+              payload += "}";
+
+              sendmqttMsg(topicAverage, payload, 1);
+            } else if ( scale_payload.avetype == 2 ) {
+              payload = "low power alert from scale";
+
+              sendmqttMsg(lowpower, payload, 0);
+            }
+          }
           // door, roll, ds18b20, ads1115 data
         } else if ((len + 1 ) == sizeof(sensor_data)) {
           radio.read(&sensor_data, sizeof(sensor_data));
@@ -696,9 +716,9 @@ void loop() {
               unsigned int newRadiotopic_length = newRadiotopic.length();
               char newRadiotopictosend[newRadiotopic_length] ;
               newRadiotopic.toCharArray(newRadiotopictosend, newRadiotopic_length + 1);
-              sendmqttMsg(newRadiotopictosend, radiopayload);
+              sendmqttMsg(newRadiotopictosend, radiopayload, 0);
             } else {
-              sendmqttMsg(radiofault, radiopayload);
+              sendmqttMsg(radiofault, radiopayload, 0);
             }
           } else if ( pipeNo == 2 && sensor_data.devid == 15 ) {
             if ( sensor_data.data1 < 0 ) {
@@ -730,7 +750,7 @@ void loop() {
       }
 
       if ((millis() - startMills) > REPORT_INTERVAL ) {
-        sendmqttMsg(topic, payload);
+        sendmqttMsg(topic, payload, 0);
 
         sensors.requestTemperatures();
         bDalasstarted = true;
@@ -786,13 +806,13 @@ void changelight() {
   oldrelaystatus = relaystatus ;
 }
 
-void ICACHE_RAM_ATTR sendmqttMsg(char* topictosend, String payload) {
+void ICACHE_RAM_ATTR sendmqttMsg(char* topictosend, String payload, bool retain) {
   unsigned int msg_length = payload.length();
 
   byte* p = (byte*)malloc(msg_length);
   memcpy(p, (char*) payload.c_str(), msg_length);
 
-  if (client.publish(topictosend, p, msg_length, 1)) {
+  if (client.publish(topictosend, p, msg_length, retain)) {
     free(p);
   } else {
     if (DEBUG_PRINT) {

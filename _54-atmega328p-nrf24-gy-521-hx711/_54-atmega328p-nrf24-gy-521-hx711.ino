@@ -79,6 +79,7 @@ unsigned int thrs    = 1;
 
 volatile bool bpir_isr;
 volatile bool bmotion_isr;
+bool blowpower;
 
 void pir_isr() {
   bpir_isr = true;
@@ -102,8 +103,9 @@ void setup() {
   pinMode(PIR_INT, INPUT); //_PULLUP);
   pinMode(GY521_INT, INPUT); //_PULLUP);
   //
-  digitalWrite(LED, HIGH);
-  delay(100);
+  adc_disable();
+  //
+  ledonoff(10, 4);
 
   if (DEBUG_PRINT) {
     Serial.begin(115200);
@@ -131,7 +133,7 @@ void setup() {
   scale_payload.volt  = readVcc();
   scale_payload.devid = DEVICE_ID;
 
-  bpir_isr = bmotion_isr = false;
+  bpir_isr = bmotion_isr = blowpower = false;
 
   scale.set_scale(23500.f);
   scale.tare();
@@ -148,9 +150,20 @@ void loop() {
       Serial.println("02 ---> pir detected --> going to timer sleep");
     }
 
-    digitalWrite(LED, HIGH);
-    delay(20);
-    digitalWrite(LED, LOW);
+    scale_payload.volt = readVcc();
+    ledonoff(4, 4);
+
+    //
+    if (!blowpower && (scale_payload.volt < 2500)) {
+      scale_payload.avemean   = 0;
+      scale_payload.avestddev = 0;
+      scale_payload.avetype   = 2;
+      radio.powerUp();
+      radio.write(&scale_payload, sizeof(scale_payload));
+      radio.powerDown();
+      blowpower = true;
+    }
+
 
     //tarehx711();
     goingTimerSleep();
@@ -158,32 +171,30 @@ void loop() {
     if (bmotion_isr) {
       int nofchecked = 0;
       bool bavgsent  = false;
-      scale_payload.volt = readVcc();
 
       while (1) {
         unsigned long startmillis = millis();
         int16_t nWeight = gethx711();
 
-        if (nWeight < 500) {
+        if (nWeight < 1500 || nofchecked > 120 || bavgsent ) {
           break;
         }
 
         ave.push(nWeight);
-        if (( ave.stddev() < 20 ) && ( nofchecked > 10 ) && ( ave.mean() > 1000 ) && ( ave.mean() < 7000 ) && (!bavgsent)) {
+        if (( ave.stddev() < 20 ) && ( nofchecked > 5 ) && ( ave.mean() > 1000 ) && ( ave.mean() < 7000 ) && (!bavgsent)) {
           if (DEBUG_PRINT) {
             Serial.print("===> WeightAvg : ");
             Serial.print(ave.mean());
             Serial.print(" stddev ===> : ");
             Serial.println(ave.stddev());
+            delay(10);
           } else {
             scale_payload.avemean   = (int16_t)ave.mean();
             scale_payload.avestddev = (int16_t)ave.stddev();
             scale_payload.avetype   = 1;
-            digitalWrite(LED, HIGH);
             radio.powerUp();
             radio.write(&scale_payload, sizeof(scale_payload));
             radio.powerDown();
-            digitalWrite(LED, LOW);
           }
           bavgsent = true;
         }
@@ -196,18 +207,17 @@ void loop() {
             Serial.print(ave.stddev());
             Serial.print(" measured ===> : ");
             Serial.println(nWeight);
+            delay(10);
           } else {
             scale_payload.avemean   = nWeight;
             scale_payload.avestddev = (int16_t)ave.stddev();
             scale_payload.avetype   = 0;
-            digitalWrite(LED, HIGH);
             radio.powerUp();
             radio.write(&scale_payload, sizeof(scale_payload));
             radio.powerDown();
-            digitalWrite(LED, LOW);
           }
         }
-        delay(10);
+        ledonoff(2, 2);
         LowPower.powerDown(SLEEP_250MS, ADC_OFF, BOD_OFF);
         nofchecked++;
       }
@@ -219,12 +229,19 @@ void loop() {
     Serial.println();
   }
   scale_payload._salt++;
-  digitalWrite(LED, HIGH);
-  delay(50);
-  digitalWrite(LED, LOW);
-  delay(100);
-  digitalWrite(LED, HIGH);
-  delay(50);
+  ledonoff(4, 5);
+}
+
+void ledonoff(int m, int n) {
+  for (int k = 0; k < m; k = k + 1) {
+    if (k % 2 == 0) {
+      digitalWrite(LED, HIGH);
+    }
+    else {
+      digitalWrite(LED, LOW);
+    }
+    delay(n);
+  }
   digitalWrite(LED, LOW);
 }
 
@@ -246,10 +263,7 @@ void goingSleep() {
   if (DEBUG_PRINT) {
     Serial.println("01 ---> going to sleep");
   }
-  delay(100);
-  digitalWrite(LED, HIGH);
-  delay(30);
-  digitalWrite(LED, LOW);
+  ledonoff(2, 3);
 
   detachInterrupt(1);
   while (digitalRead(PIR_INT)) {
@@ -264,8 +278,8 @@ void goingSleep() {
 void goingTimerSleep() {
   if (DEBUG_PRINT) {
     Serial.println("03 ---> going to timer sleep");
+    delay(10);
   }
-  delay(100);
   enable_gy521();
   LowPower.powerDown(SLEEP_4S, ADC_OFF, BOD_OFF);
   detachInterrupt(0);
@@ -278,9 +292,8 @@ void disable_gy521() {
 
 void enable_gy521() {
   digitalWrite(GY521_VCC, HIGH);
-  digitalWrite(LED, HIGH);
-  delay(100);
-  digitalWrite(LED, LOW);
+  ledonoff(10, 10);
+
   accelgyro.initialize();
   Wire.beginTransmission(0x68);
   Wire.write(0x37);
