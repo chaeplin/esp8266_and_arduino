@@ -22,7 +22,8 @@ HX711 scale(7, 8);		// parameter "gain" is ommited; the default value 128 is use
 void setup() {
   Serial.begin(115200);
 
-  scale.set_scale(22852.f);                      // this value is obtained by calibrating the scale with known weights; see the README for details
+  //scale.set_scale(23999.f);                      // this value is obtained by calibrating the scale with known weights; see the README for details
+  scale.set_scale(23500.f);
   //scale.set_scale();
   scale.tare();				        // reset the scale to 0
 

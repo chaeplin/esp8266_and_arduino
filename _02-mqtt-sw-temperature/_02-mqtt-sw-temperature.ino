@@ -46,7 +46,7 @@ extern "C" {
 #define DHT_DEBUG_TIMING
 #endif
 
-#define INFO_PRINT 0
+#define INFO_PRINT 1
 #define DEBUG_PRINT 1
 
 // ****************
@@ -123,9 +123,13 @@ struct {
 } time_reqpayload;
 
 struct {
-  int16_t ax;
-  int16_t ay;
-} data_scale;
+  uint32_t _salt;
+  uint16_t volt;
+  int16_t avemean;
+  int16_t avestddev;
+  uint8_t avetype;
+  uint8_t devid;
+} scale_payload;
 
 // mqtt
 char* topic       = "esp8266/arduino/s02";
@@ -606,6 +610,14 @@ void loop() {
         uint8_t len = radio.getDynamicPayloadSize();
         // avr 8bit, esp 32bit. esp use 4 byte step.
 
+          if (DEBUG_PRINT) {
+            syslogPayload = "radio  pipeNo ==> ";
+            syslogPayload += pipeNo;
+            syslogPayload += " len ==> ";
+            syslogPayload += len;
+            sendUdpSyslog(syslogPayload);
+          }
+
         // use switch ?
         // time request
         if (len == sizeof(time_reqpayload) && (pipeNo == 1 || pipeNo == 3 || pipeNo == 4 )) {
@@ -622,23 +634,32 @@ void loop() {
             syslogPayload += pipeNo;
             sendUdpSyslog(syslogPayload);
           }
-        // scale data
-        } else if (len == sizeof(data_scale) && pipeNo == 4) {
-          radio.read(&data_scale, sizeof(data_scale));
+          // scale data
+        } else if (len == sizeof(scale_payload) && ( pipeNo == 4)) {
+          radio.read(&scale_payload, sizeof(scale_payload));
+          if (scale_payload.devid == 35 ) {
 
-          String scalepayload = "scale,test=scale ";
-          scalepayload += "ax=";
-          scalepayload += data_scale.ax;
-          scalepayload += "i,ay=";
-          scalepayload += data_scale.ay;
-          scalepayload += "i ";
-          scalepayload += (timestamp - timeZone * SECS_PER_HOUR);
-          char scalepayloadbuf[3];
-          sprintf(scalepayloadbuf, "%03d", millisecond());
-          scalepayload += scalepayloadbuf;
-          scalepayload += "000000";
-          //sendUdpmsg(scalepayload);
-          sendUdpSyslog(scalepayload);
+            String scalepayload = "scale,test=scale ";
+            scalepayload += "_salt=";
+            scalepayload += scale_payload._salt;
+            scalepayload += "i,volt=";
+            scalepayload += scale_payload.volt;
+            scalepayload += "i,avemean=";
+            scalepayload += scale_payload.avemean;
+            scalepayload += "i,avestddev=";
+            scalepayload += scale_payload.avestddev;
+            scalepayload += "i,avetype=";
+            scalepayload += scale_payload.avetype;
+            scalepayload += "i ";
+            scalepayload += (timestamp - timeZone * SECS_PER_HOUR);
+            char scalepayloadbuf[3];
+            sprintf(scalepayloadbuf, "%03d", millisecond());
+            scalepayload += scalepayloadbuf;
+            scalepayload += "000000";
+            sendUdpmsg(scalepayload);
+            //sendUdpSyslog(scalepayload);
+          }
+
           // door, roll, ds18b20, ads1115 data
         } else if ((len + 1 ) == sizeof(sensor_data)) {
           radio.read(&sensor_data, sizeof(sensor_data));

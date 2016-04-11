@@ -27,21 +27,18 @@
 #include <nRF24L01.h>
 #include <RF24.h>
 #include <Wire.h>
+#include <Average.h>
+
 //
 #include "I2Cdev.h"
 #include "MPU6050.h"
 //
 #include "HX711.h"
 
-#define adc_disable() (ADCSRA &= ~(1<<ADEN)) // disable ADC
-#define adc_enable()  (ADCSRA |=  (1<<ADEN)) // re-enable ADC
+#define DEBUG_PRINT 0
 
-// http://www.gammon.com.au/forum/?id=12769
-#if defined(__AVR_ATtiny85__)
-#define watchdogRegister WDTCR
-#else
-#define watchdogRegister WDTCSR
-#endif
+#define adc_disable() (ADCSRA &= ~(1<<ADEN)) // disable ADC
+#define adc_enable() (ADCSRA |=  (1<<ADEN)) // re-enable ADC
 
 // PINS
 #define LED       17
@@ -61,19 +58,21 @@
 #define DEVICE_ID 35
 #define CHANNEL   100
 
-const uint64_t pipes[1] = { 0xFFFFFFFFCDLL };
+const uint64_t pipes[1] = { 0xFFFFFFFFDDLL };
 
 struct {
   uint32_t _salt;
   uint16_t volt;
-  int16_t data1;
-  int16_t data2;
+  int16_t avemean;
+  int16_t avestddev;
+  uint8_t avetype;
   uint8_t devid;
-} payload;
+} scale_payload;
 
 RF24 radio(CE_PIN, CSN_PIN);
 MPU6050 accelgyro;
 HX711 scale(HX711_DT, HX711_SCK);
+Average<float> ave(10);
 
 unsigned int detcdur = 3;
 unsigned int thrs    = 1;
@@ -96,10 +95,22 @@ void motion_isr_start() {
 }
 
 void setup() {
-  Serial.begin(115200);
+  //
+  pinMode(LED, OUTPUT);
+  pinMode(GY521_VCC, OUTPUT);
+  // INT
+  pinMode(PIR_INT, INPUT); //_PULLUP);
+  pinMode(GY521_INT, INPUT); //_PULLUP);
+  //
+  digitalWrite(LED, HIGH);
   delay(100);
-  Serial.println();
-  Serial.println("00 --> Starting unit : wire, gyro, pir, hx711, radio");
+
+  if (DEBUG_PRINT) {
+    Serial.begin(115200);
+    delay(100);
+    Serial.println();
+    Serial.println("00 --> Starting unit : wire, gyro, pir, hx711, radio");
+  }
 
   Wire.begin();
 
@@ -116,48 +127,105 @@ void setup() {
   radio.stopListening();
   radio.powerDown();
 
-  payload._salt = 0;
-  payload.volt  = readVcc();
-  payload.devid = DEVICE_ID;
+  scale_payload._salt = 0;
+  scale_payload.volt  = readVcc();
+  scale_payload.devid = DEVICE_ID;
 
   bpir_isr = bmotion_isr = false;
 
-  scale.set_scale(22852.f);
+  scale.set_scale(23500.f);
   scale.tare();
   scale.power_down();
 
-  //
-  pinMode(LED, OUTPUT);
-  pinMode(GY521_VCC, OUTPUT);
-  // INT
-  pinMode(PIR_INT, INPUT); //_PULLUP);
-  pinMode(GY521_INT, INPUT); //_PULLUP);
-  //
+  digitalWrite(LED, LOW);
 }
 
 void loop() {
   goingSleep();
 
   if (bpir_isr) {
-    Serial.println("02 ---> pir detected --> going to timer sleep");
+    if (DEBUG_PRINT) {
+      Serial.println("02 ---> pir detected --> going to timer sleep");
+    }
+
+    digitalWrite(LED, HIGH);
+    delay(20);
+    digitalWrite(LED, LOW);
 
     //tarehx711();
     goingTimerSleep();
 
     if (bmotion_isr) {
+      int nofchecked = 0;
+      bool bavgsent  = false;
+      scale_payload.volt = readVcc();
+
       while (1) {
         unsigned long startmillis = millis();
         int16_t nWeight = gethx711();
-        if (nWeight < 1000) {
+
+        if (nWeight < 500) {
           break;
         }
+
+        ave.push(nWeight);
+        if (( ave.stddev() < 20 ) && ( nofchecked > 10 ) && ( ave.mean() > 1000 ) && ( ave.mean() < 7000 ) && (!bavgsent)) {
+          if (DEBUG_PRINT) {
+            Serial.print("===> WeightAvg : ");
+            Serial.print(ave.mean());
+            Serial.print(" stddev ===> : ");
+            Serial.println(ave.stddev());
+          } else {
+            scale_payload.avemean   = (int16_t)ave.mean();
+            scale_payload.avestddev = (int16_t)ave.stddev();
+            scale_payload.avetype   = 1;
+            digitalWrite(LED, HIGH);
+            radio.powerUp();
+            radio.write(&scale_payload, sizeof(scale_payload));
+            radio.powerDown();
+            digitalWrite(LED, LOW);
+          }
+          bavgsent = true;
+        }
+
+        if ( nofchecked > 3 ) {
+          if (DEBUG_PRINT) {
+            Serial.print("===> WeightAvg : ");
+            Serial.print(ave.mean());
+            Serial.print(" stddev ===> : ");
+            Serial.print(ave.stddev());
+            Serial.print(" measured ===> : ");
+            Serial.println(nWeight);
+          } else {
+            scale_payload.avemean   = nWeight;
+            scale_payload.avestddev = (int16_t)ave.stddev();
+            scale_payload.avetype   = 0;
+            digitalWrite(LED, HIGH);
+            radio.powerUp();
+            radio.write(&scale_payload, sizeof(scale_payload));
+            radio.powerDown();
+            digitalWrite(LED, LOW);
+          }
+        }
+        delay(10);
         LowPower.powerDown(SLEEP_250MS, ADC_OFF, BOD_OFF);
+        nofchecked++;
       }
     }
 
   }
-  Serial.println("05 ---> start again");
-  Serial.println();
+  if (DEBUG_PRINT) {
+    Serial.println("05 ---> start again");
+    Serial.println();
+  }
+  scale_payload._salt++;
+  digitalWrite(LED, HIGH);
+  delay(50);
+  digitalWrite(LED, LOW);
+  delay(100);
+  digitalWrite(LED, HIGH);
+  delay(50);
+  digitalWrite(LED, LOW);
 }
 
 void tarehx711() {
@@ -175,8 +243,13 @@ int16_t gethx711() {
 }
 
 void goingSleep() {
-  Serial.println("01 ---> going to sleep");
+  if (DEBUG_PRINT) {
+    Serial.println("01 ---> going to sleep");
+  }
   delay(100);
+  digitalWrite(LED, HIGH);
+  delay(30);
+  digitalWrite(LED, LOW);
 
   detachInterrupt(1);
   while (digitalRead(PIR_INT)) {
@@ -189,13 +262,13 @@ void goingSleep() {
 }
 
 void goingTimerSleep() {
-  Serial.println("03 ---> going to timer sleep");
+  if (DEBUG_PRINT) {
+    Serial.println("03 ---> going to timer sleep");
+  }
   delay(100);
-
   enable_gy521();
-  LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF);
+  LowPower.powerDown(SLEEP_4S, ADC_OFF, BOD_OFF);
   detachInterrupt(0);
-  digitalWrite(LED, LOW);
 }
 
 void disable_gy521() {
@@ -205,8 +278,9 @@ void disable_gy521() {
 
 void enable_gy521() {
   digitalWrite(GY521_VCC, HIGH);
+  digitalWrite(LED, HIGH);
   delay(100);
-
+  digitalWrite(LED, LOW);
   accelgyro.initialize();
   Wire.beginTransmission(0x68);
   Wire.write(0x37);
@@ -251,6 +325,7 @@ void enable_gy521() {
   attachInterrupt(0, motion_isr_start, RISING);
 }
 
+
 int readVcc() {
   adc_enable();
   //ADMUX = _BV(MUX3) | _BV(MUX2);
@@ -283,5 +358,6 @@ int readVcc() {
 
   return (int)result; // Vcc in millivolts
 }
+
 // END
 
