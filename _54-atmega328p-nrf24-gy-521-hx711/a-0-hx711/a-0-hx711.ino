@@ -7,7 +7,7 @@
 // HX711.DOUT	- pin #A1
 // HX711.PD_SCK	- pin #A0
 // sck, DT
-HX711 scale(8, 7);		// parameter "gain" is ommited; the default value 128 is used by the library
+HX711 scale(7, 8);		// parameter "gain" is ommited; the default value 128 is used by the library
 
 void setup() {
   Serial.begin(57600);

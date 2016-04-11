@@ -73,7 +73,7 @@ struct {
 
 RF24 radio(CE_PIN, CSN_PIN);
 MPU6050 accelgyro;
-HX711 scale(HX711_SCK, HX711_DT);
+HX711 scale(HX711_DT, HX711_SCK);
 
 unsigned int detcdur = 3;
 unsigned int thrs    = 1;
@@ -122,6 +122,10 @@ void setup() {
 
   bpir_isr = bmotion_isr = false;
 
+  scale.set_scale(22852.f);
+  scale.tare();
+  scale.power_down();
+
   //
   pinMode(LED, OUTPUT);
   pinMode(GY521_VCC, OUTPUT);
@@ -136,14 +140,38 @@ void loop() {
 
   if (bpir_isr) {
     Serial.println("02 ---> pir detected --> going to timer sleep");
+
+    //tarehx711();
     goingTimerSleep();
 
     if (bmotion_isr) {
-      getHX711();
+      while (1) {
+        unsigned long startmillis = millis();
+        int16_t nWeight = gethx711();
+        if (nWeight < 1000) {
+          break;
+        }
+        LowPower.powerDown(SLEEP_250MS, ADC_OFF, BOD_OFF);
+      }
     }
+
   }
   Serial.println("05 ---> start again");
   Serial.println();
+}
+
+void tarehx711() {
+  scale.power_up();
+  scale.set_scale(22852.f);
+  scale.tare();
+  scale.power_down();
+}
+
+int16_t gethx711() {
+  scale.power_up();
+  float fmeasured = scale.get_units(5);
+  scale.power_down();
+  return (int16_t)(fmeasured * 1000) ;
 }
 
 void goingSleep() {
@@ -221,13 +249,6 @@ void enable_gy521() {
   accelgyro.setStandbyZAccelEnabled(0);
   delay(100);
   attachInterrupt(0, motion_isr_start, RISING);
-}
-
-
-int16_t getHX711() {
-  Serial.println("04 ---> get hx711 value");
-  //float fmeasured = scale.get_units(5);
-  //return (int16_t)(fmeasured * 1000) * 10 ;
 }
 
 int readVcc() {
