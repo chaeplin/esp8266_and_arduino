@@ -105,7 +105,7 @@ void setup() {
   //
   adc_disable();
   //
-  ledonoff(10, 4);
+  ledonoff(8, 1);
 
   if (DEBUG_PRINT) {
     Serial.begin(115200);
@@ -151,7 +151,7 @@ void loop() {
     }
 
     scale_payload.volt = readVcc();
-    ledonoff(4, 4);
+    ledonoff(4, 1);
 
     //
     if (!blowpower && (scale_payload.volt < 2500)) {
@@ -217,7 +217,7 @@ void loop() {
             radio.powerDown();
           }
         }
-        ledonoff(2, 2);
+        ledonoff(2, 1);
         LowPower.powerDown(SLEEP_250MS, ADC_OFF, BOD_OFF);
         nofchecked++;
       }
@@ -229,7 +229,7 @@ void loop() {
     Serial.println();
   }
   scale_payload._salt++;
-  ledonoff(4, 5);
+  ledonoff(4, 1);
 }
 
 void ledonoff(int m, int n) {
@@ -247,7 +247,7 @@ void ledonoff(int m, int n) {
 
 void tarehx711() {
   scale.power_up();
-  scale.set_scale(22852.f);
+  scale.set_scale(23500.f);
   scale.tare();
   scale.power_down();
 }
@@ -263,7 +263,7 @@ void goingSleep() {
   if (DEBUG_PRINT) {
     Serial.println("01 ---> going to sleep");
   }
-  ledonoff(2, 3);
+  ledonoff(2, 1);
 
   detachInterrupt(1);
   while (digitalRead(PIR_INT)) {
@@ -292,7 +292,7 @@ void disable_gy521() {
 
 void enable_gy521() {
   digitalWrite(GY521_VCC, HIGH);
-  ledonoff(10, 10);
+  ledonoff(6, 1);
 
   accelgyro.initialize();
   Wire.beginTransmission(0x68);
