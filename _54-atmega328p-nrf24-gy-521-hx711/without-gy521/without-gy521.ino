@@ -84,7 +84,7 @@ void setup() {
   //
   adc_disable();
   //
-  ledonoff(8, 1);
+  ledonoff(8, 5);
 
   if (DEBUG_PRINT) {
     Serial.begin(115200);
@@ -131,10 +131,10 @@ void loop() {
 
     ledonoff(4, 1);
 
-    int nofchecked = 1;
+    int nofchecked = 0;
     while (1) {
 
-      int16_t nWeight = gethx711(1);
+      int16_t nWeight = gethx711once();
 
       if (DEBUG_PRINT) {
         Serial.print("02 ---> checking nWeight : ");
@@ -150,10 +150,10 @@ void loop() {
 
       nofchecked++;
       if ( nofchecked > 4 ) {
-        tarehx711();
         break;
       }
       LowPower.powerDown(SLEEP_1S, ADC_OFF, BOD_OFF);
+      ledonoff(2, 2);  
     }
 
     scale_payload.volt = readVcc();
@@ -185,14 +185,14 @@ void nemoison() {
 
   while (1) {
     unsigned long startmillis = millis();
-    int16_t nWeight = gethx711(5);
+    int16_t nWeight = gethx711();
 
     if (nWeight < 1500 || nofchecked > 120 || bavgsent ) {
       return;
     }
 
     ave.push(nWeight);
-    if (( ave.stddev() < 20 ) && ( nofchecked > 5 ) && ( ave.mean() > 1000 ) && ( ave.mean() < 7000 ) && (!bavgsent)) {
+    if (( ave.stddev() < 20 ) && ( nofchecked > 5 ) && ( ave.mean() > 3000 ) && ( ave.mean() < 7000 ) && (!bavgsent)) {
       if (DEBUG_PRINT) {
         Serial.print("===> WeightAvg : ");
         Serial.print(ave.mean());
@@ -249,14 +249,21 @@ void ledonoff(int m, int n) {
 
 void tarehx711() {
   scale.power_up();
-  //scale.set_scale(23500.f);
+  scale.set_scale(23500.f);
   scale.tare();
   scale.power_down();
 }
 
-int16_t gethx711(uint8_t m) {
+int16_t gethx711once() {
   scale.power_up();
-  float fmeasured = scale.get_units();
+  float fmeasured = scale.get_units(2);
+  scale.power_down();
+  return (int16_t)(fmeasured * 1000) ;
+}
+
+int16_t gethx711() {
+  scale.power_up();
+  float fmeasured = scale.get_units(5);
   scale.power_down();
   return (int16_t)(fmeasured * 1000) ;
 }
