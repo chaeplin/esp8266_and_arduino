@@ -1,4 +1,4 @@
-// esp-01 4M / 3M flash / esp-solar
+// esp-01 1M / 64K flash / esp-solar
 #include <TimeLib.h>
 #include <PubSubClient.h>
 #include <ESP8266WiFi.h>

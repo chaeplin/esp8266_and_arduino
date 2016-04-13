@@ -115,7 +115,7 @@ void setup() {
   bpir_isr = blowpower = false;
 
   scale.set_scale(23500.f);
-  scale.tare();
+  scale.tare(10);
   scale.power_down();
 
   digitalWrite(LED, LOW);
@@ -134,7 +134,7 @@ void loop() {
     int nofchecked = 0;
     while (1) {
 
-      int16_t nWeight = gethx711once();
+      int16_t nWeight = gethx711(2);
 
       if (DEBUG_PRINT) {
         Serial.print("02 ---> checking nWeight : ");
@@ -143,17 +143,26 @@ void loop() {
         Serial.println(nofchecked);
       }
 
+      if ( nofchecked == 0 ) {
+          scale_payload.avemean   = nWeight;
+          scale_payload.avestddev = 0;
+          scale_payload.avetype   = 3;
+          radio.powerUp();
+          radio.write(&scale_payload, sizeof(scale_payload));
+          radio.powerDown();
+      }
+          
       if ( nWeight > 1500 ) {
         nemoison();
         break;
       }
 
       nofchecked++;
-      if ( nofchecked > 4 ) {
+      if ( nofchecked > 2 ) {
         break;
       }
-      LowPower.powerDown(SLEEP_1S, ADC_OFF, BOD_OFF);
-      ledonoff(2, 2);  
+      LowPower.powerDown(SLEEP_500MS, ADC_OFF, BOD_OFF);
+      ledonoff(2, 2);
     }
 
     scale_payload.volt = readVcc();
@@ -185,14 +194,14 @@ void nemoison() {
 
   while (1) {
     unsigned long startmillis = millis();
-    int16_t nWeight = gethx711();
+    int16_t nWeight = gethx711(5);
 
     if (nWeight < 1500 || nofchecked > 120 || bavgsent ) {
       return;
     }
 
     ave.push(nWeight);
-    if (( ave.stddev() < 20 ) && ( nofchecked > 5 ) && ( ave.mean() > 3000 ) && ( ave.mean() < 7000 ) && (!bavgsent)) {
+    if (( ave.stddev() < 20 ) && ( nofchecked > 8 ) && ( ave.mean() > 3000 ) && ( ave.mean() < 7000 ) && (!bavgsent)) {
       if (DEBUG_PRINT) {
         Serial.print("===> WeightAvg : ");
         Serial.print(ave.mean());
@@ -220,12 +229,14 @@ void nemoison() {
         Serial.println(nWeight);
         delay(10);
       } else {
-        scale_payload.avemean   = nWeight;
-        scale_payload.avestddev = (int16_t)ave.stddev();
-        scale_payload.avetype   = 0;
-        radio.powerUp();
-        radio.write(&scale_payload, sizeof(scale_payload));
-        radio.powerDown();
+        if ( (nofchecked % 3) == 0 ) {
+          scale_payload.avemean   = nWeight;
+          scale_payload.avestddev = (int16_t)ave.stddev();
+          scale_payload.avetype   = 0;
+          radio.powerUp();
+          radio.write(&scale_payload, sizeof(scale_payload));
+          radio.powerDown();
+        }
       }
     }
     ledonoff(2, 2);
@@ -250,20 +261,13 @@ void ledonoff(int m, int n) {
 void tarehx711() {
   scale.power_up();
   scale.set_scale(23500.f);
-  scale.tare();
+  scale.tare(5);
   scale.power_down();
 }
 
-int16_t gethx711once() {
+int16_t gethx711(int m) {
   scale.power_up();
-  float fmeasured = scale.get_units(2);
-  scale.power_down();
-  return (int16_t)(fmeasured * 1000) ;
-}
-
-int16_t gethx711() {
-  scale.power_up();
-  float fmeasured = scale.get_units(5);
+  float fmeasured = scale.get_units(m);
   scale.power_down();
   return (int16_t)(fmeasured * 1000) ;
 }
@@ -275,13 +279,16 @@ void goingSleep() {
   ledonoff(2, 1);
 
   detachInterrupt(1);
-  while (digitalRead(PIR_INT)) {
-    LowPower.powerDown(SLEEP_250MS, ADC_OFF, BOD_OFF);
+  if (digitalRead(PIR_INT)) {
+    LowPower.powerDown(SLEEP_500MS, ADC_OFF, BOD_OFF);
+  } else {
+    bpir_isr = false;
+    attachInterrupt(1, pir_isr, RISING);
+    LowPower.powerDown(SLEEP_FOREVER, ADC_OFF, BOD_OFF);
+    detachInterrupt(1);
+    tarehx711();
+    scale_payload.volt = readVcc();
   }
-  bpir_isr = false;
-  attachInterrupt(1, pir_isr, RISING);
-  LowPower.powerDown(SLEEP_FOREVER, ADC_OFF, BOD_OFF);
-  detachInterrupt(1);
 }
 
 int readVcc() {
