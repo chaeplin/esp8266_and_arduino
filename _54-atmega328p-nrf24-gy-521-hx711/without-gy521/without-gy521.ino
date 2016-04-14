@@ -121,6 +121,15 @@ void setup() {
   digitalWrite(LED, LOW);
 }
 
+/*
+  avetype
+  4 : before tare
+  3 : after pir
+  2 : low power
+  1 : average
+  0 : every
+*/
+
 void loop() {
   goingSleep();
 
@@ -144,14 +153,14 @@ void loop() {
       }
 
       if ( nofchecked == 0 ) {
-          scale_payload.avemean   = nWeight;
-          scale_payload.avestddev = 0;
-          scale_payload.avetype   = 3;
-          radio.powerUp();
-          radio.write(&scale_payload, sizeof(scale_payload));
-          radio.powerDown();
+        scale_payload.avemean   = nWeight;
+        scale_payload.avestddev = 0;
+        scale_payload.avetype   = 3; // after pir
+        radio.powerUp();
+        radio.write(&scale_payload, sizeof(scale_payload));
+        radio.powerDown();
       }
-          
+
       if ( nWeight > 1500 ) {
         nemoison();
         break;
@@ -170,7 +179,7 @@ void loop() {
     if (!blowpower && (scale_payload.volt < 2500)) {
       scale_payload.avemean   = 0;
       scale_payload.avestddev = 0;
-      scale_payload.avetype   = 2;
+      scale_payload.avetype   = 2; // low power
       radio.powerUp();
       radio.write(&scale_payload, sizeof(scale_payload));
       radio.powerDown();
@@ -211,7 +220,7 @@ void nemoison() {
       } else {
         scale_payload.avemean   = (int16_t)ave.mean();
         scale_payload.avestddev = (int16_t)ave.stddev();
-        scale_payload.avetype   = 1;
+        scale_payload.avetype   = 1; // aveg
         radio.powerUp();
         radio.write(&scale_payload, sizeof(scale_payload));
         radio.powerDown();
@@ -232,7 +241,7 @@ void nemoison() {
         if ( (nofchecked % 3) == 0 ) {
           scale_payload.avemean   = nWeight;
           scale_payload.avestddev = (int16_t)ave.stddev();
-          scale_payload.avetype   = 0;
+          scale_payload.avetype   = 0; // every
           radio.powerUp();
           radio.write(&scale_payload, sizeof(scale_payload));
           radio.powerDown();
@@ -259,9 +268,17 @@ void ledonoff(int m, int n) {
 }
 
 void tarehx711() {
+  int16_t nWeight = gethx711(2);
+  scale_payload.avemean   = nWeight;
+  scale_payload.avestddev = 0;
+  scale_payload.avetype   = 4; // tare
+  radio.powerUp();
+  radio.write(&scale_payload, sizeof(scale_payload));
+  radio.powerDown();
+
   scale.power_up();
   scale.set_scale(23500.f);
-  scale.tare(5);
+  scale.tare(10);
   scale.power_down();
 }
 
@@ -282,13 +299,22 @@ void goingSleep() {
   if (digitalRead(PIR_INT)) {
     LowPower.powerDown(SLEEP_500MS, ADC_OFF, BOD_OFF);
   } else {
-    bpir_isr = false;
-    attachInterrupt(1, pir_isr, RISING);
-    LowPower.powerDown(SLEEP_FOREVER, ADC_OFF, BOD_OFF);
-    detachInterrupt(1);
-    tarehx711();
-    scale_payload.volt = readVcc();
+    sleepXminutes(60);
+    if (!bpir_isr) {
+      tarehx711();
+    }
   }
+}
+
+void sleepXminutes(int m) {
+  int x = ( m * 60 ) / 8;
+  bpir_isr = false;
+  attachInterrupt(1, pir_isr, RISING);
+  for (int i = 0; i < x; i++) {
+    LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF);
+  }
+  detachInterrupt(1);
+  scale_payload.volt = readVcc();
 }
 
 int readVcc() {
