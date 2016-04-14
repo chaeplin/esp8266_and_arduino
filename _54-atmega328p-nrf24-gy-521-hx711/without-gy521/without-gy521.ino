@@ -268,6 +268,9 @@ void ledonoff(int m, int n) {
 }
 
 void tarehx711() {
+  if (DEBUG_PRINT) {
+    Serial.println("02 ---> tare hx711");
+  }
   int16_t nWeight = gethx711(2);
   scale_payload.avemean   = nWeight;
   scale_payload.avestddev = 0;
@@ -299,22 +302,28 @@ void goingSleep() {
   if (digitalRead(PIR_INT)) {
     LowPower.powerDown(SLEEP_500MS, ADC_OFF, BOD_OFF);
   } else {
-    sleepXminutes(60);
+    int m = 60;
+    int x = ( m * 60 ) / 8;
+    bpir_isr = false;
+
+    for (int i = 0; i < x; i++) {
+      // 8S
+      wdt_enable(9);
+      WDTCSR |= (1 << WDIE);
+      attachInterrupt(1, pir_isr, RISING);
+      LowPower.powerDown(SLEEP_FOREVER, ADC_OFF, BOD_OFF);
+      detachInterrupt(1);
+      if ( bpir_isr ) {
+        break;
+      }
+    }
+
+    scale_payload.volt = readVcc();
+
     if (!bpir_isr) {
       tarehx711();
     }
   }
-}
-
-void sleepXminutes(int m) {
-  int x = ( m * 60 ) / 8;
-  bpir_isr = false;
-  attachInterrupt(1, pir_isr, RISING);
-  for (int i = 0; i < x; i++) {
-    LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF);
-  }
-  detachInterrupt(1);
-  scale_payload.volt = readVcc();
 }
 
 int readVcc() {
