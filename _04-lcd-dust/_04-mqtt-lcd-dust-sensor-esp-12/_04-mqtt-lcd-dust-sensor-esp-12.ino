@@ -139,13 +139,14 @@ unsigned long sentMills ;
 
 long lastReconnectAttempt = 0;
 
-byte termometru[8]      = { B00100, B01010, B01010, B01110, B01110, B11111, B11111, B01110, };
-byte picatura[8]        = { B00100, B00100, B01010, B01010, B10001, B10001, B10001, B01110, };
-byte dustDensityicon[8] = { B11111, B11111, B11011, B10001, B10001, B11011, B11111, B11111, };
-byte dustDensityfill[8] = { B11111, B11111, B11111, B11111, B11111, B11111, B11111, B11111, };
-byte pirfill[8]         = { B00111, B00111, B00111, B00111, B00111, B00111, B00111, B00111, };
-byte powericon[8]       = { B11111, B11011, B10001, B11011, B11111, B11000, B11000, B11000, };
-byte nemoicon[8]        = { B11011, B11011, B00100, B11111, B10101, B11111, B01010, B11011, };
+byte termometru[8]      = { B00100, B01010, B01010, B01110, B01110, B11111, B11111, B01110 };
+byte picatura[8]        = { B00100, B00100, B01010, B01010, B10001, B10001, B10001, B01110 };
+byte dustDensityicon[8] = { B11111, B11111, B11011, B10001, B10001, B11011, B11111, B11111 };
+byte dustDensityfill[8] = { B11111, B11111, B11111, B11111, B11111, B11111, B11111, B11111 };
+byte pirfill[8]         = { B00111, B00111, B00111, B00111, B00111, B00111, B00111, B00111 };
+byte powericon[8]       = { B11111, B11011, B10001, B11011, B11111, B11000, B11000, B11000 };
+byte nemoicon[8]        = { B11011, B11011, B00100, B11111, B10101, B11111, B01010, B11011 };
+byte callbackicon[8]    = { B11111, B11111, B11111, B11111, B00000, B00000, B00000, B00000 };
 
 // system defines
 #define DHTTYPE  DHT22        // Sensor type DHT11/21/22/AM2301/AM2302
@@ -262,7 +263,7 @@ void parseMqttMsg(String receivedpayload, String receivedtopic) {
       const char* tempunitot =  root["unitot"].asString();
       unitot = atoi(tempunitot);
     }
-    
+
     if (HO != unihost || HL != unitot) {
       HO = unihost;
       HL = unitot;
@@ -411,6 +412,7 @@ void setup() {
   lcd.createChar(5, pirfill);
   lcd.createChar(6, powericon);
   lcd.createChar(7, nemoicon);
+  lcd.createChar(8, callbackicon);
 
   lcd.setCursor(0, 1);
   lcd.write(1);
@@ -560,7 +562,7 @@ void loop() {
 
           if (msgcallback) {
             lcd.setCursor(19, 0);
-            lcd.write(5);
+            lcd.write(8);
           } else {
             lcd.setCursor(19, 0);
             lcd.print(" ");
@@ -703,7 +705,7 @@ void displayHost(int numofhost, int numofall) {
   lcd.print(numofall);
 
   lcd.setCursor(15, 2);
-  lcd.print(numofhost);  
+  lcd.print(numofhost);
 }
 
 void displaysleepmode(int sleepmode) {
@@ -751,8 +753,8 @@ void displayPIR() {
       lcd.write(5);
     }
   } else {
-    for ( int l = 0 ; l <= 3 ; l ++ ) {
-      lcd.setCursor(19, l);
+    for ( int i = 0 ; i <= 3 ; i ++ ) {
+      lcd.setCursor(19, i);
       lcd.print(" ");
     }
   }
@@ -905,8 +907,8 @@ void digitalClockDisplay() {
   // digital clock display of the time
   lcd.setCursor(0, 0);
   /*
-  lcd.print(year() - 2000);
-  lcd.print("/");
+    lcd.print(year() - 2000);
+    lcd.print("/");
   */
   printDigitsnocolon(month());
   lcd.print("/");
