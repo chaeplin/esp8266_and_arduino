@@ -131,6 +131,14 @@ struct {
   uint8_t devid;
 } scale_payload;
 
+#define RTC_MAGIC 12345
+
+struct {
+  uint32_t magic;
+  uint32_t salt;
+  uint8_t relaystatus;
+} rtc_relaystatus;
+
 // mqtt
 char* topic       = "esp8266/arduino/s02";
 char* rslttopic   = "esp8266/cmd/light/rlst";
@@ -139,25 +147,21 @@ char* hellotopic  = "HELLO";
 //
 char* radiotopic  = "radio/test";
 char* radiofault  = "radio/test/fault";
-
+//
 char* willTopic   = "clients/relay";
 char* willMessage = "0";
-
 //
 char* topicAverage  = "esp8266/arduino/s06";
-
 //
 char* lowpower      = "lowpower";
-
 // subscribe
 //
 const char subtopic[]   = "esp8266/cmd/light";   // light command
-
+//
 const char* substopic[1] = { subtopic } ;
-
+//
 unsigned int localPort = 12390;
 const int timeZone = 9;
-
 //
 String clientName;
 String payload;
@@ -177,7 +181,7 @@ int pirSent  ;
 int oldpirValue ;
 
 //
-volatile int relaystatus    = LOW;
+volatile int relaystatus = LOW;
 int oldrelaystatus = LOW;
 
 //
@@ -192,11 +196,8 @@ int millisnow;
 //
 int relayIsReady = HIGH;
 
-
 // DHT
-
 //declaration
-
 #if defined(ENABLE_DHT)
 // Lib instantiate
 PietteTech_DHT DHT(DHTPIN, DHTTYPE, dht_wrapper);
@@ -227,6 +228,19 @@ void ICACHE_RAM_ATTR dht_wrapper() {
   DHT.isrCallback();
 }
 #endif
+
+//
+void ICACHE_RAM_ATTR rtc_check() {
+  // system_rtc_mem_read(64... not work, use > 64
+  system_rtc_mem_read(100, &rtc_relaystatus, sizeof(rtc_relaystatus));
+  if (rtc_relaystatus.magic != RTC_MAGIC) {
+    rtc_relaystatus.magic = RTC_MAGIC;
+    rtc_relaystatus.salt = 0;
+  } else {
+    relaystatus = oldrelaystatus = rtc_relaystatus.relaystatus;
+    rtc_relaystatus.salt++;
+  }
+}
 
 void wifi_connect() {
   //wifi_set_phy_mode(PHY_MODE_11N);
@@ -327,6 +341,8 @@ void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int lengt
 void setup() {
   system_update_cpu_freq(SYS_CPU_80MHz);
   // wifi_status_led_uninstall();
+
+  rtc_check();
 
   startMills = timemillis = lastRelayActionmillis = millis();
   lastRelayActionmillis += BETWEEN_RELAY_ACTIVE;
@@ -616,13 +632,13 @@ void loop() {
         uint8_t len = radio.getDynamicPayloadSize();
         // avr 8bit, esp 32bit. esp use 4 byte step.
 
-          if (DEBUG_PRINT) {
-            syslogPayload = "radio  pipeNo ==> ";
-            syslogPayload += pipeNo;
-            syslogPayload += " len ==> ";
-            syslogPayload += len;
-            sendUdpSyslog(syslogPayload);
-          }
+        if (DEBUG_PRINT) {
+          syslogPayload = "radio  pipeNo ==> ";
+          syslogPayload += pipeNo;
+          syslogPayload += " len ==> ";
+          syslogPayload += len;
+          sendUdpSyslog(syslogPayload);
+        }
 
         // use switch ?
         // time request
@@ -642,6 +658,8 @@ void loop() {
           }
           // scale data
         } else if (len == sizeof(scale_payload) && ( pipeNo == 4)) {
+          time_ackpayload.timestamp = timestamp;
+          radio.writeAckPayload(pipeNo, &time_ackpayload, sizeof(time_ackpayload));
           radio.read(&scale_payload, sizeof(scale_payload));
           if (scale_payload.devid == 35 ) {
 
@@ -801,6 +819,10 @@ void changelight() {
     syslogPayload += relaystatus;
     sendUdpSyslog(syslogPayload);
   }
+
+  rtc_relaystatus.salt++;
+  rtc_relaystatus.relaystatus = relaystatus;
+  system_rtc_mem_write(100, &rtc_relaystatus, sizeof(rtc_relaystatus));
 
   lastRelayActionmillis = millis();
   oldrelaystatus = relaystatus ;
