@@ -48,6 +48,7 @@ struct {
   float data2;
   uint16_t powerAvg;
   uint16_t WeightAvg;
+  uint16_t pir;
 } solar_data;
 
 char* hellotopic  = "HELLO";
@@ -61,8 +62,9 @@ const char subtopic_0[] = "esp8266/arduino/s03"; // lcd temp
 const char subtopic_1[] = "esp8266/arduino/s07"; // power
 const char subtopic_2[] = "esp8266/arduino/s06"; // nemo scale
 const char subtopic_3[] = "radio/test/2";        //Outside temp
+const char subtopic_4[] = "raspberrypi/doorpir";
 
-const char* substopic[5] = { subrpi, subtopic_0, subtopic_1, subtopic_2, subtopic_3 } ;
+const char* substopic[6] = { subrpi, subtopic_0, subtopic_1, subtopic_2, subtopic_3, subtopic_4 } ;
 
 unsigned int localPort = 12390;
 const int timeZone = 9;
@@ -130,7 +132,7 @@ boolean reconnect() {
       }
 
       client.loop();
-      for (int i = 0; i < 5; ++i) {
+      for (int i = 0; i < 6; ++i) {
         client.subscribe(substopic[i]);
         client.loop();
       }
@@ -214,6 +216,15 @@ void parseMqttMsg(String receivedpayload, String receivedtopic) {
       solar_data.Temperature2 = root["data1"];
     }
   }
+
+  if ( receivedtopic == substopic[5] ) {
+    if (root.containsKey("DOORPIR")) {
+      if (solar_data.pir != root["DOORPIR"]) {
+        solar_data.pir  = int(root["DOORPIR"]);
+      }
+    }
+  }
+
   msgcallback = !msgcallback;
 }
 
@@ -253,21 +264,21 @@ void setup() {
 
   lcd.createChar(3, customCharB);
   lcd.createChar(4, customCharfill);
-  
-  for ( int i= 1 ; i< 19 ; i++) {
+
+  for ( int i = 1 ; i < 19 ; i++) {
     lcd.setCursor(i, 0);
     lcd.write(4);
     lcd.setCursor(i, 3);
     lcd.write(4);
   }
 
-  for ( int i= 0 ; i< 4 ; i++) {
+  for ( int i = 0 ; i < 4 ; i++) {
     lcd.setCursor(0, i);
     lcd.write(4);
     lcd.setCursor(19, i);
-    lcd.write(4);    
+    lcd.write(4);
   }
-  
+
   WiFiClient::setLocalPortStart(analogRead(A0));
   wifi_connect();
 
@@ -363,6 +374,7 @@ void loop() {
           displayNemoWeight();
           displaypowerAvg();
           displayData();
+          displaypir();
 
           if (msgcallback) {
             lcd.setCursor(19, 0);
@@ -398,6 +410,21 @@ void displayData() {
 
   lcd.setCursor(15, 3);
   lcd.print(solar_data.data2, 2);
+}
+
+
+void displaypir() {
+  if ( solar_data.pir == 1) {
+    for ( int i = 0 ; i <= 2 ; i ++ ) {
+      lcd.setCursor(19, i);
+      lcd.write(5);
+    }
+  } else {
+    for ( int i = 0 ; i <= 2 ; i ++ ) {
+      lcd.setCursor(19, i);
+      lcd.print(" ");
+    }
+  }
 }
 
 void displaypowerAvg() {

@@ -246,7 +246,7 @@ void parseMqttMsg(String receivedpayload, String receivedtopic) {
   {
     if (root.containsKey("DOORPIR")) {
       if (PIR != root["DOORPIR"]) {
-        PIR = root["DOORPIR"];
+        PIR = int(root["DOORPIR"]);
         PIR_UPDATE = true;
       }
     }
