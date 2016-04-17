@@ -142,11 +142,12 @@ void loop() {
       prevDisplay = now();
       if (timeStatus() == timeSet) {
         digitalClockDisplay();
+        
+        if (x) {
+          tweeting();
+          x = false;
+        }
       }
-    }
-    if (x) {
-      tweeting();
-      x = false;
     }
   } else {
     wifi_connect();
@@ -212,7 +213,7 @@ String make_OAuth_header(String oauth_signature, uint32_t value_nonce, uint32_t 
 }
 
 String make_para_string(String status_all, uint32_t value_nonce, uint32_t value_timestamp) {
-  String para_string = key_consumer_key;
+  String para_string = keys[1];
   para_string += "=" ;
   para_string += tweeter[0];
   para_string += "&";
@@ -270,11 +271,11 @@ bool do_http_post(const char* base_host, String OAuth_header, String status_all)
 }
 
 
-String make_signature(const char* consumer_secret, const char* access_secret, String base_string) {
+String make_signature(const char* secret_one, const char* secret_two, String base_string) {
 
-  String signing_key = URLEncode(consumer_secret);
+  String signing_key = URLEncode(secret_one);
   signing_key += "&";
-  signing_key += URLEncode(access_secret);
+  signing_key += URLEncode(secret_two);
 
   //Serial.println(signing_key);
 
