@@ -1,3 +1,7 @@
+// based on tweeting_silicon : http://harizanov.com/2015/06/tweeting-silicon/
+// https://github.com/igrr/axtls-8266/blob/master/crypto/hmac.c
+// http://hardwarefun.com/tutorials/url-encoding-in-arduino
+// chaeplin
 #include <TimeLib.h>
 #include <ESP8266WiFi.h>
 #include <WiFiClientSecure.h>

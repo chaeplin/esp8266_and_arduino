@@ -26,11 +26,10 @@ void loop()
   if (duration > 10 ) {
     // reset
     digitalWrite(FLASH_PIN, LOW);
-    delay(20);
     digitalWrite(RESET_PIN, LOW);
     delay(200);
     digitalWrite(RESET_PIN, HIGH);
-    delay(200);
+    delay(20);
     digitalWrite(FLASH_PIN, HIGH);
   }
 }

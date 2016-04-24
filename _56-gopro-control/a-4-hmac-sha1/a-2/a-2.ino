@@ -1,11 +1,9 @@
-
-
 #include <base64.h>
-#include "/usr/local/src/ap_setting.h"
 
 #define SHA1_SIZE 20
 
 extern "C" {
+
   // https://github.com/mharizanov/tweeting_silicon/blob/master/include/ssl_crypto.h
   typedef struct
   {
@@ -20,7 +18,9 @@ extern "C" {
   void SHA1_Update(SHA1_CTX *, const uint8_t * msg, int len);
   void SHA1_Final(uint8_t *digest, SHA1_CTX *);
 
-  void hmac_sha1(const uint8_t *msg, int length, const uint8_t *key, int key_len, uint8_t *digest);
+
+  //void hmac_sha1(const uint8_t *msg, int length, const uint8_t *key, int key_len, uint8_t *digest);
+  ssl_hmac_sha1(const uint8_t *msg, int length, const uint8_t *key, int key_len, uint8_t *digest);
 }
 
 void compute();
@@ -109,7 +109,8 @@ void setup() {
   SHA1_Final(digestkey, &context);
 
   uint8_t digest[32];
-  hmac_sha1((uint8_t*) base_string.c_str(), (int)base_string.length(), digestkey, SHA1_SIZE, digest);
+  //hmac_sha1((uint8_t*) base_string.c_str(), (int)base_string.length(), digestkey, SHA1_SIZE, digest);
+  ssl_hmac_sha1((uint8_t*) base_string.c_str(), (int)base_string.length(), digestkey, SHA1_SIZE, digest);
 
   Serial.print("OAuth signature ssl_hmac_sha1: ");
   for (int i = 0; i < SHA1_SIZE; i++) {

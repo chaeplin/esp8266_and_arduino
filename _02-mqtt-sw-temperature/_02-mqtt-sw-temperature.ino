@@ -14,7 +14,6 @@
   ADC
 */
 #include <TimeLib.h>
-//#include <TimeAlarms.h>
 #include <nRF24L01.h>
 #include <RF24.h>
 #include <OneWire.h>
@@ -46,8 +45,8 @@ extern "C" {
 #define DHT_DEBUG_TIMING
 #endif
 
-#define INFO_PRINT 0
-#define DEBUG_PRINT 0
+#define INFO_PRINT 1
+#define DEBUG_PRINT 1
 
 // ****************
 time_t getNtpTime();
@@ -156,9 +155,9 @@ char* topicAverage  = "esp8266/arduino/s06";
 char* lowpower      = "lowpower";
 // subscribe
 //
-const char subtopic[]   = "esp8266/cmd/light";   // light command
+char subtopic[]   = "esp8266/cmd/light";   // light command
 //
-const char* substopic[1] = { subtopic } ;
+char* substopic[1] = { subtopic } ;
 //
 unsigned int localPort = 12390;
 const int timeZone = 9;
@@ -214,6 +213,8 @@ float t, h;
 // ds18b20
 bool bDalasstarted;
 
+bool bupdateLightStatus;
+
 /////////////
 WiFiClient wifiClient;
 PubSubClient client(mqtt_server, 1883, callback, wifiClient);
@@ -243,7 +244,7 @@ void ICACHE_RAM_ATTR rtc_check() {
 }
 
 void wifi_connect() {
-  //wifi_set_phy_mode(PHY_MODE_11N);
+  wifi_set_phy_mode(PHY_MODE_11N);
   //wifi_set_channel(channel);
 
   //WiFiClient::setLocalPortStart(micros());
@@ -302,7 +303,8 @@ void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int lengt
   }
 
   if (INFO_PRINT) {
-    syslogPayload = intopic;
+    syslogPayload = "mqtt ====> ";
+    syslogPayload += intopic;
     syslogPayload += " ====> ";
     syslogPayload += receivedpayload;
     sendUdpSyslog(syslogPayload);
@@ -378,6 +380,9 @@ void setup() {
   if (timeStatus() == timeNotSet) {
     setSyncProvider(getNtpTime);
   }
+
+  //
+  bupdateLightStatus = false;
 
   timestamp = now();
 
@@ -542,6 +547,23 @@ void loop() {
         lightpayload += "}";
 
         sendmqttMsg(rslttopic, lightpayload, 1);
+
+        /* ----- */
+        if (bupdateLightStatus) {
+          if (INFO_PRINT) {
+            syslogPayload = "---> update light status :  ";
+            syslogPayload += relaystatus;
+            sendUdpSyslog(syslogPayload);
+          }
+
+          String lightpayload = "{\"LIGHT\":";
+          lightpayload += relaystatus;
+          lightpayload += "}";
+
+          sendmqttMsg(substopic[0], lightpayload, 1);
+          bupdateLightStatus = false;
+        }
+        /* ------ */
 
       }
 
@@ -800,7 +822,15 @@ void runTimerDoLightOff() {
       syslogPayload += relaystatus;
       sendUdpSyslog(syslogPayload);
     }
+    bupdateLightStatus = true;
     relaystatus = LOW;
+  }
+}
+
+void run_lightcmd() {
+  if ( relayIsReady == HIGH  ) {
+    bupdateLightStatus = true;
+    relaystatus = !relaystatus;
   }
 }
 
@@ -847,12 +877,6 @@ void ICACHE_RAM_ATTR sendmqttMsg(char* topictosend, String payload, bool retain)
     free(p);
   }
   client.loop();
-}
-
-void run_lightcmd() {
-  if ( relayIsReady == HIGH  ) {
-    relaystatus = !relaystatus;
-  }
 }
 
 #if defined(ENABLE_DHT)
