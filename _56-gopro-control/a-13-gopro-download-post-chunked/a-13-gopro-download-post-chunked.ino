@@ -122,10 +122,10 @@ unsigned int localPort = 12390;
 const int timeZone     = 9;
 /* ---- */
 uint32_t value_timestamp;
-//uint32_t value_nonce;
-String value_nonce;
+uint32_t value_nonce;
+//String value_nonce;
 /* ---- */
-const char* value_status  = "esp-01 / gopro image dn / test.....";
+const char* value_status  = "esp-01 / gopro image dn / test 8";
 /* ---- */
 bool x;
 
@@ -424,12 +424,24 @@ void setup() {
     return;
   }
 
-  //spiffs_format();
 
   if (!loadConfig()) {
     Serial.println("[CONFIG] Failed to load config");
   } else {
     Serial.println("[CONFIG] Config loaded");
+    if ( media_id == "724130611196092416" ) {
+      spiffs_format();
+      delay(200);
+      ESP.reset();
+    }
+  }
+
+  if ( twitter_phase == 7 ) {
+    attempt_this  = 0;
+    twitter_phase = 0;
+    saveConfig_helper();
+    delay(200);
+    ESP.reset();
   }
 
   // check fie size in config
@@ -440,15 +452,6 @@ void setup() {
     delay(200);
     ESP.reset();
   }
-
-
-  /** control phase **/
-
-  twitter_phase = 3;
-  chunked_no    = 0;
-
-  /* -------------- */
-
 
   if ( twitter_phase == 0) {
     Serial.println("[FILE] removing files / start");
@@ -517,8 +520,8 @@ void loop() {
       prevDisplay = now();
       if (timeStatus() == timeSet) {
 
-        //digitalClockDisplay();
-        //print_FreeHeap();
+        digitalClockDisplay();
+        print_FreeHeap();
 
       } else {
 
@@ -556,16 +559,9 @@ void loop() {
 
 
       if (timeStatus() == timeSet) {
-        /*
-          value_timestamp  = now();
-          value_nonce      = *(volatile uint32_t *)0x3FF20E44;
-        */
 
-        value_timestamp = 1461481166;
-        value_nonce     = "NXsauV4OeiBHAGSptGOc6ZdqpJ1gLP63i0TyV6cWFs";
-        media_id        = "724130611196092416";
-        chunked_no      = 1;
-
+        value_timestamp  = now();
+        value_nonce      = *(volatile uint32_t *)0x3FF20E44;
 
         switch (twitter_phase) {
 
@@ -577,16 +573,18 @@ void loop() {
             tweet_append();
             break;
 
+          case 4:
+            tweet_fin();
+            break;
 
-          /*
-                    case 4:
-                      tweet_fin();
-                      break;
+          case 5:
+            tweet_check();
+            break;
 
-                    case 6:
-                      tweet_status();
-                      break;
-          */
+          case 6:
+            tweet_status();
+            break;
+
 
           default:
             x = false;
@@ -594,7 +592,6 @@ void loop() {
         }
       }
     }
-    //x = false;
   } else {
     //wifi_connect();
     //setSyncProvider(getNtpTime);
@@ -613,7 +610,7 @@ String get_hash_str(String content_more, String content_last, int positionofchun
     Serial.println("[SPIFFS] File doesn't exist yet");
     return "0";
   } else {
-    f.seek(sizeof(float)*positionofchunk, SeekSet);
+    f.seek(positionofchunk, SeekSet);
     Serial.printf("[SPIFFS] move position to %d\n", positionofchunk);
   }
 
@@ -634,15 +631,15 @@ String get_hash_str(String content_more, String content_last, int positionofchun
 
     while (f.available()) {
       int c = f.readBytes(buff, ((len > sizeof(buff)) ? sizeof(buff) : len));
- 
+
       if ( c > 0 ) {
         SHA1_Update(&context, (uint8_t*) buff, c);
       }
- 
+
       if (len > 0) {
         len -= c;
       }
-  
+
       if (c == 0) {
         break;
       }
@@ -668,13 +665,12 @@ String get_hash_str(String content_more, String content_last, int positionofchun
 
     Serial.println();
 
+    Serial.printf("[READ1] position() %d\n", f.position());
     while (f.available()) {
       int c = f.readBytes(buff, ((len > sizeof(buff)) ? sizeof(buff) : len));
       if ( c > 0 ) {
         client.write((const uint8_t *) buff, c);
       }
-
-      digitalClockDisplay();
 
       Serial.printf("*****\t%d\t***\t%d %\n", (get_size - len), ((get_size - len) / (get_size / 100)));
 
@@ -687,11 +683,13 @@ String get_hash_str(String content_more, String content_last, int positionofchun
       }
 
       if (!client.connected()) {
+        Serial.println("[WRITE] client disconnected");
         return "0";
         break;
       }
 
     }
+
     client.print(content_last);
     f.close();
     return "1";
@@ -726,22 +724,30 @@ bool do_http_append_post(String content_header, String content_more, String cont
   client.print(content_header);
   get_hash_str(content_more, content_last, positionofchunk, get_size, true);
 
+  int _returnCode = 0;
   Serial.println("request sent");
   while (client.connected()) {
     String line = client.readStringUntil('\n');
-    if (line == "\r") {
-      Serial.println(line);
-      Serial.println("headers received");
+    if (line.startsWith("HTTP/1.")) {
+      _returnCode = line.substring(9, line.indexOf(' ', 9)).toInt();
       break;
     }
   }
-  String line = client.readStringUntil('\n');
 
-  Serial.println("reply was:");
-  Serial.println("==========");
-  Serial.println(line);
-  Serial.println("==========");
   Serial.println("closing connection");
+
+  if (_returnCode > 200 && _returnCode < 400) {
+    chunked_no++;
+    saveConfig_helper();
+
+    Serial.flush();
+    delay(200);
+    ESP.reset();
+
+    return true;
+  } else {
+    return false;
+  }
 
 }
 
@@ -770,7 +776,7 @@ bool do_http_text_post(String OAuth_header) {
 
     case 4:
       Serial.println("----> case 4 selected");
-      req_body_to_post = "ommand=FINALIZE&media_id=";
+      req_body_to_post = "command=FINALIZE&media_id=";
       req_body_to_post +=  media_id;
       http.begin(UPLOAD_BASE_HOST, HTTPSPORT, uri_to_post, upload_fingerprint);
       break;
@@ -778,7 +784,7 @@ bool do_http_text_post(String OAuth_header) {
     case 6:
       Serial.println("----> case 6 selected");
       req_body_to_post = "status=";
-      req_body_to_post += String(value_status);
+      req_body_to_post += String(URLEncode(value_status));
       http.begin(BASE_HOST, HTTPSPORT, uri_to_post, api_fingerprint);
       break;
 
@@ -787,7 +793,6 @@ bool do_http_text_post(String OAuth_header) {
       return false;
       break;
   }
-
 
   Serial.print("[HTTP] req_body_to_post size: ");
   Serial.println(req_body_to_post.length());
@@ -820,6 +825,11 @@ bool do_http_text_post(String OAuth_header) {
       attempt_this  = 0;
       twitter_phase = 7;
       saveConfig_helper();
+
+      Serial.flush();
+      delay(200);
+      ESP.reset();
+
       return true;
     } else {
       return false;
@@ -843,6 +853,11 @@ bool do_http_text_post(String OAuth_header) {
         attempt_this  = 0;
         twitter_phase = 3;
         saveConfig_helper();
+
+        Serial.flush();
+        delay(200);
+        ESP.reset();
+
         return true;
       }
     } else {
@@ -1049,10 +1064,13 @@ void tweet_status() {
   String base_string     = make_base_string(para_string);
   String oauth_signature = make_signature(CONSUMER_SECRET, ACCESS_SECRET, base_string);
   String OAuth_header    = make_OAuth_header(oauth_signature);
+  bool rtn               = do_http_text_post(OAuth_header);
   twitter_phase++;
 }
 
 void tweet_check() {
+  Serial.println();
+  Serial.printf("[PHASE : 5] =======================");
   // after FINALIZE, check status if result of FINALIZE contain processing_info
   twitter_phase++;
 }
@@ -1065,7 +1083,15 @@ void tweet_fin() {
   String base_string     = make_base_string(para_string);
   String oauth_signature = make_signature(CONSUMER_SECRET, ACCESS_SECRET, base_string);
   String OAuth_header    = make_OAuth_header(oauth_signature);
-  twitter_phase = 6;
+  bool rtn               = do_http_text_post(OAuth_header);
+
+
+  if (rtn) {
+    Serial.println("[PHASE : 4] ======================= OK");
+  } else {
+    Serial.println("[PHASE : 4] ======================= FAIL");
+  }
+
 }
 
 void tweet_append() {
@@ -1098,14 +1124,14 @@ void tweet_append() {
   content_more += media_id + "\r\n";
 
   content_more += "--00Twurl817862339941931672lruwT99\r\n";
-  content_more += "Content-Disposition: form-data; name=\"media\"; filename=\"GOPR1839-ab\"\r\n";
-  //content_more += "Content-Disposition: form-data; name=\"media\"; filename=\"" + String(media_id) + ".jpg\"\r\n" ;
+  //content_more += "Content-Disposition: form-data; name=\"media\"; filename=\"GOPR1839-ab\"\r\n";
+  content_more += "Content-Disposition: form-data; name=\"media\"; filename=\"" + String(value_timestamp) + ".jpg\"\r\n" ;
   content_more += "Content-Type: application/octet-stream\r\n\r\n";
 
   String content_last = "\r\n--00Twurl817862339941931672lruwT99--\r\n";
 
-  int content_length     = get_size + content_more.length() + content_last.length();
-  String hashStr         = get_hash_str(content_more, content_last, positionofchunk, get_size);
+  int content_length = get_size + content_more.length() + content_last.length();
+  String hashStr     = get_hash_str(content_more, content_last, positionofchunk, get_size);
 
   Serial.print("[HASH] hashStr : ");
   Serial.println(hashStr);
@@ -1135,17 +1161,12 @@ void tweet_append() {
   Serial.println(content_last);
 
 
-  /*
-    bool rtn = do_http_append_post(content_header, content_more, content_last, positionofchunk, get_size);
-    if (rtn) {
-    Serial.println("[PHASE : 3] ======================= OK");
-    } else {
-    Serial.println("[PHASE : 3] ======================= FAIL");
-    }
-  */
-
-  x = false;
-  chunked_no++;
+  bool rtn = do_http_append_post(content_header, content_more, content_last, positionofchunk, get_size);
+  if (rtn) {
+    Serial.printf("[PHASE : 3] =========== %d\t%d\tOK\n", twitter_phase, chunked_no);
+  } else {
+    Serial.printf("[PHASE : 3] =========== %d\t%d\tFAIL\n", twitter_phase, chunked_no);
+  }
 }
 
 void tweet_init() {
@@ -1243,6 +1264,10 @@ bool get_gopro_file() {
 
       Serial.println();
       Serial.println("[HTTP] connection closed");
+
+      Serial.flush();
+      delay(200);
+      ESP.reset();
     }
     rtn = true;
   } else {
