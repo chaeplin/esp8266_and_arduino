@@ -8,6 +8,9 @@
 #include <WiFiUdp.h>
 #include <ArduinoJson.h>
 #include <LiquidCrystal_I2C.h>
+// RTC
+// https://github.com/Makuna/Rtc
+#include <RtcDS3231.h>
 
 extern "C" {
 #include "user_interface.h"
@@ -16,7 +19,7 @@ extern "C" {
 #include "/usr/local/src/ap_setting.h"
 
 #define INFO_PRINT 0
-#define DEBUG_PRINT 1
+#define DEBUG_PRINT 0
 
 #define SYS_CPU_80MHz 80
 #define SYS_CPU_160MHz 160
@@ -46,8 +49,9 @@ struct {
   float Humidity;
   float data1;
   float data2;
+  float data3;
+  float data4;
   uint16_t powerAvg;
-  uint16_t WeightAvg;
   uint16_t pir;
 } solar_data;
 
@@ -60,11 +64,11 @@ char* willMessage = "0";
 const char subrpi[]     = "raspberrypi/data";
 const char subtopic_0[] = "esp8266/arduino/s03"; // lcd temp
 const char subtopic_1[] = "esp8266/arduino/s07"; // power
-const char subtopic_2[] = "esp8266/arduino/s06"; // nemo scale
 const char subtopic_3[] = "radio/test/2";        //Outside temp
 const char subtopic_4[] = "raspberrypi/doorpir";
+const char subtopic_5[] = "raspberrypi/data2";
 
-const char* substopic[6] = { subrpi, subtopic_0, subtopic_1, subtopic_2, subtopic_3, subtopic_4 } ;
+const char* substopic[6] = { subrpi, subtopic_0, subtopic_1, subtopic_3, subtopic_4, subtopic_5 } ;
 
 unsigned int localPort = 12390;
 const int timeZone = 9;
@@ -84,40 +88,53 @@ LiquidCrystal_I2C lcd(0x27, 20, 4);
 WiFiClient wifiClient;
 PubSubClient client(mqtt_server, 1883, callback, wifiClient);
 WiFiUDP udp;
+RtcDS3231 Rtc;
 
 long lastReconnectAttempt = 0;
 volatile bool msgcallback;
 
 //
-volatile uint32_t lastTime;
+volatile uint32_t lastTime, lastTime2;
 
 // https://omerk.github.io/lcdchargen/
 byte termometru[8]      = { B00100, B01010, B01010, B01110, B01110, B11111, B11111, B01110 };
 byte picatura[8]        = { B00100, B00100, B01010, B01010, B10001, B10001, B10001, B01110 };
 byte pirfill[8]         = { B00111, B00111, B00111, B00111, B00111, B00111, B00111, B00111 };
 byte powericon[8]       = { B11111, B11011, B10001, B11011, B11111, B11000, B11000, B11000 };
-byte nemoicon[8]        = { B11011, B11011, B00100, B11111, B10101, B11111, B01010, B11011 };
-byte customCharB[8]     = { B11110, B10001, B10001, B11110, B11110, B10001, B10001, B11110 };
 byte customCharfill[8]  = { B10101, B01010, B10001, B00100, B00100, B10001, B01010, B10101 };
+byte valueisinvalid[8]  = { B10000, B00000, B00000, B00000, B00000, B00000, B00000, B00000 };
+byte customblock[8]     = { B00100, B00100, B00100, B00100, B00100, B00100, B00100, B00100 };
 
 void wifi_connect() {
-  /*
-    wifi_set_phy_mode(PHY_MODE_11N);
-    system_phy_set_max_tpw(10);
-  */
-
+  //wifi_set_phy_mode(PHY_MODE_11N);
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
   WiFi.hostname("esp-solar");
 
+  lcd.setCursor(0, 0);
+  lcd.print("conn to: ");
+  lcd.print(ssid);
+
   int Attempt = 0;
   while (WiFi.status() != WL_CONNECTED) {
     delay(100);
+
+    int n = (Attempt % 20);
+    lcd.setCursor(n, 1);
+    lcd.print("*");
+    if (n < 19) {
+      lcd.setCursor((n + 1), 1);
+      lcd.print(" ");
+    }
     Attempt++;
     if (Attempt == 300) {
       ESP.restart();
     }
   }
+  lcd.setCursor(0, 2);
+  lcd.print("ip: ");
+  lcd.print(WiFi.localIP());
+  delay(1000);
 }
 
 boolean reconnect() {
@@ -206,23 +223,27 @@ void parseMqttMsg(String receivedpayload, String receivedtopic) {
   }
 
   if ( receivedtopic == substopic[3] ) {
-    if (root.containsKey("WeightAvg")) {
-      solar_data.WeightAvg = root["WeightAvg"];
-    }
-  }
-
-  if ( receivedtopic == substopic[4] ) {
     if (root.containsKey("data1")) {
       solar_data.Temperature2 = root["data1"];
     }
   }
 
-  if ( receivedtopic == substopic[5] ) {
+  if ( receivedtopic == substopic[4] ) {
     if (root.containsKey("DOORPIR")) {
       if (solar_data.pir != root["DOORPIR"]) {
         solar_data.pir  = int(root["DOORPIR"]);
       }
     }
+  }
+
+  if ( receivedtopic == substopic[5] ) {
+    if (root.containsKey("data1")) {
+      solar_data.data3 = root["data1"];
+    }
+    if (root.containsKey("data2")) {
+      solar_data.data4 = root["data2"];
+    }
+    lastTime2 = millis();
   }
 
   msgcallback = !msgcallback;
@@ -248,8 +269,8 @@ void setup() {
   getResetInfo += ESP.getResetInfo().substring(0, 50);
 
   //
-  solar_data.Temperature1 = solar_data.Temperature2 = solar_data.Humidity = solar_data.data1 = solar_data.data2 = solar_data.powerAvg = solar_data.WeightAvg = 0;
-  lastTime = millis();
+  solar_data.Temperature1 = solar_data.Temperature2 = solar_data.Humidity = solar_data.data1 = solar_data.data2 =  solar_data.data3 =  solar_data.data4 = solar_data.powerAvg = 0 ;
+  lastTime = lastTime2 = millis();
 
   // lcd
   lcd.init();
@@ -258,12 +279,12 @@ void setup() {
 
   lcd.createChar(1, termometru);
   lcd.createChar(2, picatura);
+  lcd.createChar(3, customblock);
+  lcd.createChar(4, customCharfill);
   lcd.createChar(5, pirfill);
   lcd.createChar(6, powericon);
-  lcd.createChar(7, nemoicon);
+  lcd.createChar(7, valueisinvalid);
 
-  lcd.createChar(3, customCharB);
-  lcd.createChar(4, customCharfill);
 
   for ( int i = 1 ; i < 19 ; i++) {
     lcd.setCursor(i, 0);
@@ -279,15 +300,64 @@ void setup() {
     lcd.write(4);
   }
 
+  delay(1000);
+  lcd.clear();
+
   WiFiClient::setLocalPortStart(analogRead(A0));
   wifi_connect();
 
-  udp.begin(localPort);
-  setSyncProvider(getNtpTime);
+  if (!Rtc.IsDateTimeValid()) {
+    if (DEBUG_PRINT) {
+      sendUdpSyslog("00 --> Rtc.IsDateTime is inValid");
+    }
 
-  if (timeStatus() == timeNotSet) {
-    setSyncProvider(getNtpTime);
+    lcd.setCursor(0, 3);
+    lcd.print("RTC is inValid");
+    delay(1000);
+
+    setSyncProvider(requestSync);
+
+    udp.begin(localPort);
+    int Attempt = 0;
+    while ( timeStatus() == timeNotSet ) {
+      setSyncProvider(getNtpTime);
+      Attempt++;
+      if (Attempt > 3) {
+        break;
+      }
+      yield();
+    }
+
+    if (timeStatus() == timeSet) {
+      if (DEBUG_PRINT) {
+        sendUdpSyslog("00 --> ntp time synced");
+      }
+
+      lcd.setCursor(0, 3);
+      lcd.print("ntp synced");
+
+      Rtc.SetDateTime(now() - 946684800);
+      if (!Rtc.GetIsRunning()) {
+        Rtc.SetIsRunning(true);
+      }
+    } else {
+      if (DEBUG_PRINT) {
+        sendUdpSyslog("00 --> ntp not synced, use rtc time anyway");
+      }
+    }
+  } else {
+    if (DEBUG_PRINT) {
+      sendUdpSyslog("00 --> Rtc.IsDateTime is Valid");
+    }
+    lcd.setCursor(0, 3);
+    lcd.print("RTC is Valid");
+    delay(1000);
   }
+  setSyncProvider(requestRtc);
+  setSyncInterval(60);
+
+  Rtc.Enable32kHzPin(false);
+  Rtc.SetSquareWavePin(DS3231SquareWavePin_ModeNone);
 
   //OTA
   ArduinoOTA.setPort(8266);
@@ -327,24 +397,20 @@ void setup() {
   lcd.setCursor(0, 2);
   lcd.write(2);
 
-  lcd.setCursor(8, 2);  // power
+  lcd.setCursor(0, 3);  // power
   lcd.write(6);
 
-  lcd.setCursor(0, 3);  // nemo
-  lcd.write(7);
-
-  lcd.setCursor(8, 3);  // b
+  lcd.setCursor(6, 2);  // b
   lcd.write(3);
 
+  lcd.setCursor(6, 3);  // b
+  lcd.write(3);
   //
   lcd.setCursor(6, 1);
   lcd.print((char)223);
 
   lcd.setCursor(12, 1);
   lcd.print((char)223);
-
-  lcd.setCursor(6, 2);
-  lcd.print("%");
 
 }
 
@@ -371,24 +437,43 @@ void loop() {
           prevDisplay = now();
           digitalClockDisplay();
           displayTemperature();
-          displayNemoWeight();
           displaypowerAvg();
-          displayData();
           displaypir();
+
+          if (second() % 10 == 0) {
+            displayData();
+            displayData2();
+
+            if (( millis() - lastTime ) > 120000 ) {
+              lcd.setCursor(19, 2);
+              lcd.write(5);
+            } else {
+              lcd.setCursor(19, 2);
+              lcd.print(" ");
+            }
+
+            if (( millis() - lastTime2 ) > 120000 ) {
+              lcd.setCursor(19, 3);
+              lcd.write(5);
+            } else {
+              lcd.setCursor(19, 3);
+              lcd.print(" ");
+            }
+          }
+
+          if (!Rtc.IsDateTimeValid()) {
+            lcd.setCursor(18, 0);
+            lcd.write(7);
+          } else {
+            lcd.setCursor(18, 0);
+            lcd.print(" ");
+          }
 
           if (msgcallback) {
             lcd.setCursor(19, 0);
             lcd.write(5);
           } else {
             lcd.setCursor(19, 0);
-            lcd.print(" ");
-          }
-
-          if (( millis() - lastTime ) > 120000 ) {
-            lcd.setCursor(19, 3);
-            lcd.write(5);
-          } else {
-            lcd.setCursor(19, 3);
             lcd.print(" ");
           }
         }
@@ -402,16 +487,35 @@ void loop() {
 }
 
 void displayData() {
-  lcd.setCursor(10, 3);
+  lcd.setCursor(7, 2);
+  lcd.print("    ");
+  lcd.setCursor(7, 2);
   if ( solar_data.data1 < 1000 ) {
     lcd.print(" ");
   }
   lcd.print(solar_data.data1, 0);
 
-  lcd.setCursor(15, 3);
+  lcd.setCursor(12, 2);
+  lcd.print("    ");
+  lcd.setCursor(12, 2);
   lcd.print(solar_data.data2, 2);
 }
 
+void displayData2() {
+  lcd.setCursor(7, 3);
+  lcd.print("    ");
+  lcd.setCursor(7, 3);
+  if ( solar_data.data3 < 1000 ) {
+    lcd.print(" ");
+  }
+  lcd.print(solar_data.data3, 0);
+
+  lcd.setCursor(12, 3);
+  lcd.print("    ");
+  lcd.setCursor(12, 3);
+  lcd.print(solar_data.data4, 5);
+  //lcd.print((solar_data.data4 * 100000), 0);
+}
 
 void displaypir() {
   if ( solar_data.pir == 1) {
@@ -428,28 +532,17 @@ void displaypir() {
 }
 
 void displaypowerAvg() {
-  String str_Power = String(solar_data.powerAvg);
-  int length_Power = str_Power.length();
+  if (solar_data.powerAvg < 9999) {
+    String str_Power = String(solar_data.powerAvg);
+    int length_Power = str_Power.length();
 
-  lcd.setCursor(10, 2);
-  for ( int i = 0; i < ( 4 - length_Power ) ; i++ ) {
-    lcd.print(" ");
+    lcd.setCursor(2, 3);
+    for ( int i = 0; i < ( 4 - length_Power ) ; i++ ) {
+      lcd.print(" ");
+    }
+    lcd.print(str_Power);
   }
-  lcd.print(str_Power);
 }
-
-void displayNemoWeight() {
-  String str_nemoWeight = String(solar_data.WeightAvg);
-  int length_nemoWeight = str_nemoWeight.length();
-
-  lcd.setCursor(2, 3);
-
-  for ( int i = 0; i < ( 4 - length_nemoWeight ) ; i++ ) {
-    lcd.print(" ");
-  }
-  lcd.print(str_nemoWeight);
-}
-
 
 void displayTemperaturedigit(float Temperature) {
   String str_Temperature = String(int(Temperature)) ;
@@ -580,6 +673,14 @@ String macToStr(const uint8_t* mac) {
   return result;
 }
 
+time_t requestSync() {
+  return 0;
+}
+
+time_t requestRtc() {
+  RtcDateTime Epoch32Time = Rtc.GetDateTime();
+  return (Epoch32Time + 946684800);
+}
 
 /*-------- NTP code ----------*/
 const int NTP_PACKET_SIZE = 48;
