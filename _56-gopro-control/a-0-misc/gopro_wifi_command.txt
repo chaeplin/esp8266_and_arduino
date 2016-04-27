@@ -1,0 +1,38 @@
+power off
+curl -v 'http://10.5.5.9/bacpac/PW?t=wifi_password&p=%00'
+
+power on
+curl -v 'http://10.5.5.9/bacpac/PW?t=wifi_password&p=%01'
+
+Volume 100%
+curl -v 'http://10.5.5.9/camera/BS?t=wifi_password&p=%02'
+
+LED oFF
+curl -v 'http://10.5.5.9/bacpac/LB?t=wifi_password&p=%00'
+
+2 LED
+curl -v 'http://10.5.5.9/camera/LB?t=wifi_password&p=%01'
+
+
+Auto power off
+curl -v 'http://10.5.5.9/camera/AO?t=wifi_password&p=%00'
+
+Default mode / photo
+curl -v 'http://10.5.5.9/camera/DM?t=wifi_password&p=%01'
+
+
+Photo mode
+curl -v 'http://10.5.5.9/camera/CM?t=wifi_password&p=%01'
+
+Photo resolution 7mpW
+curl -v 'http://10.5.5.9/camera/PR?t=wifi_password&p=%04'
+
+Protune off
+curl -v 'http://10.5.5.9/camera/PT?t=wifi_password&p=%00'
+
+
+White Balance Auto
+curl -v 'http://10.5.5.9/camera/WB?t=wifi_password&p=%00'
+
+Shutter
+curl -v 'http://10.5.5.9/bacpac/SH?t=wifi_password&p=%01'
