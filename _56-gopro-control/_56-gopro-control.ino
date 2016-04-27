@@ -158,7 +158,7 @@ int CHUNKED_FILE_SIZE = 146000; // 146KB
 uint32_t value_timestamp;
 uint32_t value_nonce;
 /* ---- */
-String value_status  = "esp-01 / ";
+String value_status;
 /* ---- */
 //
 char* hellotopic  = "HELLO";
@@ -220,10 +220,10 @@ void alm_isr() {
 void rtc_boot_check() {
   system_rtc_mem_read(100, &rtc_boot_mode, sizeof(rtc_boot_mode));
   if (rtc_boot_mode.magic != RTC_MAGIC) {
-    rtc_boot_mode.magic = RTC_MAGIC;
-    rtc_boot_mode.gopro_mode = false;
+    rtc_boot_mode.magic        = RTC_MAGIC;
+    rtc_boot_mode.gopro_mode   = false;
     rtc_boot_mode.formatspiffs = false;
-    rtc_boot_mode.Temperature = 0;
+    rtc_boot_mode.Temperature  = 0;
   }
 }
 
@@ -612,10 +612,6 @@ void setup() {
   WiFi.mode(WIFI_OFF);
   rtc_boot_check();
 
-  value_status += rtc_boot_mode.Temperature;
-  value_status += (char)223;
-
-
   Wire.begin(0, 2);
   delay(100);
 
@@ -634,7 +630,8 @@ void setup() {
   getResetInfo += ESP.getResetInfo().substring(0, 80);
 
   //
-  solar_data.Temperature1 = solar_data.Temperature2 = solar_data.Humidity = solar_data.data1 = solar_data.data2 =  solar_data.data3 =  solar_data.data4 = solar_data.powerAvg = 0 ;
+  solar_data.Temperature1 = solar_data.Temperature2 = solar_data.Humidity = 0;
+  solar_data.data1 = solar_data.data2 = solar_data.data3 = solar_data.data4 = solar_data.powerAvg = 0;
   lastTime = lastTime2 = millis();
 
   // lcd
@@ -695,7 +692,8 @@ void setup() {
     } else {
       lcd.print("[CONFIG] loaded");
       lcd.setCursor(0, 2);
-      lcd.print("[CONFIG] [PH] : " + twitter_phase);
+      lcd.print("[CONFIG] [PH] : ");
+      lcd.print(twitter_phase);
     }
     delay(1000);
 
@@ -883,6 +881,7 @@ void setup() {
     pinMode(SquareWavePin, INPUT_PULLUP);
     attachInterrupt(1, alm_isr, FALLING);
   }
+
   x = true;
 }
 
@@ -906,7 +905,7 @@ void loop() {
         rtc_boot_mode.gopro_mode  = true;
         rtc_boot_mode.Temperature = solar_data.Temperature2 ;
         system_rtc_mem_write(100, &rtc_boot_mode, sizeof(rtc_boot_mode));
-        
+
         attempt_this  = 0;
         twitter_phase = 0;
         saveConfig_helper();
@@ -995,13 +994,17 @@ void loop() {
         value_timestamp  = now();
         value_nonce      = *(volatile uint32_t *)0x3FF20E44;
 
+        value_status  = "esp-01 / ";
+        value_status += rtc_boot_mode.Temperature;
+        value_status += "C / ";
+        value_status += hour();
+        value_status += ":";
+        value_status += minute();
+
         switch (twitter_phase) {
 
           case 0:
-            if (get_gpro_list()) {
-              delay(200);
-              ESP.reset();
-            }
+            get_gpro_list();
             break;
 
           case 1:
@@ -1276,6 +1279,9 @@ String get_hash_str(String content_more, String content_last, int positionofchun
 
     lcd.setCursor(0, 3);
     lcd.print("[P:3] put : ");
+
+    int pre_progress = 0;
+
     while (f.available()) {
       int c = f.readBytes(buff, ((len > sizeof(buff)) ? sizeof(buff) : len));
       if ( c > 0 ) {
@@ -1283,13 +1289,16 @@ String get_hash_str(String content_more, String content_last, int positionofchun
       }
 
       float progress = ((get_size - len) / (get_size / 100));
-      lcd.setCursor(13, 3);
-      if (progress < 10) {
-        lcd.print(" ");
-      }
+      if (int(progress) != pre_progress ) {
+        lcd.setCursor(13, 3);
+        if (progress < 10) {
+          lcd.print(" ");
+        }
 
-      lcd.print(progress, 0);
-      lcd.print(" %");
+        lcd.print(progress, 0);
+        lcd.print(" % ");
+        pre_progress = int(progress);
+      }
 
       if (len > 0) {
         len -= c;
@@ -1316,13 +1325,16 @@ bool do_http_append_post(String content_header, String content_more, String cont
   if (!sslclient.connect(UPLOAD_BASE_HOST, HTTPSPORT)) {
     return false;
   }
-  sslclient.setNoDelay(true);
+
 
   if (!sslclient.verify(upload_fingerprint, UPLOAD_BASE_HOST)) {
     lcd.setCursor(0, 2);
     lcd.print("[P:3] ssl fail");
     return false;
   }
+
+  wifiClient.setNoDelay(true);
+  sslclient.setNoDelay(true);
 
   sslclient.print(content_header);
   get_hash_str(content_more, content_last, positionofchunk, get_size, true);
@@ -1884,6 +1896,7 @@ bool get_gopro_file() {
       lcd.setCursor(0, 1);
       lcd.print("[P:1] get : ");
 
+      int pre_progress = 0;
       while (http.connected() && (len > 0 || len == -1)) {
         size_t size = stream->available();
         if (size) {
@@ -1891,13 +1904,16 @@ bool get_gopro_file() {
           f.write(buff, c);
 
           float progress = ((gopro_size - len) / (gopro_size / 100));
-          lcd.setCursor(13, 1);
-          if (progress < 10) {
-            lcd.print(" ");
-          }
+          if (int(progress) != pre_progress ) {
+            lcd.setCursor(13, 1);
+            if (progress < 10) {
+              lcd.print(" ");
+            }
 
-          lcd.print(progress, 0);
-          lcd.print(" %");
+            lcd.print(progress, 0);
+            lcd.print(" %");
+            pre_progress = int(progress);
+          }
 
           if (len > 0) {
             len -= c;
@@ -1924,6 +1940,7 @@ bool get_gopro_file() {
       }
 
       lcd.print("OK");
+      delay(1000);
 
       attempt_this  = 0;
       twitter_phase = 2;
