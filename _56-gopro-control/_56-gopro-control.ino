@@ -1911,7 +1911,7 @@ bool get_gopro_file() {
 
       int pre_progress = 0;
       unsigned long dnstart = millis();
-
+      
       while (http.connected() && (len > 0 || len == -1)) {
         size_t size = stream->available();
         if (size) {
@@ -1940,6 +1940,11 @@ bool get_gopro_file() {
       float dnspeed = gopro_size / (( millis() - dnstart ) / 1000) ;
 
       lcd.setCursor(0, 2);
+      lcd.print("[P:1] ");
+      lcd.print(dnspeed, 0);
+      lcd.print(" KB");
+
+      lcd.setCursor(0, 3);
       lcd.print("[P:1] verify : ");
 
       int Attempt = 0;
@@ -1976,10 +1981,6 @@ bool get_gopro_file() {
   } else {
     lcd.print("[P:1] FAIL");
   }
-  lcd.setCursor(0, 1);
-  lcd.print("[P:1] ");
-  lcd.print(dnspeed, 0);
-  lcd.print(" KB");
       
   delay(2000);
   return rtn;
