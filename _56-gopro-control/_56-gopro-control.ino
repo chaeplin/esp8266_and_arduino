@@ -496,16 +496,22 @@ String macToStr(const uint8_t* mac) {
 
 boolean reconnect() {
   if (!mqttclient.connected()) {
-    if (mqttclient.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
-      mqttclient.publish(willTopic, "1", true);
-      if (!ResetInfo) {
-        mqttclient.publish(hellotopic, (char*) getResetInfo.c_str());
-        ResetInfo = true;
-      } else {
-        mqttclient.publish(hellotopic, "hello again 1 from solar");
-      }
+    if (mqttclient.connect((char*) clientName.c_str())) {
+      /*
+        if (mqttclient.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
+        mqttclient.publish(willTopic, "1", true);
+
+        if (!ResetInfo) {
+          mqttclient.publish(hellotopic, (char*) getResetInfo.c_str());
+          ResetInfo = true;
+        } else {
+          mqttclient.publish(hellotopic, "hello again 1 from solar");
+        }
+
+      */
 
       mqttclient.loop();
+
       for (int i = 0; i < 6; ++i) {
         mqttclient.subscribe(substopic[i]);
         mqttclient.loop();
@@ -1337,6 +1343,7 @@ bool do_http_append_post(String content_header, String content_more, String cont
   sslclient.setNoDelay(true);
 
   sslclient.print(content_header);
+
   get_hash_str(content_more, content_last, positionofchunk, get_size, true);
 
   int _returnCode = 0;
@@ -1355,7 +1362,6 @@ bool do_http_append_post(String content_header, String content_more, String cont
   } else {
     return false;
   }
-
 }
 
 bool do_http_text_post(String OAuth_header) {
@@ -1655,7 +1661,7 @@ bool tweet_status() {
   } else {
     lcd.print("[P:6] FAIL");
   }
-  delay(1000);
+  delay(2000);
 
   return rtn;
 }
@@ -1745,7 +1751,9 @@ bool tweet_append() {
   content_header += "Host: " + String(UPLOAD_BASE_HOST) + "\r\n";
   content_header += "Content-Length: " + String(content_length) + "\r\n\r\n";
 
+  unsigned long upstart = millis();
   rtn = do_http_append_post(content_header, content_more, content_last, positionofchunk, get_size);
+  float upspeed = get_size / (( millis() - upstart ) / 1000) ;
 
   lcd.clear();
   lcd.setCursor(0, 0);
@@ -1758,6 +1766,11 @@ bool tweet_append() {
   } else {
     lcd.print(" FAIL");
   }
+
+  lcd.setCursor(0, 2);
+  lcd.print("[P:3] ");
+  lcd.print(upspeed, 0);
+  lcd.print(" KB");
   delay(2000);
 
   return rtn;
@@ -1897,6 +1910,8 @@ bool get_gopro_file() {
       lcd.print("[P:1] get : ");
 
       int pre_progress = 0;
+      unsigned long dnstart = millis();
+
       while (http.connected() && (len > 0 || len == -1)) {
         size_t size = stream->available();
         if (size) {
@@ -1922,9 +1937,10 @@ bool get_gopro_file() {
       }
       f.close();
 
+      float dnspeed = gopro_size / (( millis() - dnstart ) / 1000) ;
+
       lcd.setCursor(0, 2);
       lcd.print("[P:1] verify : ");
-      delay(1000);
 
       int Attempt = 0;
       while (!SPIFFS.open(String("/") + gopro_file, "r")) {
@@ -1933,14 +1949,14 @@ bool get_gopro_file() {
         if (Attempt == 5) {
 
           lcd.print("fail");
-          delay(1000);
+          delay(2000);
 
           return false;
         }
       }
 
       lcd.print("OK");
-      delay(1000);
+      delay(2000);
 
       attempt_this  = 0;
       twitter_phase = 2;
@@ -1960,7 +1976,12 @@ bool get_gopro_file() {
   } else {
     lcd.print("[P:1] FAIL");
   }
-  delay(1000);
+  lcd.setCursor(0, 1);
+  lcd.print("[P:1] ");
+  lcd.print(dnspeed, 0);
+  lcd.print(" KB");
+      
+  delay(2000);
   return rtn;
 }
 
@@ -2056,6 +2077,7 @@ bool get_gpro_list() {
 
           lcd.setCursor(0, 2);
           lcd.print("[P:0] big file");
+          delay(2000);
 
           rtn = false;
         }
