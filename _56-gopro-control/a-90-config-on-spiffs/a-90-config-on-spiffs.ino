@@ -2038,6 +2038,7 @@ bool get_gpro_list() {
         String filesize;
 
         while (http.connected() && (len > 0 || len == -1)) {
+          stream->setTimeout(50);
           String line = stream->readStringUntil(',');
 
           line.replace("\"", "");

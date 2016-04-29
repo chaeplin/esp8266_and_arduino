@@ -86,13 +86,17 @@ void loop() {
           int len = http.getSize();
           WiFiClient * stream = http.getStreamPtr();
 
+          Serial.println(len);
+
           String directory;
           String filename;
           String filesize;
-          
+
           while (http.connected() && (len > 0 || len == -1)) {
+            stream->setTimeout(10);
             String line = stream->readStringUntil(',');
-            
+            Serial.println(line);
+
             line.replace("\"", "");
             line.replace("media:[{", "");
             line.replace("fs:[", "");
@@ -116,12 +120,14 @@ void loop() {
             }
 
           }
+
           Serial.print("dir  : ");
           Serial.println(directory);
           Serial.print("file : ");
           Serial.println(filename);
           Serial.print("size : ");
           Serial.println(filesize);
+
 
           Serial.println();
           Serial.print("[HTTP] connection closed or file end.\n");
