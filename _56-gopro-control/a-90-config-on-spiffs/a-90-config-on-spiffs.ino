@@ -1014,11 +1014,10 @@ void loop() {
             break;
 
           case 1:
-            if (get_gopro_file()) {
-              gopro_poweroff();
-              delay(200);
-              ESP.reset();
-            }
+            get_gopro_file();
+            gopro_poweroff();
+            delay(200);
+            ESP.reset();
             break;
 
           case 2:
@@ -1897,6 +1896,7 @@ bool get_gopro_file() {
       }
 
       WiFiClient * stream = http.getStreamPtr();
+      stream->setTimeout(1000);
       File f = SPIFFS.open("/" + gopro_file, "w");
       if (!f) {
         lcd.setCursor(0, 1);
@@ -2038,7 +2038,7 @@ bool get_gpro_list() {
         String filesize;
 
         while (http.connected() && (len > 0 || len == -1)) {
-          stream->setTimeout(50);
+          stream->setTimeout(500);
           String line = stream->readStringUntil(',');
 
           line.replace("\"", "");
