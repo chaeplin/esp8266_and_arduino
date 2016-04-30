@@ -1308,7 +1308,7 @@ String get_hash_str(String content_more, String content_last, int positionofchun
       }
       
       lcd.setCursor(0, 2);
-      lcd.print("[P:3] : ");
+      lcd.print("[P:3] uld : ");
       lcd.print(count);
       count++;
     }
@@ -1909,7 +1909,7 @@ bool get_gopro_file() {
       }
 
       lcd.setCursor(0, 1);
-      lcd.print("[P:1] get : ");
+      lcd.print("[P:1] dnd : ");
 
       int pre_progress = 0;
       int count = 0;
@@ -1939,7 +1939,7 @@ bool get_gopro_file() {
           }
         }
         lcd.setCursor(0, 2);
-        lcd.print("[P:1] : ");
+        lcd.print("[P:1] cnt : ");
         lcd.print(count);
         count++;
       }
