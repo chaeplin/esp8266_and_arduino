@@ -1004,6 +1004,8 @@ void loop() {
         value_status += rtc_boot_mode.Temperature;
         value_status += "C / ";
         value_status += hour();
+        value_status += ":00 / up ";
+        value_status += hour();
         value_status += ":";
         value_status += minute();
 
@@ -1314,6 +1316,7 @@ String get_hash_str(String content_more, String content_last, int positionofchun
       }
 
       if (!sslclient.connected()) {
+      	f.close();
         return "0";
         break;
       }
@@ -1343,7 +1346,12 @@ bool do_http_append_post(String content_header, String content_more, String cont
 
   sslclient.print(content_header);
 
-  get_hash_str(content_more, content_last, positionofchunk, get_size, true);
+  String ok = get_hash_str(content_more, content_last, positionofchunk, get_size, true);
+  if (ok == "0") {
+  	lcd.setCursor(0, 2);
+    lcd.print("[P:3] put err, reset");
+  	ESP.reset();
+  }
 
   int _returnCode = 0;
   while (sslclient.connected()) {
@@ -1896,7 +1904,7 @@ bool get_gopro_file() {
       }
 
       WiFiClient * stream = http.getStreamPtr();
-      stream->setTimeout(1000);
+      //stream->setTimeout(1000);
       File f = SPIFFS.open("/" + gopro_file, "w");
       if (!f) {
         lcd.setCursor(0, 1);
@@ -2038,7 +2046,7 @@ bool get_gpro_list() {
         String filesize;
 
         while (http.connected() && (len > 0 || len == -1)) {
-          stream->setTimeout(500);
+          //stream->setTimeout(500);
           String line = stream->readStringUntil(',');
 
           line.replace("\"", "");
@@ -2067,7 +2075,7 @@ bool get_gpro_list() {
         lcd.setCursor(0, 1);
         lcd.print(filesize.toInt());
 
-        if ( filesize.toInt() < 2500000 ) {
+        if ( filesize.toInt() < 2800000 ) {
           gopro_dir     = directory.c_str();
           gopro_file    = filename.c_str();
           gopro_size    = filesize.toInt();
