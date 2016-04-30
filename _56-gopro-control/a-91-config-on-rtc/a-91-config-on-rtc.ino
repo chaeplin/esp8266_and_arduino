@@ -1273,6 +1273,7 @@ String get_hash_str(String content_more, String content_last, int positionofchun
     lcd.print("[P:3] put : ");
 
     int pre_progress = 0;
+    int count = 0;
 
     while (f.available()) {
       int c = f.readBytes(buff, ((len > sizeof(buff)) ? sizeof(buff) : len));
@@ -1305,7 +1306,11 @@ String get_hash_str(String content_more, String content_last, int positionofchun
         return "0";
         break;
       }
-
+      
+      lcd.setCursor(0, 2);
+      lcd.print("[P:3] : ");
+      lcd.print(count);
+      count++;
     }
 
     sslclient.print(content_last);
@@ -1335,6 +1340,7 @@ bool do_http_append_post(String content_header, String content_more, String cont
   if (ok == "0") {
   	lcd.setCursor(0, 2);
     lcd.print("[P:3] put err, reset");
+    delay(2000);
   	ESP.reset();
   }
 
@@ -1906,6 +1912,8 @@ bool get_gopro_file() {
       lcd.print("[P:1] get : ");
 
       int pre_progress = 0;
+      int count = 0;
+      
       unsigned long dnstart = millis();
       
       while (http.connected() && (len > 0 || len == -1)) {
@@ -1930,15 +1938,20 @@ bool get_gopro_file() {
             len -= c;
           }
         }
+        lcd.setCursor(0, 2);
+        lcd.print("[P:1] : ");
+        lcd.print(count);
+        count++;
       }
       f.close();
   
       unsigned long dnstop = millis();
       float timestook = ( dnstop - dnstart ) / 1000 ;
       float dnspeed = rtc_boot_mode.gopro_size / (( dnstop - dnstart ) / 1000) ;
-
+      
       lcd.setCursor(0, 2);
-      lcd.print("[P:1] ");
+      lcd.print("[P:1]              ");
+      lcd.setCursor(5, 2);
       lcd.print(dnspeed, 0);
       lcd.print(" K ");
       lcd.print(timestook, 1);
@@ -1998,7 +2011,7 @@ bool get_gpro_list() {
     if (gopro_poweron()) {
       lcd.setCursor(0, 2);
       lcd.print("---> OK");
-      delay(1000);
+      delay(3000);
 
       break;
     } else {
