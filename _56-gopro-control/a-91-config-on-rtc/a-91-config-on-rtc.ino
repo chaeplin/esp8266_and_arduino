@@ -250,21 +250,21 @@ bool rtc_config_save() {
 }
 
 /*
-bool readConfig_helper() {
+  bool readConfig_helper() {
   lcd.clear();
-  lcd.setCursor(0, 0);   
+  lcd.setCursor(0, 0);
   if (!rtc_config_read()) {
     lcd.print("[CONFIG] read fail");
   } else {
     lcd.print("[CONFIG] loaded");
   }
   delay(2000);
-}
+  }
 */
 
 void saveConfig_helper() {
   lcd.clear();
-  lcd.setCursor(0, 0);  
+  lcd.setCursor(0, 0);
   if (!rtc_config_save()) {
     lcd.print("[CONFIG] save fail");
   } else {
@@ -1302,15 +1302,23 @@ String get_hash_str(String content_more, String content_last, int positionofchun
       }
 
       if (!sslclient.connected()) {
-      	f.close();
+        f.close();
         return "0";
         break;
       }
-      
+
       lcd.setCursor(0, 2);
       lcd.print("[P:3] uld : ");
       lcd.print(count);
       count++;
+
+      // up error
+      if (count > 150) {
+        rtc_boot_mode.attempt_this++;
+        saveConfig_helper();
+
+        ESP.reset();
+      }
     }
 
     sslclient.print(content_last);
@@ -1338,10 +1346,10 @@ bool do_http_append_post(String content_header, String content_more, String cont
 
   String ok = get_hash_str(content_more, content_last, positionofchunk, get_size, true);
   if (ok == "0") {
-  	lcd.setCursor(0, 2);
+    lcd.setCursor(0, 2);
     lcd.print("[P:3] put err, reset");
     delay(2000);
-  	ESP.reset();
+    ESP.reset();
   }
 
   int _returnCode = 0;
@@ -1913,9 +1921,9 @@ bool get_gopro_file() {
 
       int pre_progress = 0;
       int count = 0;
-      
+
       unsigned long dnstart = millis();
-      
+
       while (http.connected() && (len > 0 || len == -1)) {
         size_t size = stream->available();
         if (size) {
@@ -1942,13 +1950,24 @@ bool get_gopro_file() {
         lcd.print("[P:1] cnt : ");
         lcd.print(count);
         count++;
+
+        // download error
+        if ( count > 2000 ) {
+          rtc_boot_mode.formatspiffs = true;
+          rtc_boot_mode.attempt_this++;
+          rtc_boot_mode.twitter_phase = 0;
+          saveConfig_helper();
+
+          return false;
+        }
+
       }
       f.close();
-  
+
       unsigned long dnstop = millis();
       float timestook = ( dnstop - dnstart ) / 1000 ;
       float dnspeed = rtc_boot_mode.gopro_size / (( dnstop - dnstart ) / 1000) ;
-      
+
       lcd.setCursor(0, 2);
       lcd.print("[P:1]              ");
       lcd.setCursor(5, 2);
@@ -1956,7 +1975,7 @@ bool get_gopro_file() {
       lcd.print(" K ");
       lcd.print(timestook, 1);
       lcd.print(" S");
-      
+
       lcd.setCursor(0, 3);
       lcd.print("[P:1] verify : ");
 
@@ -1994,7 +2013,7 @@ bool get_gopro_file() {
   } else {
     lcd.print("[P:1] FAIL");
   }
-      
+
   delay(2000);
   return rtn;
 }
