@@ -138,7 +138,8 @@ struct {
   char media_id[32];
 } rtc_boot_mode;
 /* ---- */
-int CHUNKED_FILE_SIZE = 146000; // 146KB
+//int CHUNKED_FILE_SIZE = 146000; // 146KB
+int CHUNKED_FILE_SIZE = 292000;
 /* -- config ---*/
 String gopro_dir  = DEFAULT_DIR;
 String gopro_file = DEFAULT_FILE;
@@ -221,8 +222,8 @@ bool rtc_config_read() {
   bool ok = system_rtc_mem_read(65, &rtc_boot_mode, sizeof(rtc_boot_mode));
   uint32_t hash = calc_hash(rtc_boot_mode);
   if (!ok || rtc_boot_mode.hash != hash) {
-    rtc_boot_mode.gopro_mode    = false;
-    rtc_boot_mode.formatspiffs  = false;
+    rtc_boot_mode.gopro_mode    = true;
+    rtc_boot_mode.formatspiffs  = true;
     rtc_boot_mode.Temperature   = 0;
     rtc_boot_mode.gopro_size    = 0;
     rtc_boot_mode.twitter_phase = 0;
@@ -1313,7 +1314,7 @@ String get_hash_str(String content_more, String content_last, int positionofchun
       count++;
 
       // up error
-      if (count > 150) {
+      if (count > 300) {
         rtc_boot_mode.attempt_this++;
         saveConfig_helper();
 
@@ -1838,9 +1839,9 @@ bool gopro_poweron() {
     http.end();
     delay(3000);
     // 5MP
-    //http.begin("http://10.5.5.9:80/camera/PR?t=" + String(gopropassword) + "&p=%03");
+    http.begin("http://10.5.5.9:80/camera/PR?t=" + String(gopropassword) + "&p=%03");
     // 7MP WIDE
-    http.begin("http://10.5.5.9:80/camera/PR?t=" + String(gopropassword) + "&p=%04");
+    //http.begin("http://10.5.5.9:80/camera/PR?t=" + String(gopropassword) + "&p=%04");
     int httpCode2 = http.GET();
 
     lcd.print(" ");
@@ -1952,7 +1953,7 @@ bool get_gopro_file() {
         count++;
 
         // download error
-        if ( count > 2000 ) {
+        if ( count > 1700 ) {
           rtc_boot_mode.formatspiffs = true;
           rtc_boot_mode.attempt_this++;
           rtc_boot_mode.twitter_phase = 0;
@@ -1979,18 +1980,22 @@ bool get_gopro_file() {
       lcd.setCursor(0, 3);
       lcd.print("[P:1] verify : ");
 
-      int Attempt = 0;
-      while (!SPIFFS.open(String("/") + gopro_file, "r")) {
+
+      delay(2000);
+      File fr = SPIFFS.open("/" + gopro_file, "r");
+      if (!fr || fr.size() != rtc_boot_mode.gopro_size ) {
+        lcd.print("err");
         delay(1000);
-        Attempt++;
-        if (Attempt == 5) {
 
-          lcd.print("fail");
-          delay(2000);
+        rtc_boot_mode.formatspiffs = true;
+        rtc_boot_mode.attempt_this++;
+        rtc_boot_mode.twitter_phase = 0;
+        saveConfig_helper();
 
-          return false;
-        }
+        fr.close();
+        return false;
       }
+      fr.close();
 
       lcd.print("OK");
       delay(3000);
@@ -2095,7 +2100,7 @@ bool get_gpro_list() {
         lcd.setCursor(0, 1);
         lcd.print(filesize.toInt());
 
-        if ( filesize.toInt() < 2900000 ) {
+        if ( filesize.toInt() < 2600000 ) {
           gopro_dir     = directory.c_str();
           gopro_file    = filename.c_str();
           media_id      = "0000000000000000000";

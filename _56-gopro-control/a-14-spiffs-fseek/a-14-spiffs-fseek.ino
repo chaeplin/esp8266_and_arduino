@@ -1,7 +1,7 @@
 
-int CHUNKED_FILE_SIZE = 146000;   // 146KB
+int CHUNKED_FILE_SIZE = 292000;   // 146KB
 //int FILE_SIZE         = 1813461;  // 1.8M
-int FILE_SIZE         = 1898001;
+int FILE_SIZE         = 2827855;
 
 void setup() {
   Serial.begin(115200);
