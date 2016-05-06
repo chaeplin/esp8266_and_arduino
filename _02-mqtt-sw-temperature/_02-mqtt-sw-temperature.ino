@@ -45,8 +45,8 @@ extern "C" {
 #define DHT_DEBUG_TIMING
 #endif
 
-#define INFO_PRINT 1
-#define DEBUG_PRINT 1
+#define INFO_PRINT 0
+#define DEBUG_PRINT 0
 
 // ****************
 time_t getNtpTime();
@@ -643,11 +643,15 @@ void loop() {
         pirSent = LOW;
       }
 
+
+      //-----------------------------------------------
       //  radio.openReadingPipe(1, pipes[0]); -->  5 : door, 65 : roll, 2 : DS18B20
       //  radio.openReadingPipe(2, pipes[2]); --> 15 : ads1115
       //  radio.openReadingPipe(3, pipes[3]); --> 25 : lcd / solar
       //  radio.openReadingPipe(4, pipes[4]); --> 35 : scale
       byte pipeNo;
+
+      //-----------------------------------------------
       if (radio.available(&pipeNo)) {
         // from attiny 85 data size is 11
         // sensor_data data size = 12
@@ -664,131 +668,141 @@ void loop() {
 
         // use switch ?
         // time request
-        if (len == sizeof(time_reqpayload) && (pipeNo == 1 || pipeNo == 3 || pipeNo == 4 )) {
-          time_ackpayload.timestamp = timestamp;
+        switch (len) {
+          case sizeof(time_reqpayload):
+            if (pipeNo == 1 || pipeNo == 3 || pipeNo == 4 ) {
+              time_ackpayload.timestamp = timestamp;
 
-          radio.writeAckPayload(pipeNo, &time_ackpayload, sizeof(time_ackpayload));
-          radio.read(&time_reqpayload, sizeof(time_reqpayload));
+              radio.writeAckPayload(pipeNo, &time_ackpayload, sizeof(time_ackpayload));
+              radio.read(&time_reqpayload, sizeof(time_reqpayload));
 
-          if (DEBUG_PRINT) {
-            syslogPayload = time_ackpayload.timestamp;
-            syslogPayload += " ==> ";
-            syslogPayload += time_reqpayload.timestamp;
-            syslogPayload += " ==> ";
-            syslogPayload += pipeNo;
-            sendUdpSyslog(syslogPayload);
-          }
-          // scale data
-        } else if (len == sizeof(scale_payload) && ( pipeNo == 4)) {
-          time_ackpayload.timestamp = timestamp;
-          radio.writeAckPayload(pipeNo, &time_ackpayload, sizeof(time_ackpayload));
-          radio.read(&scale_payload, sizeof(scale_payload));
-          if (scale_payload.devid == 35 ) {
-
-            String scalepayload = "scale,test=scale ";
-            scalepayload += "_salt=";
-            scalepayload += scale_payload._salt;
-            scalepayload += "i,volt=";
-            scalepayload += scale_payload.volt;
-            scalepayload += "i,avemean=";
-            scalepayload += scale_payload.avemean;
-            scalepayload += "i,avestddev=";
-            scalepayload += scale_payload.avestddev;
-            scalepayload += "i,avetype=";
-            scalepayload += scale_payload.avetype;
-            scalepayload += "i ";
-            scalepayload += (timestamp - timeZone * SECS_PER_HOUR);
-            char scalepayloadbuf[3];
-            sprintf(scalepayloadbuf, "%03d", millisecond());
-            scalepayload += scalepayloadbuf;
-            scalepayload += "000000";
-            sendUdpmsg(scalepayload);
-            //sendUdpSyslog(scalepayload);
-
-
-            if ( scale_payload.avetype == 1 ) {
-              payload = "{\"WeightAvg\":";
-              payload += scale_payload.avemean;
-              payload += ",\"WeightStddev\":";
-              payload += scale_payload.avestddev;
-              payload += "}";
-
-              sendmqttMsg(topicAverage, payload, 1);
-            } else if ( scale_payload.avetype == 2 ) {
-              payload = "low power alert from scale";
-
-              sendmqttMsg(lowpower, payload, 0);
+              if (DEBUG_PRINT) {
+                syslogPayload = time_ackpayload.timestamp;
+                syslogPayload += " ==> ";
+                syslogPayload += time_reqpayload.timestamp;
+                syslogPayload += " ==> ";
+                syslogPayload += pipeNo;
+                sendUdpSyslog(syslogPayload);
+              }
             }
-          }
-          // door, roll, ds18b20, ads1115 data
-        } else if ((len + 1 ) == sizeof(sensor_data)) {
-          radio.read(&sensor_data, sizeof(sensor_data));
-          if ((pipeNo == 1 || pipeNo == 3 ) && sensor_data.devid != 15 ) {
+            break;
 
-            String radiopayload = "{\"_salt\":";
-            radiopayload += sensor_data._salt;
-            radiopayload += ",\"volt\":";
-            radiopayload += sensor_data.volt;
-            radiopayload += ",\"data1\":";
+          case sizeof(scale_payload):
+            if (pipeNo == 4) {
+              time_ackpayload.timestamp = timestamp;
+              radio.writeAckPayload(pipeNo, &time_ackpayload, sizeof(time_ackpayload));
+              radio.read(&scale_payload, sizeof(scale_payload));
+              if (scale_payload.devid == 35 ) {
 
-            if ( sensor_data.data1 == 0 ) {
-              radiopayload += 0;
-            } else {
-              radiopayload += ((float)sensor_data.data1 / 10);
+                String scalepayload = "scale,test=scale ";
+                scalepayload += "_salt=";
+                scalepayload += scale_payload._salt;
+                scalepayload += "i,volt=";
+                scalepayload += scale_payload.volt;
+                scalepayload += "i,avemean=";
+                scalepayload += scale_payload.avemean;
+                scalepayload += "i,avestddev=";
+                scalepayload += scale_payload.avestddev;
+                scalepayload += "i,avetype=";
+                scalepayload += scale_payload.avetype;
+                scalepayload += "i ";
+                scalepayload += (timestamp - timeZone * SECS_PER_HOUR);
+                char scalepayloadbuf[3];
+                sprintf(scalepayloadbuf, "%03d", millisecond());
+                scalepayload += scalepayloadbuf;
+                scalepayload += "000000";
+                sendUdpmsg(scalepayload);
+                //sendUdpSyslog(scalepayload);
+
+                if ( scale_payload.avetype == 1 ) {
+                  payload = "{\"WeightAvg\":";
+                  payload += scale_payload.avemean;
+                  payload += ",\"WeightStddev\":";
+                  payload += scale_payload.avestddev;
+                  payload += "}";
+
+                  sendmqttMsg(topicAverage, payload, 1);
+                } else if ( scale_payload.avetype == 2 ) {
+                  payload = "low power alert from scale";
+
+                  sendmqttMsg(lowpower, payload, 0);
+                }
+              }
             }
+            break;
 
-            radiopayload += ",\"data2\":";
+          case (sizeof(sensor_data) - 1):
+            radio.read(&sensor_data, sizeof(sensor_data));
+            if ((pipeNo == 1 || pipeNo == 3 ) && sensor_data.devid != 15 ) {
 
-            if ( sensor_data.data2 == 0 ) {
-              radiopayload += 0;
-            } else {
-              radiopayload += ((float)sensor_data.data2 / 10);
+              String radiopayload = "{\"_salt\":";
+              radiopayload += sensor_data._salt;
+              radiopayload += ",\"volt\":";
+              radiopayload += sensor_data.volt;
+              radiopayload += ",\"data1\":";
+
+              if ( sensor_data.data1 == 0 ) {
+                radiopayload += 0;
+              } else {
+                radiopayload += ((float)sensor_data.data1 / 10);
+              }
+
+              radiopayload += ",\"data2\":";
+
+              if ( sensor_data.data2 == 0 ) {
+                radiopayload += 0;
+              } else {
+                radiopayload += ((float)sensor_data.data2 / 10);
+              }
+
+              radiopayload += ",\"devid\":";
+              radiopayload += sensor_data.devid;
+              radiopayload += "}";
+
+              if ( (sensor_data.devid > 0) && (sensor_data.devid < 255) ) {
+                String newRadiotopic = radiotopic;
+                newRadiotopic += "/";
+                newRadiotopic += sensor_data.devid;
+                unsigned int newRadiotopic_length = newRadiotopic.length();
+                char newRadiotopictosend[newRadiotopic_length] ;
+                newRadiotopic.toCharArray(newRadiotopictosend, newRadiotopic_length + 1);
+                sendmqttMsg(newRadiotopictosend, radiopayload, 0);
+              } else {
+                sendmqttMsg(radiofault, radiopayload, 0);
+              }
+            } else if ( pipeNo == 2 && sensor_data.devid == 15 ) {
+              if ( sensor_data.data1 < 0 ) {
+                sensor_data.data1 = 0;
+              }
+
+              String udppayload = "current,test=current,measureno=";
+              udppayload += sensor_data._salt;
+              udppayload += " devid=";
+              udppayload += sensor_data.devid;
+              udppayload += "i,volt=";
+              udppayload += sensor_data.volt;
+              udppayload += "i,ampere=";
+              uint32_t ampere_temp;
+              ampere_temp = sensor_data.data1 * ampereunit[sensor_data.data2];
+              udppayload += ampere_temp;
+              udppayload += " ";
+              // UTC
+              udppayload += (timestamp - timeZone * SECS_PER_HOUR);
+              char buf[3];
+              sprintf(buf, "%03d", millisecond());
+              udppayload += buf;
+              udppayload += "000000";
+              sendUdpmsg(udppayload);
             }
+            break;
 
-            radiopayload += ",\"devid\":";
-            radiopayload += sensor_data.devid;
-            radiopayload += "}";
-
-            if ( (sensor_data.devid > 0) && (sensor_data.devid < 255) ) {
-              String newRadiotopic = radiotopic;
-              newRadiotopic += "/";
-              newRadiotopic += sensor_data.devid;
-              unsigned int newRadiotopic_length = newRadiotopic.length();
-              char newRadiotopictosend[newRadiotopic_length] ;
-              newRadiotopic.toCharArray(newRadiotopictosend, newRadiotopic_length + 1);
-              sendmqttMsg(newRadiotopictosend, radiopayload, 0);
-            } else {
-              sendmqttMsg(radiofault, radiopayload, 0);
-            }
-          } else if ( pipeNo == 2 && sensor_data.devid == 15 ) {
-            if ( sensor_data.data1 < 0 ) {
-              sensor_data.data1 = 0;
-            }
-
-            String udppayload = "current,test=current,measureno=";
-            udppayload += sensor_data._salt;
-            udppayload += " devid=";
-            udppayload += sensor_data.devid;
-            udppayload += "i,volt=";
-            udppayload += sensor_data.volt;
-            udppayload += "i,ampere=";
-            uint32_t ampere_temp;
-            ampere_temp = sensor_data.data1 * ampereunit[sensor_data.data2];
-            udppayload += ampere_temp;
-            udppayload += " ";
-            // UTC
-            udppayload += (timestamp - timeZone * SECS_PER_HOUR);
-            char buf[3];
-            sprintf(buf, "%03d", millisecond());
-            udppayload += buf;
-            udppayload += "000000";
-            sendUdpmsg(udppayload);
-          }
-        } else {
-          radio.read(0, 0);
+          default:
+            radio.read(0, 0);
+            break;
         }
       }
 
+      //-----------------------------------------------
       if ((millis() - startMills) > REPORT_INTERVAL ) {
         sendmqttMsg(topic, payload, 0);
 
@@ -991,7 +1005,6 @@ void sendNTPpacket(IPAddress & address) {
   udp.write(packetBuffer, NTP_PACKET_SIZE);
   udp.endPacket();
 }
-
 
 long DateToMjd (uint16_t y, uint8_t m, uint8_t d) {
   return
