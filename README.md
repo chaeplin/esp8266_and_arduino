@@ -1,6 +1,5 @@
 
 ![1](./pics/readme/02sw.jpg)
-![1](./pics/readme/03scale1.jpg)
 ![1](./pics/readme/03scale2.jpg)
 ![1](./pics/readme/03scale3.jpg)
 ![1](./pics/readme/04lcd.jpg)
