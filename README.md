@@ -1,8 +1,19 @@
 
-|![1](./pics/readme/02sw.jpg)|![1](./pics/readme/03scale1.jpg)|![1](./pics/readme/03scale2.jpg)|
-|![1](./pics/readme/03scale3.jpg)|![1](./pics/readme/04lcd.jpg)|![1](./pics/readme/06power1.jpg)|
-|![1](./pics/readme/15button1.jpg)|![1](./pics/readme/28ir1.jpg)|![1](./pics/readme/48reedsw.png)|
-|![1](./pics/readme/49power1.jpg)|![1](./pics/readme/49power2.jpg)||
+![1](./pics/readme/02sw.jpg)
+![1](./pics/readme/03scale1.jpg)
+![1](./pics/readme/03scale2.jpg)
+![1](./pics/readme/03scale3.jpg)
+![1](./pics/readme/04lcd.jpg)
+![1](./pics/readme/06power1.jpg)
+![1](./pics/readme/15button1.jpg)
+![1](./pics/readme/28ir1.jpg)
+![1](./pics/readme/48reedsw.png)
+![1](./pics/readme/49power1.jpg)
+![1](./pics/readme/49power2.jpg)
+![1](./pics/readme/51getntp1.jpg)
+![1](./pics/readme/54hx711.jpg)
+![1](./pics/readme/55dtr.jpg)
+![1](./pics/readme/58button.jpg)
 
 * ESP8266 mqtt node
 
@@ -88,7 +99,15 @@
 | _47-esp-dht22-2AA-deepsleep-test | esp | | dht22 test |
 | _48-door-alarm-deepsleep | esp | | | door alarm using reed switch |
 | _49-emontxv2-esp-01-i2c | esp-01 | atmega328p | emontx v2 plus esp-01 and ds1307. test | 
-
+| _50-promini-nrf24-getntp | | pro mini | nrf24 ntp test |
+| _51-attiny85-nrf24-lcd-getntp | | tiny85 | tiny85 spi and i2c mixing |
+| _52-attiny85-hx711-nrf24-deprecated | | tiny85 | nrf24 / hx711 / gy-521 test, flash is small |
+| _53-esp-01-i2c-lcd | esp-01 | | i2c lcd test |
+| _54-atmega328p-nrf24-gy-521-hx711 | | atmega328p | second version of sacle for pet |
+| _55-tiny85-dtr-control-esp8266 | | tiny85 | auto reset on Xbee programmer |
+| _56-gopro-control | esp-01 | | 4M flash version, to upload gopro picture to twitter |
+| _57-tiny85-cds-pir | | tiny85 | to turn off light which has touch sensor |
+| _58-esp8266-tyny85-dash-button | esp-01 | tiny85 | second version of dash button |
 
 
 #### _02-mqtt-sw ####
