@@ -1,14 +1,11 @@
 #### Photocells / cds tested ####
 
 - cds R/Ω : 500 ~ 500K
-- Vcc - cds - (A1) - 22K - gnd
+- vcc - cds - (A1) - 22K - gnd
 - check vcc using internal ref.
-- Vo(A0) = Vcc (R / (R + cds))
-- use map ?
+- vo(A0) = vcc (R / (R + cds))
+- use map
 - aref ? http://electronics.stackexchange.com/questions/60237/attiny-default-aref
-
-- analogRead(A1) : 0 ~ 1023
-280 ~ 950
 
 - pin
 - PB2/P7/D2/A1 --> CDS
