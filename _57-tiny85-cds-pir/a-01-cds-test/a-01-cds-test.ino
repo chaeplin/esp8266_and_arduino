@@ -16,8 +16,6 @@ const int tx = 4;
 SoftwareSerial mySerial(rx, tx);
 
 void setup() {
-  adc_disable();
-
   pinMode(rx, INPUT);
   pinMode(tx, OUTPUT);
   mySerial.begin(9600);
@@ -27,21 +25,23 @@ void setup() {
 }
 
 void loop() {
+  adc_enable();
   int VCC = readVcc();
   mySerial.print("Vcc : ");
   mySerial.print(VCC);
   mySerial.print(" - cds : ");
   
-  adc_enable();
-  delay(2);
   int val = analogRead(A1);
   adc_disable();
   mySerial.print(val);
+  
   val = map(val, 0, 1023, 0, VCC);
   mySerial.print(" - Vo : ");
   mySerial.print(val);
+  
   val = map(val, 0, VCC, 0, 100);
   mySerial.print(" - % : ");
+  
   mySerial.println(val);
   
   mySerial.flush();
@@ -52,7 +52,7 @@ void loop() {
 
 
 int readVcc() {
-  adc_enable();
+  
   ADMUX = _BV(MUX3) | _BV(MUX2);
 
   delay(2);
@@ -66,9 +66,6 @@ int readVcc() {
 
   //result = 1126400L / result; // Calculate Vcc (in mV);
   result = 1074835L / result;
-
-  //Disable ADC
-  adc_disable();
 
   return (int)result; // Vcc in millivolts
 }
