@@ -10,7 +10,7 @@
 - pin
 - PB2/P7/D2/A1 --> CDS
 - PB1/P6/D1    --> LED
-- PB0/P5/D0    --> INT
+- PB0/P5/D0    --> INT / PIR
 - PB4/P3/D4    --> Serial TX
 - PB3/P2/D3    --> Serial RX
 
