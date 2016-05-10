@@ -132,16 +132,29 @@ void timer_sleep() {
   bpir_isr = false;
 
   for (int i = 0; i < 8; i++) {
+    set_sleep_mode(SLEEP_MODE_PWR_DOWN);
+    
     PCMSK |= _BV(PCINT0);
     GIMSK |= _BV(PCIE);
-    LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF);
+    wdt_enable(9);
+    WDTCR |= (1 << WDIE);
+
+    sleep_enable();
+    sei();
+    sleep_cpu();
+
+    cli();
     PCMSK &= ~_BV(PCINT0);
+    sleep_disable();
+    sei();    
+
     if (digitalRead(INT_PIN) ) {
       bpir_isr = true;
       break;
     }
   }
 }
+
 
 int readVcc() {
   ADMUX = _BV(MUX3) | _BV(MUX2);
