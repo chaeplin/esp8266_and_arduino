@@ -140,7 +140,9 @@ struct {
 /* ---- */
 //int CHUNKED_FILE_SIZE = 146000; // 146KB
 //int CHUNKED_FILE_SIZE = 292000;
-int CHUNKED_FILE_SIZE = 140000;
+//int CHUNKED_FILE_SIZE = 140000;
+int CHUNKED_FILE_SIZE = 28000; 
+
 /* -- config ---*/
 String gopro_dir  = DEFAULT_DIR;
 String gopro_file = DEFAULT_FILE;
@@ -1840,9 +1842,9 @@ bool gopro_poweron() {
     http.end();
     delay(3000);
     // 5MP
-    http.begin("http://10.5.5.9:80/camera/PR?t=" + String(gopropassword) + "&p=%03");
+    //http.begin("http://10.5.5.9:80/camera/PR?t=" + String(gopropassword) + "&p=%03");
     // 7MP WIDE
-    //http.begin("http://10.5.5.9:80/camera/PR?t=" + String(gopropassword) + "&p=%04");
+    http.begin("http://10.5.5.9:80/camera/PR?t=" + String(gopropassword) + "&p=%04");
     int httpCode2 = http.GET();
 
     lcd.print(" ");
