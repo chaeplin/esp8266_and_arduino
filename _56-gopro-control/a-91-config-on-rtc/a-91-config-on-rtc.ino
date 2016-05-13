@@ -139,7 +139,8 @@ struct {
 } rtc_boot_mode;
 /* ---- */
 //int CHUNKED_FILE_SIZE = 146000; // 146KB
-int CHUNKED_FILE_SIZE = 292000;
+//int CHUNKED_FILE_SIZE = 292000;
+int CHUNKED_FILE_SIZE = 140000;
 /* -- config ---*/
 String gopro_dir  = DEFAULT_DIR;
 String gopro_file = DEFAULT_FILE;
@@ -223,7 +224,7 @@ bool rtc_config_read() {
   uint32_t hash = calc_hash(rtc_boot_mode);
   if (!ok || rtc_boot_mode.hash != hash) {
     rtc_boot_mode.gopro_mode    = true;
-    rtc_boot_mode.formatspiffs  = true;
+    rtc_boot_mode.formatspiffs  = false;
     rtc_boot_mode.Temperature   = 0;
     rtc_boot_mode.gopro_size    = 0;
     rtc_boot_mode.twitter_phase = 0;
@@ -1233,7 +1234,7 @@ String get_hash_str(String content_more, String content_last, int positionofchun
 
   if ( !bpost ) {
 
-    char buff[1460] = { 0 };
+    char buff[1400] = { 0 };
     int len = get_size; // file size
 
     uint8_t digestkey[32];
@@ -1265,7 +1266,7 @@ String get_hash_str(String content_more, String content_last, int positionofchun
     return URLEncode(base64::encode(digestkey, 20).c_str());
   } else {
 
-    char buff[1460] = { 0 };
+    char buff[1400] = { 0 };
     int len = get_size;
 
     sslclient.print(content_more);
