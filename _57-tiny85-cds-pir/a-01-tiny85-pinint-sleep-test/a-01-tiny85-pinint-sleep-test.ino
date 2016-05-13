@@ -33,7 +33,7 @@ void setup() {
   pinMode(TR_BASE_PIN, OUTPUT);
   pinMode(INT_PIN, INPUT);
 
-  if ( read_cds() < 70 ) {
+  if ( read_cds() < 50 ) {
     toggle_lamp();
   }
 
@@ -58,7 +58,7 @@ void loop() {
 
   if (bpir_isr && !lampon) {
     mySerial.println("02 ----> wake up : isr and lamp is off");
-    if ( read_cds() < 70 ) {
+    if ( read_cds() < 50 ) {
       toggle_lamp();
     }
     bpir_isr = false;
