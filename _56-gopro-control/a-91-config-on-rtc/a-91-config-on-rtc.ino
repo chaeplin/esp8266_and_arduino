@@ -133,6 +133,7 @@ struct {
   int gopro_size;
   int chunked_no;
   int attempt_this;
+  int pic_taken;
   char gopro_dir[32];
   char gopro_file[32];
   char media_id[32];
@@ -141,7 +142,8 @@ struct {
 //int CHUNKED_FILE_SIZE = 146000; // 146KB
 //int CHUNKED_FILE_SIZE = 292000;
 //int CHUNKED_FILE_SIZE = 140000;
-int CHUNKED_FILE_SIZE = 28000; 
+int CHUNKED_FILE_SIZE = 112000;
+//int CHUNKED_FILE_SIZE = 56000;
 
 /* -- config ---*/
 String gopro_dir  = DEFAULT_DIR;
@@ -232,11 +234,12 @@ bool rtc_config_read() {
     rtc_boot_mode.twitter_phase = 0;
     rtc_boot_mode.chunked_no    = 0;
     rtc_boot_mode.attempt_this  = 0;
+    rtc_boot_mode.pic_taken     = 0;
     ok = false;
   } else {
-    gopro_dir = rtc_boot_mode.gopro_dir;
+    gopro_dir  = rtc_boot_mode.gopro_dir;
     gopro_file = rtc_boot_mode.gopro_file;
-    media_id = rtc_boot_mode.media_id;
+    media_id  = rtc_boot_mode.media_id;
   }
   return ok;
 }
@@ -277,6 +280,31 @@ void saveConfig_helper() {
   delay(2000);
 }
 
+
+void lcd_redraw() {
+  lcd.clear();
+  lcd.setCursor(0, 1);
+  lcd.write(1);
+
+  lcd.setCursor(0, 2);
+  lcd.write(2);
+
+  lcd.setCursor(0, 3);  // power
+  lcd.write(6);
+
+  lcd.setCursor(6, 2);  // b
+  lcd.write(3);
+
+  lcd.setCursor(6, 3);  // b
+  lcd.write(3);
+  //
+  lcd.setCursor(6, 1);
+  lcd.print((char)223);
+
+  lcd.setCursor(12, 1);
+  lcd.print((char)223);
+}
+
 void gopro_connect() {
   WiFi.mode(WIFI_STA);
   wifi_station_connect();
@@ -310,7 +338,7 @@ void gopro_connect() {
 }
 
 void wifi_connect() {
-  wifi_set_phy_mode(PHY_MODE_11N);
+  //wifi_set_phy_mode(PHY_MODE_11N);
   WiFi.mode(WIFI_STA);
   wifi_station_connect();
   WiFi.begin(ssid, password);
@@ -341,6 +369,8 @@ void wifi_connect() {
   lcd.print("ip: ");
   lcd.print(WiFi.localIP());
   delay(1000);
+
+  lcd_redraw();
 }
 
 void spiffs_format() {
@@ -896,28 +926,7 @@ void setup() {
       sendUdpSyslog(syslogPayload);
     }
 
-    lcd.clear();
-    lcd.setCursor(0, 1);
-    lcd.write(1);
-
-    lcd.setCursor(0, 2);
-    lcd.write(2);
-
-    lcd.setCursor(0, 3);  // power
-    lcd.write(6);
-
-    lcd.setCursor(6, 2);  // b
-    lcd.write(3);
-
-    lcd.setCursor(6, 3);  // b
-    lcd.write(3);
-    //
-    lcd.setCursor(6, 1);
-    lcd.print((char)223);
-
-    lcd.setCursor(12, 1);
-    lcd.print((char)223);
-
+    lcd_redraw();
 
     pinMode(SquareWavePin, INPUT_PULLUP);
     attachInterrupt(1, alm_isr, FALLING);
@@ -1036,8 +1045,10 @@ void loop() {
         value_status  = "esp-01 / ";
         value_status += rtc_boot_mode.Temperature;
         value_status += "C / ";
-        value_status += hour();
-        value_status += ":00 / up ";
+        value_status += hour(); 
+        value_status += ":";
+        value_status += rtc_boot_mode.pic_taken;
+        value_status += " / ";
         value_status += hour();
         value_status += ":";
         value_status += minute();
@@ -2111,6 +2122,7 @@ bool get_gpro_list() {
           rtc_boot_mode.attempt_this  = 0;
           rtc_boot_mode.chunked_no    = 0;
           rtc_boot_mode.twitter_phase = 1;
+          rtc_boot_mode.pic_taken     = minute();
 
           saveConfig_helper();
 
