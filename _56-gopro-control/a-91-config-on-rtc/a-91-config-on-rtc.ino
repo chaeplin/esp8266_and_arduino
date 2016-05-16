@@ -1967,7 +1967,7 @@ bool get_gopro_file() {
         count++;
 
         // download error
-        if ( count > 1700 ) {
+        if ( count > 1800 ) {
           rtc_boot_mode.formatspiffs = true;
           rtc_boot_mode.attempt_this++;
           rtc_boot_mode.twitter_phase = 0;

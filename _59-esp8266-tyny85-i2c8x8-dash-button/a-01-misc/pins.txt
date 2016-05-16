@@ -1,16 +1,14 @@
 esp-01
-rx	-	sw / diode  / in
-tx	-   tiny85 p7   / out
-rst	-	tiny85 p3
-0	-	8x8 led scl / i2c
-2	-	8x8 led sda / i2c
+rst	-	tiny85 p2
+0	-	i2c scl
+2	-	i2c sda
 
 tiny85
 1
-2	-	led        / out  / D3
-3	-	esp-01 rst / out  / D4
+2	-	esp-01 rst / out  / D3
+3	-	8x8 led v+ / out  / D4
 4
-5	-	8x8 led v+ / out  / D0
+5	-	i2c sda
 6	-	sw         / in   / D1
-7	-	esp-01 tx  / in   / D2
+7	-	i2c scl
 8
