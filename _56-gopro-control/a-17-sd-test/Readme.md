@@ -6,9 +6,9 @@
 - MOSI --> MOSI
 - SCK  --> SCK
 - GND  --> GND
-- SS(one of 1/3/4/5) ---> SS
+- SS   --> SS
 
-- use one of gpio 1/3/4/5 as SS(not 0/2/5 that related to boot selection)
+- use one of gpio 1/3/4/5 as SS(not 0/2/15 related to boot mode selection)
 - SD is powered by gopro(not by esp-12)
 - sd size < 32GB, and FAT32
 - esp-12 is powered by external power source
