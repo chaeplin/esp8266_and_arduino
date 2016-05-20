@@ -1,4 +1,4 @@
-*** read sd card of gopro, while gopro is on and not used by gopro
+### read sd card of gopro, while gopro is on and not used by gopro ###
 
 * Use SD to Micro SD Converter Connector.
 esp-12 to microsd convertor
