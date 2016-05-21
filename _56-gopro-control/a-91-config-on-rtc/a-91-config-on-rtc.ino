@@ -227,7 +227,7 @@ bool rtc_config_read() {
   bool ok = system_rtc_mem_read(65, &rtc_boot_mode, sizeof(rtc_boot_mode));
   uint32_t hash = calc_hash(rtc_boot_mode);
   if (!ok || rtc_boot_mode.hash != hash) {
-    rtc_boot_mode.gopro_mode    = true;
+    rtc_boot_mode.gopro_mode    = false;
     rtc_boot_mode.formatspiffs  = false;
     rtc_boot_mode.Temperature   = 0;
     rtc_boot_mode.gopro_size    = 0;
@@ -881,6 +881,9 @@ void setup() {
       // throw away any old alarm state before we ran
       Rtc.LatchAlarmsTriggeredFlags();
     */
+
+    // disable gopromode
+    /*
     Rtc.SetSquareWavePin(DS3231SquareWavePin_ModeAlarmTwo);
     // Wakeup every hour
     DS3231AlarmTwo alarm1(
@@ -890,6 +893,8 @@ void setup() {
       DS3231AlarmTwoControl_MinutesMatch);
     Rtc.SetAlarmTwo(alarm1);
     Rtc.LatchAlarmsTriggeredFlags();
+    */
+    Rtc.SetSquareWavePin(DS3231SquareWavePin_ModeNone);
   } else {
     Rtc.SetSquareWavePin(DS3231SquareWavePin_ModeNone);
   }
