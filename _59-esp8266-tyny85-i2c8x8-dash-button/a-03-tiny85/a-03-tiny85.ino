@@ -71,7 +71,7 @@ void turn_off_8x8() {
 }
 
 void turn_on_8x8() {
-  digitalWrite(VCC_8x8, HIGH);
+  digitalWrite(VCC_8x8, HIGH); 
 }
 
 void reset_esp() {

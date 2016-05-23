@@ -104,6 +104,36 @@ frown_bmp[] =
   B10100101,
   B01000010,
   B00111100
+},
+large_heart[] =
+{B00000000,
+B01100110,
+B11111111,
+B11111111,
+B01111110,
+B00111100,
+B00011000,
+B00000000
+},
+small_heart[] =
+{B00000000,
+B00000000,
+B00100100,
+B01011010,
+B01000010,
+B00100100,
+B00011000,
+B00000000
+},
+fail_heart[] =
+{B00000000,
+B01100110,
+B10011101,
+B10001001,
+B01010010,
+B00100100,
+B00011000,
+B00000000
 };
 
 void callback(char* intopic, byte* inpayload, unsigned int length)
@@ -217,7 +247,7 @@ void setup()
   wifi_connect();
 
   matrix.clear();
-  matrix.drawBitmap(0, 0, smile_bmp, 8, 8, LED_ON);
+  matrix.drawBitmap(0, 0, small_heart, 8, 8, LED_ON);
   matrix.writeDisplay();
 
   clientName += "esp8266-";
@@ -330,13 +360,15 @@ void goingToSleep()
   yield();
 
   matrix.clear();
-  matrix.drawBitmap(0, 0, neutral_bmp, 8, 8, LED_ON);
+  matrix.drawBitmap(0, 0, large_heart, 8, 8, LED_ON);
   matrix.writeDisplay();
   delay(200);
-  sendI2cMsg();
-  delay(100);
+
   //HT16K33_sleep();
   //delay(100);
+  
+  sendI2cMsg();
+  delay(200);
   
   ESP.deepSleep(0);
   delay(50);
@@ -345,16 +377,17 @@ void goingToSleep()
 
 void goingToSleepWithFail()
 {
-  sendI2cMsg();
   matrix.clear();
-  matrix.drawBitmap(0, 0, frown_bmp, 8, 8, LED_ON);
+  matrix.drawBitmap(0, 0, fail_heart, 8, 8, LED_ON);
   matrix.writeDisplay();
   delay(200);
-  sendI2cMsg();
-  delay(100);
+
   //HT16K33_sleep();
   //delay(100);  
   
+  sendI2cMsg();
+  delay(200);
+    
   ESP.deepSleep(0);
   delay(50);
 }
