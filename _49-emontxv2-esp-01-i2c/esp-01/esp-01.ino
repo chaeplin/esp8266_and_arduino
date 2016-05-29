@@ -1,4 +1,4 @@
-// 80MHz, 1M / 64K SPIFFS
+// 80MHz, 1M / 64K SPIFFS / esp-emontxv2
 #include <Wire.h>
 // https://github.com/Makuna/Rtc
 #include <RtcDS1307.h>
