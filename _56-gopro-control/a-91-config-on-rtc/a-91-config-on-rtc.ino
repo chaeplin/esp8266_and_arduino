@@ -138,6 +138,7 @@ struct {
   int chunked_no;
   int attempt_this;
   int attempt_phase;
+  int attempt_detail;
   int pic_taken;
   char gopro_dir[32];
   char gopro_file[32];
@@ -210,9 +211,6 @@ byte valueisinvalid[8]  = { B10000, B00000, B00000, B00000, B00000, B00000, B000
 byte customblock[8]     = { B00100, B00100, B00100, B00100, B00100, B00100, B00100, B00100 };
 
 //
-bool bgopro_wifi;
-
-//
 bool x;
 
 static uint32_t fnv_1_hash_32(uint8_t *bytes, size_t length) {
@@ -243,6 +241,7 @@ bool rtc_config_read() {
     rtc_boot_mode.chunked_no    = 0;
     rtc_boot_mode.attempt_this  = 0;
     rtc_boot_mode.attempt_phase = 0;
+    rtc_boot_mode.attempt_detail = 0;
     rtc_boot_mode.pic_taken     = 0;
     ok = false;
   } else {
@@ -338,13 +337,13 @@ void gopro_connect() {
     Attempt++;
     if (Attempt == 300) {
       rtc_boot_mode.attempt_this++;
-      if ( rtc_boot_mode.attempt_this > 4) {
+      if ( rtc_boot_mode.attempt_this > 1) {
+        rtc_boot_mode.attempt_phase = 0;
+        rtc_boot_mode.attempt_detail = 1;
         rtc_boot_mode.twitter_phase = 8;
-        bgopro_wifi = true;
-        saveConfig_helper();
-        delay(200);
-        wifi_connect();
       }
+      saveConfig_helper();
+      delay(200);
       ESP.restart();
     }
   }
@@ -710,7 +709,6 @@ void setup() {
   //
   lastReconnectAttempt = 0;
   msgcallback = false;
-  bgopro_wifi = false;
 
   getResetInfo = "hello from solar ";
   getResetInfo += ESP.getResetInfo().substring(0, 80);
@@ -783,7 +781,7 @@ void setup() {
     delay(1000);
 
     // check fie size in config
-    if ( rtc_boot_mode.twitter_phase != 0 && rtc_boot_mode.gopro_size == 0) {
+    if ( rtc_boot_mode.twitter_phase != 0 && rtc_boot_mode.gopro_size == 0 && rtc_boot_mode.twitter_phase != 8) {
       rtc_boot_mode.attempt_this  = 0;
       rtc_boot_mode.twitter_phase = 0;
       saveConfig_helper();
@@ -974,6 +972,7 @@ void loop() {
         rtc_boot_mode.attempt_this  = 0;
         rtc_boot_mode.twitter_phase = 0;
         rtc_boot_mode.attempt_phase = 0;
+        rtc_boot_mode.attempt_detail = 0;
         saveConfig_helper();
         delay(200);
 
@@ -1061,7 +1060,7 @@ void loop() {
         value_nonce      = *(volatile uint32_t *)0x3FF20E44;
 
         if ( rtc_boot_mode.twitter_phase == 8 ) {
-          if (bgopro_wifi && rtc_boot_mode.attempt_phase == 0 ) {
+          if (rtc_boot_mode.attempt_phase == 0 && rtc_boot_mode.attempt_detail == 1) {
             value_status  = "esp-01 / ";
             value_status += hour();
             value_status += ":";
@@ -1143,6 +1142,7 @@ void loop() {
           case 8:
             // tweet error status
             tweet_error();
+            break;
 
           default:
             x = false;
@@ -2049,7 +2049,7 @@ bool gopro_poweron() {
 
 /* PHASE 1 : start : get last file */
 bool get_gopro_file() {
-  if ( rtc_boot_mode.attempt_this > 4) {
+  if ( rtc_boot_mode.attempt_this > 2) {
     rtc_boot_mode.twitter_phase = 8;
     saveConfig_helper();
     gopro_poweroff();
