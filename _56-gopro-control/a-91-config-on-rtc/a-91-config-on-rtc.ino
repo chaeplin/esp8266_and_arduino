@@ -1,4 +1,8 @@
 // esp-01 4M / 3M flash / esp-solar
+/*
+  gopro wifi : https://github.com/KonradIT/goprowifihack
+  twitter api : https://dev.twitter.com/rest/reference/post/media/upload
+*/
 #include <Arduino.h>
 #include <TimeLib.h>
 #include <PubSubClient.h>
@@ -133,6 +137,7 @@ struct {
   int gopro_size;
   int chunked_no;
   int attempt_this;
+  int attempt_phase;
   int pic_taken;
   char gopro_dir[32];
   char gopro_file[32];
@@ -205,6 +210,9 @@ byte valueisinvalid[8]  = { B10000, B00000, B00000, B00000, B00000, B00000, B000
 byte customblock[8]     = { B00100, B00100, B00100, B00100, B00100, B00100, B00100, B00100 };
 
 //
+bool bgopro_wifi;
+
+//
 bool x;
 
 static uint32_t fnv_1_hash_32(uint8_t *bytes, size_t length) {
@@ -227,13 +235,14 @@ bool rtc_config_read() {
   bool ok = system_rtc_mem_read(65, &rtc_boot_mode, sizeof(rtc_boot_mode));
   uint32_t hash = calc_hash(rtc_boot_mode);
   if (!ok || rtc_boot_mode.hash != hash) {
-    rtc_boot_mode.gopro_mode    = false;
+    rtc_boot_mode.gopro_mode    = true;
     rtc_boot_mode.formatspiffs  = false;
     rtc_boot_mode.Temperature   = 0;
     rtc_boot_mode.gopro_size    = 0;
     rtc_boot_mode.twitter_phase = 0;
     rtc_boot_mode.chunked_no    = 0;
     rtc_boot_mode.attempt_this  = 0;
+    rtc_boot_mode.attempt_phase = 0;
     rtc_boot_mode.pic_taken     = 0;
     ok = false;
   } else {
@@ -328,6 +337,14 @@ void gopro_connect() {
     }
     Attempt++;
     if (Attempt == 300) {
+      rtc_boot_mode.attempt_this++;
+      if ( rtc_boot_mode.attempt_this > 4) {
+        rtc_boot_mode.twitter_phase = 8;
+        bgopro_wifi = true;
+        saveConfig_helper();
+        delay(200);
+        wifi_connect();
+      }
       ESP.restart();
     }
   }
@@ -545,7 +562,6 @@ time_t getNtpTime() {
   return 0;
 }
 
-
 /* --- */
 String macToStr(const uint8_t* mac) {
   String result;
@@ -694,6 +710,7 @@ void setup() {
   //
   lastReconnectAttempt = 0;
   msgcallback = false;
+  bgopro_wifi = false;
 
   getResetInfo = "hello from solar ";
   getResetInfo += ESP.getResetInfo().substring(0, 80);
@@ -785,10 +802,9 @@ void setup() {
         }
       }
     }
-
   }
 
-  if (!rtc_boot_mode.gopro_mode) {
+  if (!rtc_boot_mode.gopro_mode && rtc_boot_mode.attempt_this > 4) {
     wifi_connect();
   } else {
     if ( rtc_boot_mode.twitter_phase > 1 ) {
@@ -957,6 +973,7 @@ void loop() {
         rtc_boot_mode.Temperature = solar_data.Temperature2 ;
         rtc_boot_mode.attempt_this  = 0;
         rtc_boot_mode.twitter_phase = 0;
+        rtc_boot_mode.attempt_phase = 0;
         saveConfig_helper();
         delay(200);
 
@@ -1043,24 +1060,46 @@ void loop() {
         value_timestamp  = now();
         value_nonce      = *(volatile uint32_t *)0x3FF20E44;
 
-        value_status  = "esp-01 / ";
-        value_status += rtc_boot_mode.Temperature;
-        value_status += "C / ";
-        value_status += hour();
-        value_status += ":";
-        value_status += rtc_boot_mode.pic_taken;
-        value_status += " / ";
-        value_status += hour();
-        value_status += ":";
-        value_status += minute();
+        if ( rtc_boot_mode.twitter_phase == 8 ) {
+          if (bgopro_wifi && rtc_boot_mode.attempt_phase == 0 ) {
+            value_status  = "esp-01 / ";
+            value_status += hour();
+            value_status += ":";
+            value_status += minute();
+            value_status += " gopro wifi err, check plz";
+          } else {
+            value_status  = "esp-01 / ";
+            value_status += hour();
+            value_status += ":";
+            value_status += minute();
+            value_status += " PH: ";
+            value_status += rtc_boot_mode.attempt_phase;
+            value_status += " err, check plz";
+          }
+        } else {
+          value_status  = "esp-01 / ";
+          value_status += rtc_boot_mode.Temperature;
+          value_status += "C / ";
+          value_status += hour();
+          value_status += ":";
+          value_status += rtc_boot_mode.pic_taken;
+          value_status += " / ";
+          value_status += hour();
+          value_status += ":";
+          value_status += minute();
+        }
 
         switch (rtc_boot_mode.twitter_phase) {
 
           case 0:
+            // WIFI : GOPRO
+            // power on gopro, picture mode change, shutter on, get file name and directory of last taken pic
             get_gpro_list();
             break;
 
           case 1:
+            // WIFI : GOPRO
+            // download last taken pic to spiffs, power off gopro
             get_gopro_file();
             gopro_poweroff();
             delay(200);
@@ -1068,31 +1107,42 @@ void loop() {
             break;
 
           case 2:
+            // https://dev.twitter.com/rest/reference/post/media/upload-init
             tweet_init();
             break;
 
           case 3:
+            // https://dev.twitter.com/rest/reference/post/media/upload-append
             tweet_append();
             break;
 
           case 4:
+            // https://dev.twitter.com/rest/reference/post/media/upload-finalize
             tweet_fin();
             break;
 
           case 5:
+            // https://dev.twitter.com/rest/reference/get/media/upload-status
+            // not used
             tweet_check();
             break;
 
           case 6:
+            // https://dev.twitter.com/rest/reference/post/statuses/update
             tweet_status();
             break;
 
           case 7:
+            // go to clock mode
             rtc_boot_mode.gopro_mode = false;
             saveConfig_helper();
             delay(200);
             ESP.reset();
             break;
+
+          case 8:
+            // tweet error status
+            tweet_error();
 
           default:
             x = false;
@@ -1278,6 +1328,7 @@ String get_hash_str(String content_more, String content_last, int positionofchun
     SHA1_Final(digestkey, &context);
 
     return URLEncode(base64::encode(digestkey, 20).c_str());
+
   } else {
 
     char buff[1400] = { 0 };
@@ -1379,6 +1430,7 @@ bool do_http_append_post(String content_header, String content_more, String cont
 
   if (_returnCode >= 200 && _returnCode < 400) {
     rtc_boot_mode.chunked_no++;
+    rtc_boot_mode.attempt_this  = 0;
     saveConfig_helper();
     return true;
   } else {
@@ -1394,6 +1446,10 @@ bool do_http_text_post(String OAuth_header) {
     uri_to_post = BASE_URI;
     uri_to_post += "?media_ids=";
     uri_to_post += media_id;
+  }
+
+  if (rtc_boot_mode.twitter_phase == 8) {
+    uri_to_post = BASE_URI;
   }
 
   String req_body_to_post;
@@ -1423,6 +1479,12 @@ bool do_http_text_post(String OAuth_header) {
       http.begin(BASE_HOST, HTTPSPORT, uri_to_post, api_fingerprint);
       break;
 
+    case 8:
+      req_body_to_post = "status=";
+      req_body_to_post += String(URLEncode(value_status.c_str()));
+      http.begin(BASE_HOST, HTTPSPORT, uri_to_post, api_fingerprint);
+      break;
+
     default:
       return false;
       break;
@@ -1444,9 +1506,14 @@ bool do_http_text_post(String OAuth_header) {
   http.end();
   delay(1000);
 
-  if (rtc_boot_mode.twitter_phase == 6) {
+  if (rtc_boot_mode.twitter_phase == 6 || rtc_boot_mode.twitter_phase == 8) {
     if (DEBUG_PRINT) {
-      syslogPayload = "twitter : 6 - ";
+      syslogPayload = "twitter : ";
+      if ( rtc_boot_mode.twitter_phase == 6 ) {
+        syslogPayload += "6 - ";
+      } else {
+        syslogPayload += "8 - ";
+      }
       syslogPayload += httpCode;
       sendUdpSyslog(syslogPayload);
     }
@@ -1454,6 +1521,7 @@ bool do_http_text_post(String OAuth_header) {
     if (httpCode >= 200 && httpCode < 400) {
       rtc_boot_mode.attempt_this  = 0;
       rtc_boot_mode.twitter_phase = 7;
+      rtc_boot_mode.attempt_phase = 7;
       saveConfig_helper();
       delay(200);
       return true;
@@ -1461,6 +1529,7 @@ bool do_http_text_post(String OAuth_header) {
       return false;
     }
   }
+
 
   if (rtc_boot_mode.twitter_phase == 2 || rtc_boot_mode.twitter_phase == 4) {
     char json[] = "{\"media_id\":000000000000000000,\"media_id_string\":\"000000000000000000\",\"size\":0000000,\"expires_after_secs\":86400,\"image\":{\"image_type\":\"image\\/jpeg\",\"w\":0000,\"h\":0000}}" ;
@@ -1477,6 +1546,7 @@ bool do_http_text_post(String OAuth_header) {
         media_id = root["media_id_string"].asString();
         rtc_boot_mode.attempt_this  = 0;
         rtc_boot_mode.twitter_phase = 3;
+        rtc_boot_mode.attempt_phase = 3;
         saveConfig_helper();
         return true;
       }
@@ -1486,11 +1556,13 @@ bool do_http_text_post(String OAuth_header) {
           if (root.containsKey("processing_info")) {
             rtc_boot_mode.attempt_this  = 0;
             rtc_boot_mode.twitter_phase = 5;
+            rtc_boot_mode.attempt_phase = 5;
             saveConfig_helper();
             return true;
           } else {
             rtc_boot_mode.attempt_this  = 0;
             rtc_boot_mode.twitter_phase = 6;
+            rtc_boot_mode.attempt_phase = 6;
             saveConfig_helper();
             return true;
           }
@@ -1551,6 +1623,10 @@ String make_base_string(String para_string) {
       base_string += URLEncode(BASE_URL);
       break;
 
+    case 8:
+      base_string += URLEncode(BASE_URL);
+      break;
+
     default:
       base_string += URLEncode(UPLOAD_BASE_URL);
       break;
@@ -1566,7 +1642,7 @@ String make_para_string(String hashStr = "0") {
   String para_string;
 
   switch (rtc_boot_mode.twitter_phase) {
-    case 2:
+    case 2: // INIT
       para_string += URLEncode(UPLOAD_COMMAND);
       para_string += "=" ;
       para_string += URLEncode(UPLOAD_CMD_INIT);
@@ -1578,14 +1654,14 @@ String make_para_string(String hashStr = "0") {
       para_string += "&";
       break;
 
-    case 3:
+    case 3: // APPEND
       para_string += URLEncode(UPLOAD_OAUTH_KEY);
       para_string += "=" ;
       para_string += hashStr.c_str();
       para_string += "&";
       break;
 
-    case 4:
+    case 4: // FIN
       para_string += URLEncode(UPLOAD_COMMAND);
       para_string += "=" ;
       para_string += URLEncode(UPLOAD_CMD_FINALIZE);
@@ -1597,17 +1673,19 @@ String make_para_string(String hashStr = "0") {
       para_string += "&";
       break;
 
-    case 6:
+    case 6: // UPDATE
       para_string += URLEncode(KEY_MEDIA_IDS);
       para_string += "=" ;
       para_string += URLEncode(media_id.c_str());
       para_string += "&";
       break;
 
+    case 8: // Error report
+      break;
+
     default:
       break;
   }
-
 
   para_string += KEY_CONSUMER_KEY;
   para_string += "=" ;
@@ -1646,11 +1724,17 @@ String make_para_string(String hashStr = "0") {
       para_string += rtc_boot_mode.gopro_size;
       break;
 
-
     case 3:
       break;
 
     case 6:
+      para_string += "&";
+      para_string += KEY_STATUS;
+      para_string += "=";
+      para_string += URLEncode(value_status.c_str());
+      break;
+
+    case 8:
       para_string += "&";
       para_string += KEY_STATUS;
       para_string += "=";
@@ -1664,8 +1748,42 @@ String make_para_string(String hashStr = "0") {
   return para_string;
 }
 
+/* PHASE 8 : TWEET error*/
+bool tweet_error() {
+  bool rtn = false;
+
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("[P:8] TWEET error");
+
+  String para_string     = make_para_string();
+  String base_string     = make_base_string(para_string);
+  String oauth_signature = make_signature(CONSUMER_SECRET, ACCESS_SECRET, base_string);
+  String OAuth_header    = make_OAuth_header(oauth_signature);
+  rtn                    = do_http_text_post(OAuth_header);
+
+  lcd.setCursor(0, 2);
+  if (rtn) {
+    lcd.print("[P:8] OK");
+  } else {
+    lcd.print("[P:8] FAIL");
+  }
+  delay(2000);
+
+  return rtn;
+}
+
+
+/* PHASE 6 : TWEET */
 bool tweet_status() {
   bool rtn = false;
+
+  if ( rtc_boot_mode.attempt_this > 4) {
+    rtc_boot_mode.twitter_phase = 8;
+    saveConfig_helper();
+    delay(200);
+    return rtn;
+  }
 
   lcd.clear();
   lcd.setCursor(0, 0);
@@ -1688,12 +1806,21 @@ bool tweet_status() {
   return rtn;
 }
 
+/* PHASE 5 : STATUS CHECK */
 void tweet_check() {
   rtc_boot_mode.twitter_phase++;
 }
 
+/* PHASE 4 : FINALIZE */
 bool tweet_fin() {
   bool rtn = false;
+
+  if ( rtc_boot_mode.attempt_this > 4) {
+    rtc_boot_mode.twitter_phase = 8;
+    saveConfig_helper();
+    delay(200);
+    return rtn;
+  }
 
   lcd.clear();
   lcd.setCursor(0, 0);
@@ -1715,8 +1842,16 @@ bool tweet_fin() {
   return rtn;
 }
 
+/* PHASE 3 : APPEND */
 bool tweet_append() {
   bool rtn = false;
+
+  if ( rtc_boot_mode.attempt_this > 4) {
+    rtc_boot_mode.twitter_phase = 8;
+    saveConfig_helper();
+    delay(200);
+    return rtn;
+  }
 
   lcd.clear();
   lcd.setCursor(0, 0);
@@ -1798,8 +1933,17 @@ bool tweet_append() {
   return rtn;
 }
 
+/* PHASE 2 : INIT */
 bool tweet_init() {
   bool rtn = false;
+
+  if ( rtc_boot_mode.attempt_this > 4) {
+    rtc_boot_mode.twitter_phase = 8;
+    saveConfig_helper();
+    delay(200);
+    return rtn;
+  }
+
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("[P:2] INIT");
@@ -1827,9 +1971,18 @@ bool tweet_init() {
 bool gopro_poweroff() {
   bool rtn = false;
   HTTPClient http;
+
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("[P:1] PN DOWN");
+
   // auto shutdown off
   http.begin("http://10.5.5.9:80/camera/AO?t=" + String(gopropassword) + "&p=%00");
   int httpCode = http.GET();
+
+  lcd.setCursor(0, 1);
+  lcd.print("code : ");
+  lcd.print(httpCode);
 
   if (httpCode == HTTP_CODE_OK) {
     http.end();
@@ -1837,6 +1990,10 @@ bool gopro_poweroff() {
     // power off
     http.begin("http://10.5.5.9:80/bacpac/PW?t=" + String(gopropassword) + "&p=%00");
     int httpCode2 = http.GET();
+
+    lcd.setCursor(0, 2);
+    lcd.print("code : ");
+    lcd.print(httpCode2);
 
     if (httpCode2 == HTTP_CODE_OK) {
       rtn = true;
@@ -1892,6 +2049,14 @@ bool gopro_poweron() {
 
 /* PHASE 1 : start : get last file */
 bool get_gopro_file() {
+  if ( rtc_boot_mode.attempt_this > 4) {
+    rtc_boot_mode.twitter_phase = 8;
+    saveConfig_helper();
+    gopro_poweroff();
+    delay(200);
+    ESP.reset();
+  }
+
   bool rtn = false;
 
   lcd.clear();
@@ -1918,6 +2083,7 @@ bool get_gopro_file() {
       if ( len != rtc_boot_mode.gopro_size ) {
         http.end();
         rtc_boot_mode.twitter_phase = 0;
+        rtc_boot_mode.attempt_this++;
 
         lcd.setCursor(0, 1);
         lcd.print("[P:1] size differ");
@@ -1937,6 +2103,8 @@ bool get_gopro_file() {
         lcd.print("[P:1] SPIFFS err");
         delay(1000);
 
+        rtc_boot_mode.attempt_this++;
+        saveConfig_helper();
         return false;
       }
 
@@ -2025,6 +2193,7 @@ bool get_gopro_file() {
 
       rtc_boot_mode.attempt_this  = 0;
       rtc_boot_mode.twitter_phase = 2;
+      rtc_boot_mode.attempt_phase = 2;
       saveConfig_helper();
 
       rtn = true;
@@ -2048,6 +2217,14 @@ bool get_gopro_file() {
 
 /* PHASE 0 : start : get gopro file list */
 bool get_gpro_list() {
+  if ( rtc_boot_mode.attempt_this > 4) {
+    rtc_boot_mode.twitter_phase = 8;
+    saveConfig_helper();
+    gopro_poweroff();
+    delay(200);
+    ESP.reset();
+  }
+
   bool rtn = false;
 
   lcd.clear();
@@ -2071,6 +2248,8 @@ bool get_gpro_list() {
       lcd.print("---> FAIL");
       delay(1000);
 
+      rtc_boot_mode.attempt_this++;
+      saveConfig_helper();
       return false;
     }
   }
@@ -2128,9 +2307,10 @@ bool get_gpro_list() {
           gopro_file    = filename.c_str();
           media_id      = "0000000000000000000";
           rtc_boot_mode.gopro_size    = filesize.toInt();
-          rtc_boot_mode.attempt_this  = 0;
           rtc_boot_mode.chunked_no    = 0;
           rtc_boot_mode.twitter_phase = 1;
+          rtc_boot_mode.attempt_phase = 1;
+          rtc_boot_mode.attempt_this  = 0;
           rtc_boot_mode.pic_taken     = minute();
 
           saveConfig_helper();
@@ -2142,6 +2322,8 @@ bool get_gpro_list() {
           lcd.print("[P:0] big file");
           delay(2000);
 
+          rtc_boot_mode.attempt_this++;
+          saveConfig_helper();
           rtn = false;
         }
       }
