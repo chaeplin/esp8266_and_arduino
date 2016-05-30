@@ -13,6 +13,7 @@
 ![1](./pics/readme/54hx711.jpg)
 ![1](./pics/readme/55dtr.jpg)
 ![1](./pics/readme/58button.jpg)
+![1](./pics/readme/8x8button.jpg)
 
 * ESP8266 mqtt node
 
@@ -106,7 +107,9 @@
 | _56-gopro-control | esp-01 | | 4M flash version, to upload gopro picture to twitter |
 | _57-tiny85-cds-pir | | tiny85 | to turn off light which has touch sensor |
 | _58-esp8266-tyny85-dash-button | esp-01 | tiny85 | second version of dash button |
-
+| _59-esp8266-tyny85-i2c8x8-dash-button | esp-01 | tiny85 | 3rd version of dash button |
+| _60-tiny85-pin-int | |tiny85 | PinChangeInterrupt lib test |
+| _61-mma-8452-promini | | pro mini | mma-8452 test | 
 
 #### _02-mqtt-sw ####
 - esp-12 + nrf24l01p
