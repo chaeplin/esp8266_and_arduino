@@ -1552,7 +1552,7 @@ bool do_http_text_post(String OAuth_header) {
       }
     } else {
       if (root.containsKey("media_id_string")) {
-        if (media_id == root["media_id_string"]) {
+        if (media_id == root["media_id_string"].asString()) {
           if (root.containsKey("processing_info")) {
             rtc_boot_mode.attempt_this  = 0;
             rtc_boot_mode.twitter_phase = 5;
@@ -1808,7 +1808,12 @@ bool tweet_status() {
 
 /* PHASE 5 : STATUS CHECK */
 void tweet_check() {
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("[P:5] CHECKING");
   rtc_boot_mode.twitter_phase++;
+  saveConfig_helper();
+  delay(2000);  
 }
 
 /* PHASE 4 : FINALIZE */
