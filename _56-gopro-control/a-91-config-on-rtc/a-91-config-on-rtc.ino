@@ -47,7 +47,7 @@ extern "C" {
 #include "/usr/local/src/gopro_setting.h"
 #include "/usr/local/src/twitter_setting.h"
 /* -- */
-#define DEBUG_PRINT 1
+//#define DEBUG_PRINT 1
 
 #define SYS_CPU_80MHz 80
 #define SYS_CPU_160MHz 160
@@ -233,16 +233,16 @@ bool rtc_config_read() {
   bool ok = system_rtc_mem_read(65, &rtc_boot_mode, sizeof(rtc_boot_mode));
   uint32_t hash = calc_hash(rtc_boot_mode);
   if (!ok || rtc_boot_mode.hash != hash) {
-    rtc_boot_mode.gopro_mode    = true;
-    rtc_boot_mode.formatspiffs  = false;
-    rtc_boot_mode.Temperature   = 0;
-    rtc_boot_mode.gopro_size    = 0;
-    rtc_boot_mode.twitter_phase = 0;
-    rtc_boot_mode.chunked_no    = 0;
-    rtc_boot_mode.attempt_this  = 0;
-    rtc_boot_mode.attempt_phase = 0;
+    rtc_boot_mode.gopro_mode     = true;
+    rtc_boot_mode.formatspiffs   = false;
+    rtc_boot_mode.Temperature    = 0;
+    rtc_boot_mode.gopro_size     = 0;
+    rtc_boot_mode.twitter_phase  = 0;
+    rtc_boot_mode.chunked_no     = 0;
+    rtc_boot_mode.attempt_this   = 0;
+    rtc_boot_mode.attempt_phase  = 0;
     rtc_boot_mode.attempt_detail = 0;
-    rtc_boot_mode.pic_taken     = 0;
+    rtc_boot_mode.pic_taken      = 0;
     ok = false;
   } else {
     gopro_dir  = rtc_boot_mode.gopro_dir;
@@ -479,13 +479,6 @@ void sendmqttMsg(char* topictosend, String payload) {
   if (mqttclient.publish(topictosend, p, msg_length, 1)) {
     free(p);
   } else {
-    if (DEBUG_PRINT) {
-      syslogPayload = topictosend;
-      syslogPayload += " - ";
-      syslogPayload += payload;
-      syslogPayload += " : Publish fail";
-      sendUdpSyslog(syslogPayload);
-    }
     free(p);
   }
   mqttclient.loop();
@@ -575,18 +568,6 @@ String macToStr(const uint8_t* mac) {
 boolean reconnect() {
   if (!mqttclient.connected()) {
     if (mqttclient.connect((char*) clientName.c_str())) {
-      /*
-        if (mqttclient.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
-        mqttclient.publish(willTopic, "1", true);
-
-        if (!ResetInfo) {
-          mqttclient.publish(hellotopic, (char*) getResetInfo.c_str());
-          ResetInfo = true;
-        } else {
-          mqttclient.publish(hellotopic, "hello again 1 from solar");
-        }
-
-      */
 
       mqttclient.loop();
 
@@ -594,17 +575,8 @@ boolean reconnect() {
         mqttclient.subscribe(substopic[i]);
         mqttclient.loop();
       }
-
-      if (DEBUG_PRINT) {
-        sendUdpSyslog("---> mqttconnected");
-      }
-    } else {
-      if (DEBUG_PRINT) {
-        syslogPayload = "failed, rc=";
-        syslogPayload += mqttclient.state();
-        sendUdpSyslog(syslogPayload);
-      }
-    }
+    } //else {
+      //}
   }
   return mqttclient.connected();
 }
@@ -615,13 +587,6 @@ void callback(char* intopic, byte* inpayload, unsigned int length) {
 
   for (int i = 0; i < length; i++) {
     receivedpayload += (char)inpayload[i];
-  }
-
-  if (DEBUG_PRINT) {
-    syslogPayload = intopic;
-    syslogPayload += " ====> ";
-    syslogPayload += receivedpayload;
-    sendUdpSyslog(syslogPayload);
   }
   parseMqttMsg(receivedpayload, receivedtopic);
 }
@@ -816,10 +781,6 @@ void setup() {
     udp.begin(localPort);
 
     if (!Rtc.IsDateTimeValid()) {
-      if (DEBUG_PRINT) {
-        sendUdpSyslog("00 --> Rtc.IsDateTime is inValid");
-      }
-
       lcd.setCursor(0, 3);
       lcd.print("RTC is inValid");
       delay(1000);
@@ -837,10 +798,6 @@ void setup() {
       }
 
       if (timeStatus() == timeSet) {
-        if (DEBUG_PRINT) {
-          sendUdpSyslog("00 --> ntp time synced");
-        }
-
         lcd.setCursor(0, 3);
         lcd.print("ntp synced");
 
@@ -848,15 +805,9 @@ void setup() {
         if (!Rtc.GetIsRunning()) {
           Rtc.SetIsRunning(true);
         }
-      } else {
-        if (DEBUG_PRINT) {
-          sendUdpSyslog("00 --> ntp not synced, use rtc time anyway");
-        }
-      }
+      } //else {
+        // }
     } else {
-      if (DEBUG_PRINT) {
-        sendUdpSyslog("00 --> Rtc.IsDateTime is Valid");
-      }
       lcd.setCursor(0, 3);
       lcd.print("RTC is Valid");
       delay(1000);
@@ -936,11 +887,6 @@ void setup() {
 
     ArduinoOTA.begin();
 
-    if (DEBUG_PRINT) {
-      syslogPayload = "------------------> solar started";
-      sendUdpSyslog(syslogPayload);
-    }
-
     lcd_redraw();
 
     pinMode(SquareWavePin, INPUT_PULLUP);
@@ -956,17 +902,7 @@ void loop() {
   if (!rtc_boot_mode.gopro_mode) {
     if (balm_isr) {
       DS3231AlarmFlag flag = Rtc.LatchAlarmsTriggeredFlags();
-      /*
-        if (flag & DS3231AlarmFlag_Alarm1) {
-        if (DEBUG_PRINT) {
-          sendUdpSyslog("alarm one triggered");
-        }
-        }
-      */
       if (flag & DS3231AlarmFlag_Alarm2) {
-        if (DEBUG_PRINT) {
-          sendUdpSyslog("alarm two triggered");
-        }
         rtc_boot_mode.gopro_mode  = true;
         rtc_boot_mode.Temperature = solar_data.Temperature2 ;
         rtc_boot_mode.attempt_this  = 0;
@@ -983,11 +919,6 @@ void loop() {
 
     if (WiFi.status() == WL_CONNECTED) {
       if (!mqttclient.connected()) {
-        if (DEBUG_PRINT) {
-          syslogPayload = "failed, rc= ";
-          syslogPayload += mqttclient.state();
-          sendUdpSyslog(syslogPayload);
-        }
         unsigned long now = millis();
         if (now - lastReconnectAttempt > 100) {
           lastReconnectAttempt = now;
@@ -1494,31 +1425,34 @@ bool do_http_text_post(String OAuth_header) {
   http.addHeader("Content-Length", String(req_body_to_post.length()));
   http.addHeader("Content-Type", "application/x-www-form-urlencoded");
   int httpCode = http.POST(req_body_to_post);
-  lcd.print(httpCode);
+  
   if (httpCode > 0) {
-    if (httpCode >= 200 && httpCode < 400) {
+    //if ((httpCode >= 200) && (httpCode < 400)) {
       payload = http.getString();
-    }
+    //}
+      http.end();
+      lcd.print(httpCode);
+      lcd.setCursor(0, 2);
+      lcd.print(payload);
   } else {
     http.end();
+    if (rtc_boot_mode.twitter_phase == 6) {
+      rtc_boot_mode.attempt_this   = 0;
+      rtc_boot_mode.attempt_phase  = 6;
+      rtc_boot_mode.attempt_detail = 2;
+      rtc_boot_mode.twitter_phase  = 8;
+      saveConfig_helper();
+      delay(200);
+    }
+    lcd.print(httpCode);
+    delay(1000);
     return false;
   }
-  http.end();
+  
   delay(1000);
 
   if (rtc_boot_mode.twitter_phase == 6 || rtc_boot_mode.twitter_phase == 8) {
-    if (DEBUG_PRINT) {
-      syslogPayload = "twitter : ";
-      if ( rtc_boot_mode.twitter_phase == 6 ) {
-        syslogPayload += "6 - ";
-      } else {
-        syslogPayload += "8 - ";
-      }
-      syslogPayload += httpCode;
-      sendUdpSyslog(syslogPayload);
-    }
-
-    if (httpCode >= 200 && httpCode < 400) {
+    if ((httpCode >= 200) && (httpCode < 400)) {
       rtc_boot_mode.attempt_this  = 0;
       rtc_boot_mode.twitter_phase = 7;
       rtc_boot_mode.attempt_phase = 7;
@@ -1526,10 +1460,17 @@ bool do_http_text_post(String OAuth_header) {
       delay(200);
       return true;
     } else {
+      if (rtc_boot_mode.twitter_phase == 6) {
+        rtc_boot_mode.attempt_this   = 0;
+        rtc_boot_mode.attempt_phase  = 6;
+        rtc_boot_mode.attempt_detail = 1;
+        rtc_boot_mode.twitter_phase  = 8;
+        saveConfig_helper();
+        delay(200);
+      }
       return false;
     }
   }
-
 
   if (rtc_boot_mode.twitter_phase == 2 || rtc_boot_mode.twitter_phase == 4) {
     char json[] = "{\"media_id\":000000000000000000,\"media_id_string\":\"000000000000000000\",\"size\":0000000,\"expires_after_secs\":86400,\"image\":{\"image_type\":\"image\\/jpeg\",\"w\":0000,\"h\":0000}}" ;
@@ -1779,6 +1720,7 @@ bool tweet_status() {
   bool rtn = false;
 
   if ( rtc_boot_mode.attempt_this > 4) {
+    rtc_boot_mode.attempt_this  = 0;
     rtc_boot_mode.twitter_phase = 8;
     saveConfig_helper();
     delay(200);
@@ -1811,9 +1753,9 @@ void tweet_check() {
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("[P:5] CHECKING");
-  rtc_boot_mode.twitter_phase++;
+  rtc_boot_mode.twitter_phase=6;
   saveConfig_helper();
-  delay(2000);  
+  delay(2000);
 }
 
 /* PHASE 4 : FINALIZE */
@@ -1821,6 +1763,7 @@ bool tweet_fin() {
   bool rtn = false;
 
   if ( rtc_boot_mode.attempt_this > 4) {
+    rtc_boot_mode.attempt_this  = 0;
     rtc_boot_mode.twitter_phase = 8;
     saveConfig_helper();
     delay(200);
@@ -1852,6 +1795,7 @@ bool tweet_append() {
   bool rtn = false;
 
   if ( rtc_boot_mode.attempt_this > 4) {
+    rtc_boot_mode.attempt_this  = 0;
     rtc_boot_mode.twitter_phase = 8;
     saveConfig_helper();
     delay(200);
@@ -1943,6 +1887,7 @@ bool tweet_init() {
   bool rtn = false;
 
   if ( rtc_boot_mode.attempt_this > 4) {
+    rtc_boot_mode.attempt_this  = 0;
     rtc_boot_mode.twitter_phase = 8;
     saveConfig_helper();
     delay(200);
@@ -2055,6 +2000,7 @@ bool gopro_poweron() {
 /* PHASE 1 : start : get last file */
 bool get_gopro_file() {
   if ( rtc_boot_mode.attempt_this > 2) {
+    rtc_boot_mode.attempt_this  = 0;
     rtc_boot_mode.twitter_phase = 8;
     saveConfig_helper();
     gopro_poweroff();
@@ -2224,6 +2170,7 @@ bool get_gopro_file() {
 bool get_gpro_list() {
   if ( rtc_boot_mode.attempt_this > 4) {
     rtc_boot_mode.twitter_phase = 8;
+    rtc_boot_mode.attempt_this  = 0;
     saveConfig_helper();
     gopro_poweroff();
     delay(200);
