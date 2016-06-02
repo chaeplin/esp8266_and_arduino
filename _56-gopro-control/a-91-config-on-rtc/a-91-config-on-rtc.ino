@@ -470,11 +470,11 @@ void ssl_hmac_sha1(const uint8_t *msg, int length, const uint8_t *key, int key_l
   SHA1_Final(digest, &context);
 }
 /* -- */
-void sendmqttMsg(char* topictosend, String payload) {
-  unsigned int msg_length = payload.length();
+void sendmqttMsg(char* topictosend, String topicpayload) {
+  unsigned int msg_length = topicpayload.length();
 
   byte* p = (byte*)malloc(msg_length);
-  memcpy(p, (char*) payload.c_str(), msg_length);
+  memcpy(p, (char*) topicpayload.c_str(), msg_length);
 
   if (mqttclient.publish(topictosend, p, msg_length, 1)) {
     free(p);
@@ -1370,7 +1370,7 @@ bool do_http_append_post(String content_header, String content_more, String cont
 }
 
 bool do_http_text_post(String OAuth_header) {
-  String payload = "";
+  String httppayload = "";
 
   String uri_to_post = UPLOAD_BASE_URI;
   if (rtc_boot_mode.twitter_phase == 6) {
@@ -1427,13 +1427,14 @@ bool do_http_text_post(String OAuth_header) {
   int httpCode = http.POST(req_body_to_post);
   
   if (httpCode > 0) {
-    //if ((httpCode >= 200) && (httpCode < 400)) {
-      payload = http.getString();
-    //}
+      if ((httpCode >= 200) && (httpCode < 400)) {
+        if (rtc_boot_mode.twitter_phase == 2 || rtc_boot_mode.twitter_phase == 4) {
+          httppayload = http.getString();
+        }
+      }
       http.end();
       lcd.print(httpCode);
       lcd.setCursor(0, 2);
-      lcd.print(payload);
   } else {
     http.end();
     if (rtc_boot_mode.twitter_phase == 6) {
@@ -1474,7 +1475,7 @@ bool do_http_text_post(String OAuth_header) {
 
   if (rtc_boot_mode.twitter_phase == 2 || rtc_boot_mode.twitter_phase == 4) {
     char json[] = "{\"media_id\":000000000000000000,\"media_id_string\":\"000000000000000000\",\"size\":0000000,\"expires_after_secs\":86400,\"image\":{\"image_type\":\"image\\/jpeg\",\"w\":0000,\"h\":0000}}" ;
-    payload.toCharArray(json, 200);
+    httppayload.toCharArray(json, 200);
     StaticJsonBuffer<200> jsonBuffer;
     JsonObject& root = jsonBuffer.parseObject(json);
 
