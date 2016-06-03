@@ -1317,6 +1317,7 @@ String get_hash_str(String content_more, String content_last, int positionofchun
 
         ESP.reset();
       }
+      yield();
     }
 
     sslclient.print(content_last);
@@ -2104,7 +2105,7 @@ bool get_gopro_file() {
 
           return false;
         }
-
+        yield();
       }
       f.close();
 
