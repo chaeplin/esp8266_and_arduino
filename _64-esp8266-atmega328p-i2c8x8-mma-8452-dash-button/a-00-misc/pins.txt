@@ -1,0 +1,7 @@
+mega328p
+SCL     --> esp 2 / mma8452 / 8x8
+SDA     --> esp 0 / mma8452 / 8x8
+12      --> i2c vcc / mma8452 / 8x8
+2/int 0 --> button
+3/int 1 --> mma8452 int 1
+A3/17   --> esp reset
