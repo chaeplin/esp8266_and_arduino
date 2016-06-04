@@ -6,295 +6,164 @@
 #include <avr/pgmspace.h>
 #include <avr/power.h>
 #include <Wire.h>
-#include <MMA8452.h>
-#include "Adafruit_LEDBackpack.h"
-#include "Adafruit_GFX.h"
 
-#define I2C_SLAVE_ADDR  0x26            // i2c slave address (38, 0x26)
-#define I2C_MATRIX_ADDR 0x70
+#define adc_disable() (ADCSRA &= ~(1<<ADEN)) // disable ADC
+#define adc_enable()  (ADCSRA |=  (1<<ADEN)) // re-enable ADC
 
-#define HT16K33_SS            B00100000 // System setup register
-#define HT16K33_SS_STANDBY    B00000000 // System setup - oscillator in standby mode
-#define HT16K33_SS_NORMAL     B00000001 // System setup - oscillator in normal mode
+#define I2C_SLAVE_ADDR  8
 
 #define I2C_VCC 12
 #define ESP_RST 17
-#define BUTTON_INT 2
-#define MMA_INT 3
+#define BUTTON_INT 2 // int 0
+// not used yet
+//#define MMA_INT 3
 
-Adafruit_8x8matrix matrix = Adafruit_8x8matrix();
-MMA8452 accelerometer;
+/* for hash */
+static uint32_t fnv_1_hash_32(uint8_t *bytes, size_t length) {
+  static const uint32_t FNV_OFFSET_BASIS_32 = 2166136261U;
+  static const uint32_t FNV_PRIME_32 = 16777619U;
+  uint32_t hash = FNV_OFFSET_BASIS_32;;
+  for (size_t i = 0 ; i < length ; ++i) hash = (FNV_PRIME_32 * hash) ^ (bytes[i]);
+  return hash;
+}
 
-static const uint8_t PROGMEM
-smile_bmp[] =
-{ B00111100,
-  B01000010,
-  B10100101,
-  B10000001,
-  B10100101,
-  B10011001,
-  B01000010,
-  B00111100
-},
-neutral_bmp[] =
-{ B00111100,
-  B01000010,
-  B10100101,
-  B10000001,
-  B10111101,
-  B10000001,
-  B01000010,
-  B00111100
-},
-frown_bmp[] =
-{ B00111100,
-  B01000010,
-  B10100101,
-  B10000001,
-  B10011001,
-  B10100101,
-  B01000010,
-  B00111100
-},
-light[] =
-{ B00111100,
-  B01000010,
-  B10000101,
-  B10001001,
-  B10010001,
-  B01100110,
-  B00011000,
-  B00011000
-},
-ac[] =
-{ B01111111,
-  B11000000,
-  B10111110,
-  B10100000,
-  B10100111,
-  B10110100,
-  B11000000,
-  B01111111
-},
-act[] =
-{ B01111111,
-  B11000000,
-  B10111110,
-  B10100000,
-  B10100111,
-  B10110010,
-  B11000010,
-  B01111111
-},
-large_heart[] =
-{ B00000000,
-  B01100110,
-  B11111111,
-  B11111111,
-  B01111110,
-  B00111100,
-  B00011000,
-  B00000000
-},
-small_heart[] =
-{ B00000000,
-  B00000000,
-  B00100100,
-  B01011010,
-  B01000010,
-  B00100100,
-  B00011000,
-  B00000000
-},
-fail_heart[] =
-{ B00000000,
-  B01100110,
-  B10011101,
-  B10001001,
-  B01010010,
-  B00100100,
-  B00011000,
-  B00000000
-};
+template <class T> uint32_t calc_hash(T& data) {
+  return fnv_1_hash_32(((uint8_t*)&data) + sizeof(data.hash), sizeof(T) - sizeof(data.hash));
+}
 
-uint8_t HT16K33_i2c_write(uint8_t val) {
-  Wire.beginTransmission(I2C_MATRIX_ADDR);
-  Wire.write(val);
-  return Wire.endTransmission();
-} // _i2c_write
+/* for i2c */
+template <typename T> unsigned int I2C_readAnything(T& value) {
+  byte * p = (byte*) &value;
+  unsigned int i;
+  for (i = 0; i < sizeof value; i++)
+    *p++ = Wire.read();
+  return i;
+}
 
-// Put the chip to sleep
-//
-uint8_t HT16K33_sleep() {
-  return HT16K33_i2c_write(HT16K33_SS | HT16K33_SS_STANDBY); // Stop oscillator
-} // sleep
+template <typename T> unsigned int I2C_writeAnything (const T& value) {
+  Wire.write((byte *) &value, sizeof (value));
+  return sizeof (value);
+}
 
-/****************************************************************/
-// Wake up the chip (after it been a sleep )
-//
-uint8_t HT16K33_normal() {
-  return HT16K33_i2c_write(HT16K33_SS | HT16K33_SS_NORMAL); // Start oscillator
+unsigned int startMiils;
+uint16_t pir_interuptCount = 0;
+volatile bool haveData = false;
+volatile bool bbutton_isr = false;
+
+volatile struct {
+  uint32_t hash;
+  uint16_t button;
+  uint16_t esp8266;
+} device_data;
+
+void button_isr() {
+  bbutton_isr = true;
+}
+
+void turn_off_8x8() {
+  digitalWrite(I2C_VCC, LOW);
+}
+
+void turn_on_8x8() {
+  digitalWrite(I2C_VCC, HIGH);
+}
+
+void reset_esp() {
+  digitalWrite(ESP_RST, LOW);
+  delay(10);
+  digitalWrite(ESP_RST, HIGH);
+}
+
+void requestEvent() {
+  I2C_writeAnything(device_data);
+}
+
+void receiveEvent(int howMany) {
+  if (howMany >= sizeof(device_data)) {
+    I2C_readAnything(device_data);
+  }
+  haveData = true;
+}
+
+void device_data_helper() {
+  device_data.button = pir_interuptCount;
+  device_data.hash = calc_hash(device_data);
+}
+
+void goingSleep() {
+  Serial.println("going to sleep....");
+  Serial.flush();
+  LowPower.powerDown(SLEEP_FOREVER, ADC_OFF, BOD_OFF);
+
+  startMiils = millis();
+  Serial.println("Wake up....");
 }
 
 void setup() {
+  adc_disable();
+
+  device_data.button = device_data.esp8266 = 0;
+  device_data.hash = calc_hash(device_data);
+
+  startMiils = millis();
+
+  pinMode(ESP_RST, OUTPUT);
+  pinMode(I2C_VCC, OUTPUT);
+  pinMode(BUTTON_INT, INPUT_PULLUP);
+
+  digitalWrite(ESP_RST, HIGH);
+
   Serial.begin(115200);
   while (!Serial) {
-    ; // wait for serial port to connect.
+    ;
   }
 
   Serial.println("Starting....");
+  attachInterrupt(digitalPinToInterrupt(BUTTON_INT), button_isr, FALLING);
 
-  pinMode(I2C_VCC, OUTPUT);
-  digitalWrite(I2C_VCC, HIGH);
-  delay(200);
-
-  accelerometer.init();
-  /*
-    accelerometer.setDataRate(MMA_800hz); // we need a quick sampling rate
-    accelerometer.setRange(MMA_RANGE_2G);
-    accelerometer.enableSingleTapDetector(MMA_X);
-    accelerometer.enableDoubleTapDetector(MMA_X, 0x22, 0xCC);
-    accelerometer.setTapThreshold(0x55, 0x55, 0x33);
-  */
-
-  /*
-    accelerometer.setDataRate(MMA_1_56hz);
-    accelerometer.setRange(MMA_RANGE_2G);
-    accelerometer.enableOrientationChange(true);
-  */
-
-  accelerometer.setDataRate(MMA_400hz);
-  accelerometer.setRange(MMA_RANGE_2G);
-
-  accelerometer.setMotionDetectionMode(MMA_MOTION, MMA_ALL_AXIS);
-  accelerometer.setMotionTreshold(0x11);
-
-
-  matrix.begin(I2C_MATRIX_ADDR);
-  matrix.setRotation(3);
-
-
-  matrix.clear();
-  matrix.drawRect(3, 3, 2, 2, LED_ON);
-  matrix.writeDisplay();
-  delay(100);
-
-  matrix.drawRect(2, 2, 4, 4, LED_ON);
-  matrix.writeDisplay();
-  delay(100);
-
-  matrix.drawRect(1, 1, 6, 6, LED_ON);
-  matrix.writeDisplay();
-  delay(100);
-
-  matrix.drawRect(0, 0, 8, 8, LED_ON);
-  matrix.writeDisplay();
-  delay(100);
-  matrix.clear();
-  matrix.writeDisplay();
+  Wire.begin(I2C_SLAVE_ADDR);
+  Wire.onRequest(requestEvent);
+  Wire.onReceive(receiveEvent);
 }
 
 void loop() {
-  /*
-    bool singleTap;
-    bool doubleTap;
-    bool x;
-    bool y;
-    bool z;
-    bool negX;
-    bool negY;
-    bool negZ;
-    accelerometer.getTapDetails(&singleTap, &doubleTap, &x, &y, &z, &negX, &negY, &negZ);
+  goingSleep();
+  turn_on_8x8();
+  delay(200);
+  reset_esp();
 
-    if (singleTap || doubleTap) {
-
-    Serial.print(millis());
-    Serial.print(F(": "));
-
-    if (doubleTap) Serial.print(F("Double"));
-    Serial.print(F("Tap on "));
-
-    if (x) {
-      Serial.print(F("X "));
-      Serial.print(negX ? F("left ") : F("right "));
-
-      matrix.clear();      // clear display
-      matrix.drawRect(0, 0, 8, 8, LED_ON);
-      matrix.writeDisplay();  // write the changes we just made to the display
+  while (1) {
+    if (bbutton_isr) {
+      Serial.println("Button pressed....");
+      pir_interuptCount++;
+      device_data_helper();
+      bbutton_isr = false;
+      Serial.print("Button : ");
+      Serial.println(pir_interuptCount);
     }
 
-    if (y) {
-      Serial.print(F("Y "));
-      Serial.print(negY ? F("down ") : F("up "));
-      matrix.clear();      // clear display
-      matrix.drawRect(1, 1, 6, 6, LED_ON);
-      matrix.writeDisplay();  // write the changes we just made to the display
+    if ((millis() - startMiils) > 20000) {
+      Serial.println("Timed out");
+      break;
     }
 
-    if (z) {
-      Serial.print(F("Z "));
-      Serial.print(negZ ? F("out ") : F("in "));
-      matrix.clear();      // clear display
-      matrix.drawRect(2, 2, 4, 4, LED_ON);
-      matrix.writeDisplay();  // write the changes we just made to the display
+    if (haveData) {
+      if (device_data.hash == calc_hash(device_data)) {
+        Serial.print("Msg received : ");
+        Serial.println(device_data.esp8266);
+        if (device_data.esp8266 == 3) {
+          haveData = false;
+          break;
+        }
+      }
     }
-    Serial.println();
-    }
-  */
-
-  /*
-    bool orientationChanged;
-    bool zTiltLockout;
-    mma8452_orientation_t orientation;
-    bool back;
-
-    accelerometer.getPortaitLandscapeStatus(&orientationChanged, &zTiltLockout, &orientation, &back);
-
-    if (orientationChanged) {
-    Serial.print("Orientation is now ");
-    switch (orientation)  {
-      case MMA_PORTRAIT_UP:
-        Serial.print(F("Portrait up"));
-        break;
-      case MMA_PORTRAIT_DOWN:
-        Serial.print(F("Portrait down"));
-        break;
-      case MMA_LANDSCAPE_RIGHT:
-        Serial.print(F("Landscape right"));
-        break;
-      case MMA_LANDSCAPE_LEFT:
-        Serial.print(F("Landscape left"));
-        break;
-    }
-    Serial.print(F(" (back: "));
-    Serial.print(back ? F("yep )") : F("nope)"));
-    Serial.print(F(" - Z Tilt lockout: "));
-    Serial.println(zTiltLockout);
-    }
-  */
-
-  bool motion = accelerometer.motionDetected();
-  if (motion) {
-    Serial.print(F("Motion @ "));
-    Serial.println(millis());
-
-    matrix.clear();
-    matrix.drawRect(3, 3, 2, 2, LED_ON);
-    matrix.writeDisplay();
-    delay(30);
-
-    matrix.drawRect(2, 2, 4, 4, LED_ON);
-    matrix.writeDisplay();
-    delay(50);
-
-    matrix.drawRect(1, 1, 6, 6, LED_ON);
-    matrix.writeDisplay();
-    delay(60);
-
-    matrix.drawRect(0, 0, 8, 8, LED_ON);
-    matrix.writeDisplay();
-    delay(100);
-    matrix.clear();
-    matrix.writeDisplay();
   }
+
+  turn_off_8x8();
+  pir_interuptCount = 0;
+  device_data.button = 0;
+  device_data.esp8266 = 0;
+  haveData = false;
+  bbutton_isr = false;
+  Serial.flush();
 }
