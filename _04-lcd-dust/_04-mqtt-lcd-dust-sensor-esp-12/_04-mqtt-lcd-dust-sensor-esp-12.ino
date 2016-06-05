@@ -345,7 +345,7 @@ void setup() {
   system_update_cpu_freq(SYS_CPU_160MHz);
   startMills = sentMills = millis();
   Wire.begin(0, 2);
-  twi_setClock(200000);
+  //twi_setClock(200000);
 
   T2 =  OT = PW = NW =  dustDensity = SquareWaveCount = old_SquareWaveCount = 0 ;
   //T2 =  OT = PW = NW =  dustDensity = 0 ;
