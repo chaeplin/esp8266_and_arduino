@@ -129,15 +129,30 @@ void setup() {
 void loop() {
   goingSleep();
   turn_on_8x8();
-  delay(200);
   reset_esp();
 
   while (1) {
     if (bbutton_isr) {
       Serial.println("Button pressed....");
-      pir_interuptCount++;
+      
+      while (!digitalRead(BUTTON_INT)) {
+        if ((millis() - startMiils) > 500) {
+          break;
+        }
+      }
+
+      if ((millis() - startMiils) < 500) {
+        pir_interuptCount = 1;
+      } else {
+        pir_interuptCount = 2;
+      }
+
       device_data_helper();
       bbutton_isr = false;
+
+      Serial.print("millis : ");
+      Serial.println(millis() - startMiils);
+      
       Serial.print("Button : ");
       Serial.println(pir_interuptCount);
     }
