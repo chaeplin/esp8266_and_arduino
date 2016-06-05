@@ -13,17 +13,13 @@ extern "C" {
 
 ADC_MODE(ADC_VCC);
 
-#define IPSET_STATIC { 192, 168, 10, 12 }
+#define IPSET_STATIC { 192, 168, 10, 16 }
 #define IPSET_GATEWAY { 192, 168, 10, 1 }
 #define IPSET_SUBNET { 255, 255, 255, 0 }
 #define IPSET_DNS { 192, 168, 10, 10 }
 
 #define I2C_SLAVE_ADDR  8
 #define I2C_MATRIX_ADDR 0x70
-
-#define HT16K33_SS            B00100000 // System setup register
-#define HT16K33_SS_STANDBY    B00000000 // System setup - oscillator in standby mode
-#define HT16K33_SS_NORMAL     B00000001 // System setup - oscillator in normal mode
 
 volatile struct {
   uint32_t hash;
@@ -36,13 +32,13 @@ volatile bool haveData = false;
 // ****************
 const char* ssid = WIFI_SSID;
 const char* password = WIFI_PASSWORD;
-int32_t channel = WIFI_CHANNEL;
-byte mqtt_server[] = MQTT_SERVER;
+IPAddress mqtt_server = MQTT_SERVER;
+//byte mqtt_server[] = MQTT_SERVER;
 //
-byte ip_static[] = IPSET_STATIC;
-byte ip_gateway[] = IPSET_GATEWAY;
-byte ip_subnet[] = IPSET_SUBNET;
-byte ip_dns[] = IPSET_DNS;
+IPAddress ip_static = IPSET_STATIC;
+IPAddress ip_gateway = IPSET_GATEWAY;
+IPAddress ip_subnet = IPSET_SUBNET;
+IPAddress ip_dns = IPSET_DNS;
 // ****************
 
 char* topic = "esp8266/cmd/light";
@@ -66,14 +62,6 @@ unsigned long wifiMills = 0;
 unsigned long subMills = 0;
 
 long lastReconnectAttempt = 0;
-
-void callback(char* intopic, byte* inpayload, unsigned int length);
-void goingToSleepWithFail();
-String macToStr(const uint8_t* mac);
-void goingToSleep();
-void sendlightcmd();
-boolean sendmqttMsg(char* topictosend, String payload);
-
 
 WiFiClient wifiClient;
 PubSubClient client(mqtt_server, 1883, callback, wifiClient);
@@ -231,57 +219,48 @@ boolean reconnect() {
   return client.connected();
 }
 
-void wifi_connect() {
-  WiFiClient::setLocalPortStart(vdd);
-  wifi_set_phy_mode(PHY_MODE_11N);
-  //system_phy_set_rfoption(1);
-  //wifi_set_channel(channel);
+void WiFiEvent(WiFiEvent_t event) {
+  Serial.printf("[WiFi-event] event: %d\n", event);
 
-  if (WiFi.status() != WL_CONNECTED) {
-    WiFi.mode(WIFI_STA);
-    WiFi.begin(ssid, password);
-    WiFi.config(IPAddress(ip_static), IPAddress(ip_gateway), IPAddress(ip_subnet), IPAddress(ip_dns));    
-
-    int Attempt = 1;
-    while (WiFi.status() != WL_CONNECTED) {
-      Serial.print(". ");
-      Serial.print(Attempt);
-      delay(100);
-      Attempt++;
-      if (Attempt == 300) {
-        Serial.println();
-        Serial.println("-----> Could not connect to WIFI");
-        goingToSleepWithFail();
-      }
-    }
-
-    Serial.println();
-    Serial.print("===> WiFi connected");
-    Serial.print(" ------> IP address: ");
-    Serial.println(WiFi.localIP());
-    
-    wifiMills = millis() - startMills;
+  switch (event) {
+    case WIFI_EVENT_STAMODE_GOT_IP:
+      wifiMills = millis() - startMills;
+      Serial.print("[WIFI] connected : ");
+      Serial.print("IP address: ");
+      Serial.println(WiFi.localIP());
+      /*
+        Serial.println(WiFi.status());
+        Serial.println(WiFi.waitForConnectResult());
+      */
+      break;
+    case WIFI_EVENT_STAMODE_DISCONNECTED:
+      Serial.println("[WIFI] lost connection");
+      break;
   }
 }
 
 void setup() {
-  device_data.button = device_data.esp8266 = 0;
-  device_data.hash = calc_hash(device_data);
+  startMills = millis();
 
-  delay(20);
-  vdd = ESP.getVcc() ;
   Serial.begin(115200);
   Serial.println();
   Serial.flush();
   Serial.println("Starting.....");
   
-  wifi_connect();
+  WiFi.onEvent(WiFiEvent);
+  WiFiClient::setLocalPortStart(vdd);
+  wifi_set_phy_mode(PHY_MODE_11N);
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(ssid, password);
+  WiFi.config(IPAddress(ip_static), IPAddress(ip_gateway), IPAddress(ip_subnet), IPAddress(ip_dns));
 
-  startMills = millis();
+  vdd = ESP.getVcc() ;
+
+  device_data.button = device_data.esp8266 = 0;
+  device_data.hash = calc_hash(device_data);
 
   Wire.begin(0, 2);
-  //twi_setClock(80000);
-  delay(200);
+  twi_setClock(200000);
 
   matrix.begin(I2C_MATRIX_ADDR);
   matrix.setRotation(3);
@@ -291,8 +270,18 @@ void setup() {
   matrix.writeDisplay();
   delay(200);
 
-  // can't connect wifi in here
-  //wifi_connect();
+  int Attempt = 0;
+  while (WiFi.status() != 3) {
+    delay(100);
+    Attempt++;
+    if (Attempt == 150) {
+      goingToSleepWithFail();
+    }
+  }
+  
+  matrix.fillRect(2, 2, 4, 4, LED_ON);
+  matrix.writeDisplay();
+  delay(200);
 
   clientName += "esp8266-";
   uint8_t mac[6];
@@ -300,12 +289,6 @@ void setup() {
   clientName += macToStr(mac);
   clientName += "-";
   clientName += String(micros() & 0xff, 16);
-  
-  matrix.clear();
-  matrix.drawRect(0, 0, 8, 8, LED_ON);
-  matrix.fillRect(2, 2, 4, 4, LED_ON);
-  matrix.writeDisplay();
-  delay(200);
 
   reconnect();
 
@@ -344,7 +327,7 @@ void setup() {
 }
 
 void loop() {
-  if (WiFi.status() == WL_CONNECTED) {
+  if (WiFi.status() == 3) {
     if (!client.connected()) {
       long now = millis();
       if (now - lastReconnectAttempt > 200) {
@@ -353,40 +336,39 @@ void loop() {
           lastReconnectAttempt = 0;
         }
       }
+    } else {
+
+      if (device_data.button == 1) {
+        if (( subMsgReceived == HIGH ) && ( relayReady == HIGH )) {
+          subMills = (millis() - startMills) - wifiMills ;
+          sendlightcmd();
+        }
+
+        if (( subMsgReceived == HIGH ) && ( relayReady == LOW )) {
+          subMills = (millis() - startMills) - wifiMills ;
+          goingToSleepWithFail();
+        }
+      }
+
+      if (device_data.button == 2 || device_data.button == 3) {
+        sendaccommand();
+      }
+
+      if (device_data.button == 4) {
+        goingToSleepWithFail();
+      }
+
+      if ( topicMsgSent == HIGH ) {
+        goingToSleep();
+      }
+
+      if ((millis() - startMills) > 15000) {
+        goingToSleepWithFail();
+      }
+      
+      client.loop();
     }
-  } else {
-    wifi_connect();
   }
-
-  if (device_data.button == 1) {
-    if (( subMsgReceived == HIGH ) && ( relayReady == HIGH )) {
-      subMills = (millis() - startMills) - wifiMills ;
-      sendlightcmd();
-    }
-
-    if (( subMsgReceived == HIGH ) && ( relayReady == LOW )) {
-      subMills = (millis() - startMills) - wifiMills ;
-      goingToSleepWithFail();
-    }
-  }
-
-  if (device_data.button == 2 || device_data.button == 3) {
-    sendaccommand();
-  }
-
-  if (device_data.button == 4) {
-    goingToSleepWithFail();
-  }
-
-  if ( topicMsgSent == HIGH ) {
-    goingToSleep();
-  }
-
-  if ((millis() - startMills) > 15000) {
-    goingToSleepWithFail();
-  }
-
-  client.loop();
 }
 
 void sendaccommand() {
@@ -458,9 +440,7 @@ void sendI2cMsg() {
 }
 
 void goingToSleep() {
-  delay(100);
-  //client.disconnect();
-  //yield();
+  //delay(100);
 
   matrix.clear();
   matrix.drawBitmap(0, 0, large_heart, 8, 8, LED_ON);
@@ -468,7 +448,7 @@ void goingToSleep() {
   delay(300);
 
   sendI2cMsg();
-  delay(200);
+  //delay(200);
 
   ESP.deepSleep(0);
   delay(50);
@@ -476,14 +456,14 @@ void goingToSleep() {
 
 
 void goingToSleepWithFail() {
-  delay(100);
+  //delay(100);
   matrix.clear();
   matrix.drawBitmap(0, 0, fail_heart, 8, 8, LED_ON);
   matrix.writeDisplay();
-  delay(200);
+  delay(300);
 
   sendI2cMsg();
-  delay(200);
+  //delay(200);
 
   ESP.deepSleep(0);
   delay(50);
