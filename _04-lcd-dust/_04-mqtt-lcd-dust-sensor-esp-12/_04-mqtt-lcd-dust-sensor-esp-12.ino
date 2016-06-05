@@ -1,4 +1,4 @@
-// 80MHz / 1M / 64K / ESP-01 (flash chip is changed) / esp-lcd
+// 80MHz / 1M / 64K / ESP-01 / esp-lcd
 /*
   D1(TX)    - for rtc int(not used)
   D3(RX)    - DHT22
@@ -342,9 +342,10 @@ boolean reconnect() {
 
 void setup() {
   Serial.swap();
-  system_update_cpu_freq(SYS_CPU_80MHz);
+  system_update_cpu_freq(SYS_CPU_160MHz);
   startMills = sentMills = millis();
   Wire.begin(0, 2);
+  twi_setClock(200000);
 
   T2 =  OT = PW = NW =  dustDensity = SquareWaveCount = old_SquareWaveCount = 0 ;
   //T2 =  OT = PW = NW =  dustDensity = 0 ;

@@ -657,11 +657,12 @@ void parseMqttMsg(String receivedpayload, String receivedtopic) {
 
 void setup() {
   Serial.swap();
-  system_update_cpu_freq(SYS_CPU_80MHz);
+  system_update_cpu_freq(SYS_CPU_160MHz);
   WiFi.mode(WIFI_OFF);
   rtc_config_read();
 
   Wire.begin(0, 2);
+  twi_setClock(200000);
   delay(100);
 
   clientName += "esp8266-";
