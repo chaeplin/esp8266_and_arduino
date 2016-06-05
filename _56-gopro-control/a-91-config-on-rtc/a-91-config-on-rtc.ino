@@ -662,8 +662,8 @@ void setup() {
   rtc_config_read();
 
   Wire.begin(0, 2);
-  twi_setClock(200000);
-  delay(100);
+  //twi_setClock(200000);
+  //delay(100);
 
   clientName += "esp8266-";
   uint8_t mac[6];
