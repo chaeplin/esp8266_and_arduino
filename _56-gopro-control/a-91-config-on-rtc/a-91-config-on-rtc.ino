@@ -575,7 +575,7 @@ boolean reconnect() {
         mqttclient.loop();
       }
     } //else {
-      //}
+    //}
   }
   return mqttclient.connected();
 }
@@ -806,7 +806,7 @@ void setup() {
           Rtc.SetIsRunning(true);
         }
       } //else {
-        // }
+      // }
     } else {
       lcd.setCursor(0, 3);
       lcd.print("RTC is Valid");
@@ -1055,6 +1055,8 @@ void loop() {
             // https://dev.twitter.com/rest/reference/get/media/upload-status
             // not used
             tweet_check();
+            delay(200);
+            ESP.reset();
             break;
 
           case 6:
@@ -1362,7 +1364,7 @@ bool do_http_append_post(String content_header, String content_more, String cont
 
   if (_returnCode >= 200 && _returnCode < 400) {
     rtc_boot_mode.chunked_no++;
-    rtc_boot_mode.attempt_this  = 0;
+    rtc_boot_mode.attempt_this = 0;
     saveConfig_helper();
     return true;
   } else {
@@ -1373,7 +1375,8 @@ bool do_http_append_post(String content_header, String content_more, String cont
 bool do_http_text_post(String OAuth_header) {
   String httppayload = "";
   String debug_ph6_httppayload = "";
-
+  String req_body_to_post;
+  
   String uri_to_post = UPLOAD_BASE_URI;
   if (rtc_boot_mode.twitter_phase == 6) {
     uri_to_post = BASE_URI;
@@ -1384,8 +1387,6 @@ bool do_http_text_post(String OAuth_header) {
   if (rtc_boot_mode.twitter_phase == 8) {
     uri_to_post = BASE_URI;
   }
-
-  String req_body_to_post;
 
   HTTPClient http;
 
@@ -1427,32 +1428,41 @@ bool do_http_text_post(String OAuth_header) {
   http.addHeader("Content-Length", String(req_body_to_post.length()));
   http.addHeader("Content-Type", "application/x-www-form-urlencoded");
   int httpCode = http.POST(req_body_to_post);
-  
-  if (httpCode > 0) {
-      if ((httpCode >= 200) && (httpCode < 400)) {
-        if (rtc_boot_mode.twitter_phase == 2 || rtc_boot_mode.twitter_phase == 4) {
-          httppayload = http.getString();
-        } 
-        if (rtc_boot_mode.twitter_phase == 6) {
-          debug_ph6_httppayload = http.getString();
-        }
-      }
-      http.end();
-      lcd.print(httpCode);
-      lcd.setCursor(0, 2);
 
-      if (rtc_boot_mode.twitter_phase == 6) { 
-        syslogPayload = "do_http_text_post: ";
-        syslogPayload += " - httpCode : ";
-        syslogPayload += httpCode;
-        syslogPayload += " - payload : ";
-        syslogPayload += debug_ph6_httppayload;
-        sendUdpSyslog(syslogPayload);
+  if (httpCode > 0) {
+    if (rtc_boot_mode.twitter_phase == 2 || rtc_boot_mode.twitter_phase == 4) {
+      if ((httpCode >= 200) && (httpCode < 400)) {
+        httppayload = http.getString();
       }
+    }
+
+    http.end();
+    delay(100);
+
+    if (rtc_boot_mode.twitter_phase == 6) {
+      syslogPayload = "do_http_text_post 1: ";
+      syslogPayload += " - httpCode : ";
+      syslogPayload += httpCode;
+      sendUdpSyslog(syslogPayload);
+      delay(200);
+    }
+
+    lcd.print(httpCode);
+    lcd.setCursor(0, 2);
 
   } else {
+    if (rtc_boot_mode.twitter_phase == 6) {
+      debug_ph6_httppayload = http.getString();
+    }
     http.end();
     if (rtc_boot_mode.twitter_phase == 6) {
+      syslogPayload = "do_http_text_post 2: ";
+      syslogPayload += " - httpCode : ";
+      syslogPayload += httpCode;
+      syslogPayload += " - payload : ";
+      syslogPayload += debug_ph6_httppayload;
+      sendUdpSyslog(syslogPayload);
+
       rtc_boot_mode.attempt_this   = 0;
       rtc_boot_mode.attempt_phase  = 6;
       rtc_boot_mode.attempt_detail = 2;
@@ -1461,18 +1471,10 @@ bool do_http_text_post(String OAuth_header) {
       delay(200);
     }
     lcd.print(httpCode);
-
-    if (rtc_boot_mode.twitter_phase == 6) {
-      syslogPayload = "do_http_text_post: ";
-      syslogPayload += " - httpCode : ";
-      syslogPayload += httpCode;
-      sendUdpSyslog(syslogPayload);
-    }
-    
     delay(1000);
     return false;
   }
-  
+
   delay(1000);
 
   if (rtc_boot_mode.twitter_phase == 6 || rtc_boot_mode.twitter_phase == 8) {
@@ -1517,7 +1519,8 @@ bool do_http_text_post(String OAuth_header) {
       }
     } else {
       if (root.containsKey("media_id_string")) {
-        if (media_id == root["media_id_string"].asString()) {
+        /*
+          if (media_id == root["media_id_string"].asString()) {
           if (root.containsKey("processing_info")) {
             rtc_boot_mode.attempt_this  = 0;
             rtc_boot_mode.twitter_phase = 5;
@@ -1531,7 +1534,12 @@ bool do_http_text_post(String OAuth_header) {
             saveConfig_helper();
             return true;
           }
-        }
+          }
+        */
+        rtc_boot_mode.attempt_this  = 0;
+        rtc_boot_mode.twitter_phase = 5;
+        rtc_boot_mode.attempt_phase = 5;
+        saveConfig_helper();
       }
     }
   }
@@ -1777,7 +1785,8 @@ void tweet_check() {
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("[P:5] CHECKING");
-  rtc_boot_mode.twitter_phase=6;
+  rtc_boot_mode.attempt_this  = 4;
+  rtc_boot_mode.twitter_phase = 6;
   saveConfig_helper();
   delay(2000);
 }
@@ -1900,7 +1909,7 @@ bool tweet_append() {
   lcd.setCursor(0, 2);
   lcd.print("[P:3] ");
   lcd.print(upspeed, 0);
-  lcd.print(" KB");
+  lcd.print(" B");
   delay(2000);
 
   return rtn;

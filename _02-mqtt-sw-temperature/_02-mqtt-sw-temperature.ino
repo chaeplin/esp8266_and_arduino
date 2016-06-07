@@ -1,4 +1,4 @@
-// 80M CPU / 4M / 1M SPIFFS / esp-swtemp
+// 160M CPU / 4M / 1M SPIFFS / esp-swtemp
 /*
   D1(TX)    - DHT22(NEW)
   D3(RX)    - nrf24l01
@@ -341,7 +341,7 @@ void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int lengt
 }
 
 void setup() {
-  system_update_cpu_freq(SYS_CPU_80MHz);
+  system_update_cpu_freq(SYS_CPU_160MHz);
   // wifi_status_led_uninstall();
 
   rtc_check();
@@ -766,7 +766,8 @@ void loop() {
                 unsigned int newRadiotopic_length = newRadiotopic.length();
                 char newRadiotopictosend[newRadiotopic_length] ;
                 newRadiotopic.toCharArray(newRadiotopictosend, newRadiotopic_length + 1);
-                sendmqttMsg(newRadiotopictosend, radiopayload, 0);
+                //sendmqttMsg(newRadiotopictosend, radiopayload, 0);
+                sendmqttMsg(newRadiotopictosend, radiopayload, 1);
               } else {
                 sendmqttMsg(radiofault, radiopayload, 0);
               }
