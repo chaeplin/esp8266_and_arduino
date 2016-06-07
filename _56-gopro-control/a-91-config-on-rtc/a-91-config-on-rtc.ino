@@ -1,4 +1,4 @@
-// esp-01 4M / 3M flash / esp-solar
+// esp-01 4M / 3M flash / esp-solar / 160MHz
 /*
   gopro wifi : https://github.com/KonradIT/goprowifihack
   twitter api : https://dev.twitter.com/rest/reference/post/media/upload
@@ -47,7 +47,6 @@ extern "C" {
 #include "/usr/local/src/gopro_setting.h"
 #include "/usr/local/src/twitter_setting.h"
 /* -- */
-//#define DEBUG_PRINT 1
 
 #define SYS_CPU_80MHz 80
 #define SYS_CPU_160MHz 160
@@ -1373,6 +1372,7 @@ bool do_http_append_post(String content_header, String content_more, String cont
 
 bool do_http_text_post(String OAuth_header) {
   String httppayload = "";
+  String debug_ph6_httppayload = "";
 
   String uri_to_post = UPLOAD_BASE_URI;
   if (rtc_boot_mode.twitter_phase == 6) {
@@ -1432,11 +1432,24 @@ bool do_http_text_post(String OAuth_header) {
       if ((httpCode >= 200) && (httpCode < 400)) {
         if (rtc_boot_mode.twitter_phase == 2 || rtc_boot_mode.twitter_phase == 4) {
           httppayload = http.getString();
+        } 
+        if (rtc_boot_mode.twitter_phase == 6) {
+          debug_ph6_httppayload = http.getString();
         }
       }
       http.end();
       lcd.print(httpCode);
       lcd.setCursor(0, 2);
+
+      if (rtc_boot_mode.twitter_phase == 6) { 
+        syslogPayload = "do_http_text_post: ";
+        syslogPayload += " - httpCode : ";
+        syslogPayload += httpCode;
+        syslogPayload += " - payload : ";
+        syslogPayload += debug_ph6_httppayload;
+        sendUdpSyslog(syslogPayload);
+      }
+
   } else {
     http.end();
     if (rtc_boot_mode.twitter_phase == 6) {
@@ -1448,6 +1461,14 @@ bool do_http_text_post(String OAuth_header) {
       delay(200);
     }
     lcd.print(httpCode);
+
+    if (rtc_boot_mode.twitter_phase == 6) {
+      syslogPayload = "do_http_text_post: ";
+      syslogPayload += " - httpCode : ";
+      syslogPayload += httpCode;
+      sendUdpSyslog(syslogPayload);
+    }
+    
     delay(1000);
     return false;
   }
