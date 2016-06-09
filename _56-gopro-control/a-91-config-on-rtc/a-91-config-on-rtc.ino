@@ -940,18 +940,18 @@ void loop() {
               displayData2();
 
               if (( millis() - lastTime ) > 120000 ) {
-                lcd.setCursor(19, 2);
-                lcd.write(5);
+                lcd.setCursor(7, 2);
+                lcd.write(7);
               } else {
-                lcd.setCursor(19, 2);
+                lcd.setCursor(7, 2);
                 lcd.print(" ");
               }
 
               if (( millis() - lastTime2 ) > 120000 ) {
-                lcd.setCursor(19, 3);
-                lcd.write(5);
+                lcd.setCursor(7, 3);
+                lcd.write(7);
               } else {
-                lcd.setCursor(19, 3);
+                lcd.setCursor(7, 3);
                 lcd.print(" ");
               }
             }

@@ -1,0 +1,10 @@
+ir in : 9
+dust led power out : 8
+dust measure in : a0
+moisture : a1
+ir out : 3
+sqwv : 2
+
+
+
+dht22 : 5
