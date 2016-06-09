@@ -1374,10 +1374,10 @@ bool do_http_append_post(String content_header, String content_more, String cont
 
 bool do_http_text_post(String OAuth_header) {
   String httppayload = "";
-  String debug_ph6_httppayload = "";
   String req_body_to_post;
   
   String uri_to_post = UPLOAD_BASE_URI;
+  
   if (rtc_boot_mode.twitter_phase == 6) {
     uri_to_post = BASE_URI;
     uri_to_post += "?media_ids=";
@@ -1435,7 +1435,6 @@ bool do_http_text_post(String OAuth_header) {
         httppayload = http.getString();
       }
     }
-
     http.end();
     delay(100);
 
@@ -1451,22 +1450,14 @@ bool do_http_text_post(String OAuth_header) {
     lcd.setCursor(0, 2);
 
   } else {
-    if (rtc_boot_mode.twitter_phase == 6) {
-      debug_ph6_httppayload = http.getString();
-    }
     http.end();
     if (rtc_boot_mode.twitter_phase == 6) {
       syslogPayload = "do_http_text_post 2: ";
       syslogPayload += " - httpCode : ";
       syslogPayload += httpCode;
-      syslogPayload += " - payload : ";
-      syslogPayload += debug_ph6_httppayload;
       sendUdpSyslog(syslogPayload);
 
-      rtc_boot_mode.attempt_this   = 0;
-      rtc_boot_mode.attempt_phase  = 6;
-      rtc_boot_mode.attempt_detail = 2;
-      rtc_boot_mode.twitter_phase  = 8;
+      rtc_boot_mode.attempt_this++;
       saveConfig_helper();
       delay(200);
     }
@@ -1785,7 +1776,7 @@ void tweet_check() {
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("[P:5] CHECKING");
-  rtc_boot_mode.attempt_this  = 4;
+  rtc_boot_mode.attempt_this  = 3;
   rtc_boot_mode.twitter_phase = 6;
   saveConfig_helper();
   delay(2000);
