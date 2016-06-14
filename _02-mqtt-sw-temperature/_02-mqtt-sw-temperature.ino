@@ -139,25 +139,20 @@ struct {
 } rtc_relaystatus;
 
 // mqtt
-char* topic       = "esp8266/arduino/s02";
-char* rslttopic   = "esp8266/cmd/light/rlst";
-//
-char* hellotopic  = "HELLO";
-//
-char* radiotopic  = "radio/test";
-char* radiofault  = "radio/test/fault";
-//
-char* willTopic   = "clients/relay";
-char* willMessage = "0";
-//
+char* topic         = "esp8266/arduino/s02";
+char* rslttopic     = "esp8266/cmd/light/rlst";
+char* hellotopic    = "HELLO";
+char* radiotopic    = "radio/test";
+char* radiofault    = "radio/test/fault";
+char* willTopic     = "clients/relay";
+char* willMessage   = "0";
 char* topicAverage  = "esp8266/arduino/s06";
-//
 char* lowpower      = "lowpower";
 // subscribe
 //
-char subtopic[]   = "esp8266/cmd/light";   // light command
-//
-char* substopic[1] = { subtopic } ;
+char subtopic_0[]   = "esp8266/cmd/light";   // light command
+char subtopic_1[]   = "esp8266/cmd/timer1";
+char* substopic[2] = { subtopic_0, subtopic_1 } ;
 //
 unsigned int localPort = 12390;
 const int timeZone = 9;
@@ -194,6 +189,10 @@ int millisnow;
 
 //
 int relayIsReady = HIGH;
+
+// light ogg time
+volatile uint8_t lightoffhour;
+volatile uint8_t lightoffmin;
 
 // DHT
 //declaration
@@ -275,7 +274,7 @@ boolean reconnect() {
       }
 
       client.loop();
-      for (int i = 0; i < 1; ++i) {
+      for (int i = 0; i < 2; ++i) {
         client.subscribe(substopic[i]);
         client.loop();
       }
@@ -309,32 +308,57 @@ void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int lengt
     syslogPayload += receivedpayload;
     sendUdpSyslog(syslogPayload);
   }
+  parseMqttMsg(receivedpayload, receivedtopic);
+}
 
-  //if ( receivedtopic == "esp8266/cmd/light" ) {
+void parseMqttMsg(String receivedpayload, String receivedtopic) {
+  char json[] = "{\"Humidity\":43.90,\"Temperature\":22.00,\"DS18B20\":22.00,\"PIRSTATUS\":0,\"FreeHeap\":43552,\"acquireresult\":0}";
+
+  receivedpayload.toCharArray(json, 200);
+  StaticJsonBuffer<200> jsonBuffer;
+  JsonObject& root = jsonBuffer.parseObject(json);
+
+  if (!root.success()) {
+    return;
+  }
+
   if ( receivedtopic == substopic[0] ) {
-
     unsigned long now = millis();
-
-    if ( now < 15000 ) {
-      if ( receivedpayload == "{\"LIGHT\":1}") {
-        relaystatus = HIGH ;
-      }
-      if ( receivedpayload == "{\"LIGHT\":0}") {
-        relaystatus = LOW ;
-      }
-      relayIsReady = LOW;
-    } else if ((now - lastRelayActionmillis) >= BETWEEN_RELAY_ACTIVE ) {
-      if ( receivedpayload == "{\"LIGHT\":1}") {
-        relaystatus = HIGH ;
-      }
-      if ( receivedpayload == "{\"LIGHT\":0}") {
-        relaystatus = LOW ;
+    if (root.containsKey("LIGHT")) {
+      if ( now < 15000 ) {
+        if (root["LIGHT"] == 1) {
+          relaystatus = HIGH ;
+        } else {
+          relaystatus = LOW ;
+        }
+        relayIsReady = LOW;
+      } else if ((now - lastRelayActionmillis) >= BETWEEN_RELAY_ACTIVE ) {
+        if (root["LIGHT"] == 1) {
+          relaystatus = HIGH ;
+        } else {
+          relaystatus = LOW ;
+        }
       }
     }
 
     if (INFO_PRINT) {
       syslogPayload = " => relaystatus => ";
       syslogPayload += relaystatus;
+      sendUdpSyslog(syslogPayload);
+    }
+  }
+
+  if ( receivedtopic == substopic[1] ) {
+    if (root.containsKey("lightoffhour") && root.containsKey("lightoffmin")) {
+      lightoffhour = root["lightoffhour"];
+      lightoffmin  = root["lightoffmin"];
+    }
+
+    if (INFO_PRINT) {
+      syslogPayload = " => lightoffhour => ";
+      syslogPayload += lightoffhour;
+      syslogPayload += " => lightoffmin => ";
+      syslogPayload += lightoffmin;
       sendUdpSyslog(syslogPayload);
     }
   }
@@ -370,6 +394,9 @@ void setup() {
 
   time_ackpayload.timestamp = 0;
   time_reqpayload.timestamp = 0;
+
+  lightoffhour = 6;
+  lightoffmin  = 0;
 
   getResetInfo = "hello from switch ";
   getResetInfo += ESP.getResetInfo().substring(0, 50);
@@ -480,7 +507,7 @@ void setup() {
 time_t prevDisplay = 0;
 
 void loop() {
-  uint32_t alarmtime = numberOfSecondsSinceEpoch(year(), month(), day(), 6, 0, 0);
+  uint32_t alarmtime = numberOfSecondsSinceEpoch(year(), month(), day(), lightoffhour, lightoffmin, 0);
   timestamp = now();
 
   if (WiFi.status() == WL_CONNECTED) {

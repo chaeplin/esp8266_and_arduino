@@ -1,4 +1,4 @@
-// 80MHz, 1M / 64K SPIFFS / esp-emontxv2
+// 160MHz, 1M / 64K SPIFFS / esp-emontxv2
 #include <Wire.h>
 // https://github.com/Makuna/Rtc
 #include <RtcDS1307.h>
@@ -313,13 +313,13 @@ bool ICACHE_RAM_ATTR get_i2c_data() {
 }
 
 void setup() {
-  system_update_cpu_freq(SYS_CPU_80MHz);
+  system_update_cpu_freq(SYS_CPU_160MHz);
   Serial.swap();
   //
   pinMode(DATA_IS_RDY_PIN, INPUT_PULLUP);
   //
   Wire.begin(0, 2);
-
+  twi_setClock(200000);
   //
   wifi_connect();
   lastReconnectAttempt = 0;

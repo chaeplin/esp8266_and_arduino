@@ -1,5 +1,6 @@
 // http://gammon.com.au/spi
 #include <SPI.h>
+//#define CS 16
 
 typedef struct
 {
@@ -20,26 +21,38 @@ void read_payload(void* buf, uint8_t data_len) {
   uint8_t* current = reinterpret_cast<uint8_t*>(buf);
   unsigned int i;
 
-  //SPI.beginTransaction(SPISettings(3000000, MSBFIRST, SPI_MODE0));
-  SPI.beginTransaction(SPISettings(4000000, MSBFIRST, SPI_MODE0));
+  SPI.beginTransaction(SPISettings(3000000, MSBFIRST, SPI_MODE0));
+  // has error
+  //SPI.beginTransaction(SPISettings(4000000, MSBFIRST, SPI_MODE0));
+  
+  //digitalWrite(CS, LOW);
   SPI.transfer(0);
+  //digitalWrite(CS, HIGH);
   delayMicroseconds(15);
+  
   for (i = 1 ; i <= data_len ; i++) {
+    //digitalWrite(CS, LOW);
     *current++ = SPI.transfer(i);
+    //digitalWrite(CS, HIGH);
     delayMicroseconds(7);
   }
   SPI.endTransaction();
+  
 }
 
 void setup (void)
 {
-  Serial.begin(115200);
+  Serial.begin(74880);
+  Serial.println("");
+  Serial.println("Starting........................");  
+  //pinMode(CS, OUTPUT);
 
   count = error = 0;
 
   SPI.begin ();
   SPI.setHwCs(true);
   Serial.println("");
+  Serial.println("Starting........................");
 }
 
 void loop (void)
