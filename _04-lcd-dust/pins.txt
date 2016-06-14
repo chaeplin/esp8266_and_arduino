@@ -1,3 +1,5 @@
+nano - 
+i2c(A4/A5)
 ir in : 9
 dust led power out : 8
 dust measure in : a0
@@ -6,5 +8,9 @@ ir out : 3
 sqwv : 2
 
 
+ir in-9 / dust out-8 / dust in-a0 / moisture-a1 / ir out-3
 
-dht22 : 5
+esp-01
+i2c(0/2)
+sqwv  : 1/tx
+dht22 : 3/rx

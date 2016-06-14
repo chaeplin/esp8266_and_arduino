@@ -1,4 +1,4 @@
-// esp-01 1M / 64K SPIFFS
+// 80M / esp-01 1M / 64K SPIFFS / 
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
 #include <Wire.h>
@@ -219,23 +219,26 @@ boolean reconnect() {
   return client.connected();
 }
 
-void WiFiEvent(WiFiEvent_t event) {
-  Serial.printf("[WiFi-event] event: %d\n", event);
+void wifi_connect() {
+  if (WiFi.status() != WL_CONNECTED) {
+    WiFiClient::setLocalPortStart(micros() + vdd);
+    wifi_set_phy_mode(PHY_MODE_11N);
+    WiFi.mode(WIFI_STA);
+    WiFi.begin(ssid, password);
+    WiFi.config(IPAddress(ip_static), IPAddress(ip_gateway), IPAddress(ip_subnet), IPAddress(ip_dns));
+    WiFi.hostname("esp-button");
 
-  switch (event) {
-    case WIFI_EVENT_STAMODE_GOT_IP:
-      wifiMills = millis() - startMills;
-      Serial.print("[WIFI] connected : ");
-      Serial.print("IP address: ");
-      Serial.println(WiFi.localIP());
-      /*
-        Serial.println(WiFi.status());
-        Serial.println(WiFi.waitForConnectResult());
-      */
-      break;
-    case WIFI_EVENT_STAMODE_DISCONNECTED:
-      Serial.println("[WIFI] lost connection");
-      break;
+    int Attempt = 0;
+    while (WiFi.status() != WL_CONNECTED) {
+      delay(100);
+      Attempt++;
+      if (Attempt == 150)
+      {
+        goingToSleepWithFail();
+      }
+    }
+
+    wifiMills = millis() - startMills;
   }
 }
 
@@ -247,12 +250,7 @@ void setup() {
   Serial.flush();
   Serial.println("Starting.....");
   
-  WiFi.onEvent(WiFiEvent);
-  WiFiClient::setLocalPortStart(vdd);
-  wifi_set_phy_mode(PHY_MODE_11N);
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(ssid, password);
-  WiFi.config(IPAddress(ip_static), IPAddress(ip_gateway), IPAddress(ip_subnet), IPAddress(ip_dns));
+  wifi_connect();
 
   vdd = ESP.getVcc() ;
 
@@ -368,6 +366,10 @@ void loop() {
       
       client.loop();
     }
+  }
+
+  if ((millis() - startMills) > 15000) {
+    goingToSleepWithFail();
   }
 }
 

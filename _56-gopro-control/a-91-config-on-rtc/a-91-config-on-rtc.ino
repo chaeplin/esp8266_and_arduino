@@ -232,7 +232,7 @@ bool rtc_config_read() {
   bool ok = system_rtc_mem_read(65, &rtc_boot_mode, sizeof(rtc_boot_mode));
   uint32_t hash = calc_hash(rtc_boot_mode);
   if (!ok || rtc_boot_mode.hash != hash) {
-    rtc_boot_mode.gopro_mode     = false;
+    rtc_boot_mode.gopro_mode     = true;
     rtc_boot_mode.formatspiffs   = false;
     rtc_boot_mode.Temperature    = 0;
     rtc_boot_mode.gopro_size     = 0;
@@ -353,10 +353,22 @@ void gopro_connect() {
 }
 
 void wifi_connect() {
-  //wifi_set_phy_mode(PHY_MODE_11N);
+  
+#define IPSET_STATIC { 192, 168, 10, 60 }
+#define IPSET_GATEWAY { 192, 168, 10, 1 }
+#define IPSET_SUBNET { 255, 255, 255, 0 }
+#define IPSET_DNS { 192, 168, 10, 10 }
+
+  IPAddress ip_static = IPSET_STATIC;
+  IPAddress ip_gateway = IPSET_GATEWAY;
+  IPAddress ip_subnet = IPSET_SUBNET;
+  IPAddress ip_dns = IPSET_DNS;
+
+  wifi_set_phy_mode(PHY_MODE_11N);
   WiFi.mode(WIFI_STA);
   wifi_station_connect();
   WiFi.begin(ssid, password);
+  WiFi.config(IPAddress(ip_static), IPAddress(ip_gateway), IPAddress(ip_subnet), IPAddress(ip_dns));
   WiFi.hostname("esp-solar");
 
   lcd.clear();
@@ -1375,9 +1387,9 @@ bool do_http_append_post(String content_header, String content_more, String cont
 bool do_http_text_post(String OAuth_header) {
   String httppayload = "";
   String req_body_to_post;
-  
+
   String uri_to_post = UPLOAD_BASE_URI;
-  
+
   if (rtc_boot_mode.twitter_phase == 6) {
     uri_to_post = BASE_URI;
     uri_to_post += "?media_ids=";
@@ -1460,6 +1472,12 @@ bool do_http_text_post(String OAuth_header) {
       rtc_boot_mode.attempt_this++;
       saveConfig_helper();
       delay(200);
+    }
+
+    if (rtc_boot_mode.twitter_phase == 2 ) {
+      rtc_boot_mode.attempt_this++;
+      saveConfig_helper();
+      delay(200);      
     }
     lcd.print(httpCode);
     delay(1000);
