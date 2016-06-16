@@ -44,9 +44,7 @@ const char* ssid = WIFI_SSID;
 const char* password = WIFI_PASSWORD;
 const char* otapassword = OTA_PASSWORD;
 
-IPAddress influxdbudp = MQTT_SERVER;
 IPAddress mqtt_server = MQTT_SERVER;
-IPAddress time_server = MQTT_SERVER;
 
 char* topic = "esp8266/arduino/s03";
 char* hellotopic = "HELLO";
@@ -184,7 +182,7 @@ void ICACHE_RAM_ATTR dht_wrapper()
   DHT.isrCallback();
 }
 
-void callback(char* intopic, byte* inpayload, unsigned int length)
+void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int length)
 {
   String receivedtopic = intopic;
   String receivedpayload ;
@@ -198,6 +196,17 @@ void callback(char* intopic, byte* inpayload, unsigned int length)
   {
     receivedpayload += (char)inpayload[i];
   }
+
+  /*
+    if (DEBUG_PRINT) {
+    syslogPayload = "mqtt ====> ";
+    syslogPayload += intopic;
+    syslogPayload += " ====> ";
+    syslogPayload += receivedpayload;
+    sendUdpSyslog(syslogPayload);
+    }
+  */
+
   parseMqttMsg(receivedpayload, receivedtopic);
 }
 
@@ -280,7 +289,7 @@ void parseMqttMsg(String receivedpayload, String receivedtopic)
   {
     if (root.containsKey("AC"))
     {
-      data_mqtt.accmd = root["AC"];
+      data_mqtt.accmd = 1;
     }
   }
 
@@ -326,30 +335,26 @@ boolean reconnect()
 
       if (DEBUG_PRINT)
       {
-        /*
-          Serial.print("subscribed to : ");
-          Serial.print(i);
-          Serial.print(" - ");
-          Serial.println(substopic[i]);
-        */
+        syslogPayload  = "subscribed to : ";
+        syslogPayload += i;
+        syslogPayload += " - ";
+        syslogPayload += substopic[i];
+        sendUdpSyslog(syslogPayload);
       }
     }
 
     if (DEBUG_PRINT)
     {
-      /*
-        Serial.println("---> mqttconnected");
-      */
+      sendUdpSyslog("---> mqttconnected");
     }
   }
   else
   {
     if (DEBUG_PRINT)
     {
-      /*
-        Serial.print("failed, rc=");
-        Serial.println(client.state());
-      */
+      syslogPayload = "failed, rc=";
+      syslogPayload += client.state();
+      sendUdpSyslog(syslogPayload);
     }
   }
   return client.connected();
@@ -460,7 +465,7 @@ void setup()
   data_esp.tempeoutside  = 0;
   data_esp.accmd         = 0;
   data_esp.actemp        = 27;
-  data_esp.acflow        = 1;
+  data_esp.acflow        = 0;
   data_esp.acauto        = 0;
   data_esp.hash          = calc_hash(data_esp);
 
@@ -476,7 +481,7 @@ void setup()
   data_mqtt.hosttwo      = 0;
   data_mqtt.accmd        = 0;
   data_mqtt.actemp       = 27;
-  data_mqtt.acflow       = 1;
+  data_mqtt.acflow       = 0;
   data_mqtt.acauto       = 0;
 
   data_curr.tempinside1  = 0;
@@ -491,7 +496,7 @@ void setup()
   data_curr.hosttwo      = 0;
   data_curr.accmd        = 0;
   data_curr.actemp       = 27;
-  data_curr.acflow       = 1;
+  data_curr.acflow       = 0;
   data_curr.acauto       = 0;
 
   Wire.begin(0, 2);
@@ -671,17 +676,6 @@ void loop()
             {
               data_mqtt.tempinside2 = DHT.getCelsius();
               data_mqtt.humidity    = DHT.getHumidity();
-
-              Wire.beginTransmission(SLAVE_ADDRESS);
-              I2C_writeAnything(data_esp);
-              Wire.endTransmission();
-
-              if (Wire.requestFrom(SLAVE_ADDRESS, sizeof(data_nano)))
-              {
-                I2C_readAnything(data_nano);
-              }
-              data_mqtt.dustDensity = data_nano.dustDensity;
-
             }
             bDHTstarted = false;
           }
@@ -735,6 +729,25 @@ void loop()
           data_curr.dustDensity = data_mqtt.dustDensity;
         }
 
+        if (data_mqtt.accmd > 0 )
+        {
+          if (data_curr.accmd  < 2)
+          { // on
+            data_curr.accmd = data_esp.accmd = 2;
+          }
+          else
+          {
+            data_curr.accmd = data_esp.accmd = 1;
+          }
+          data_mqtt.accmd = 0;
+
+          if (DEBUG_PRINT) {
+            syslogPayload = "accmd ====> ";
+            syslogPayload += data_esp.accmd;
+            sendUdpSyslog(syslogPayload);
+          }
+        }
+
         if (balm_isr)
         {
           digitalClockDisplay();
@@ -760,6 +773,21 @@ void loop()
             lcd.setCursor(19, 0);
             lcd.print(" ");
           }
+
+          data_esp.actemp  = data_mqtt.actemp;
+          data_esp.acflow  = data_mqtt.acflow;
+          data_esp.acauto  = data_mqtt.acauto;
+          data_esp.hash = calc_hash(data_esp);
+
+          Wire.beginTransmission(SLAVE_ADDRESS);
+          I2C_writeAnything(data_esp);
+          Wire.endTransmission();
+
+          if (Wire.requestFrom(SLAVE_ADDRESS, sizeof(data_nano)))
+          {
+            I2C_readAnything(data_nano);
+          }
+          data_mqtt.dustDensity = data_nano.dustDensity;
 
           balm_isr = false;
           //prevDisplay = now();
@@ -805,22 +833,6 @@ void loop()
           bDHTstarted = true;
         }
       }
-
-      /*
-        if (balm_isr)
-        {
-        Wire.beginTransmission(SLAVE_ADDRESS);
-        I2C_writeAnything(data_esp);
-        Wire.endTransmission();
-
-        if (Wire.requestFrom(SLAVE_ADDRESS, sizeof(data_nano)))
-        {
-          I2C_readAnything(data_nano);
-        }
-
-        balm_isr = false;
-        }
-      */
       client.loop();
     }
     ArduinoOTA.handle();
@@ -1002,7 +1014,7 @@ void sendUdpSyslog(String msgtosend)
   byte* p = (byte*)malloc(msg_length);
   memcpy(p, (char*) msgtosend.c_str(), msg_length);
 
-  udp.beginPacket(influxdbudp, 514);
+  udp.beginPacket(mqtt_server, 514);
   udp.write("esp-lcddust: ");
   udp.write(p, msg_length);
   udp.endPacket();
@@ -1015,7 +1027,7 @@ void sendUdpmsg(String msgtosend)
   byte* p = (byte*)malloc(msg_length);
   memcpy(p, (char*) msgtosend.c_str(), msg_length);
 
-  udp.beginPacket(influxdbudp, 8089);
+  udp.beginPacket(mqtt_server, 8089);
   udp.write(p, msg_length);
   udp.endPacket();
   free(p);
@@ -1115,7 +1127,7 @@ byte packetBuffer[NTP_PACKET_SIZE]; //buffer to hold incoming & outgoing packets
 time_t getNtpTime()
 {
   while (udp.parsePacket() > 0) ; // discard any previously received packets
-  sendNTPpacket(time_server);
+  sendNTPpacket(mqtt_server);
   uint32_t beginWait = millis();
   while (millis() - beginWait < 2500)
   {
