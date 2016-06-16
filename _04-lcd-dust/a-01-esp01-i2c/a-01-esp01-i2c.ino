@@ -87,8 +87,9 @@ volatile struct
   uint8_t acauto;
 } data_esp;
 
-struct
+typedef struct
 {
+  float dustDensity;
   float tempinside1;
   float tempinside2;
   float tempoutside;
@@ -103,7 +104,9 @@ struct
   uint8_t actemp;
   uint8_t acflow;
   uint8_t acauto;
-} data_mqtt;
+} data;
+
+data data_mqtt, data_curr;
 
 volatile bool balm_isr = false;
 volatile bool msgcallback = false;
@@ -112,7 +115,11 @@ unsigned long sentMills;
 bool resetInfosent = false;
 unsigned int localPort = 2390;
 const int timeZone = 9;
-String clientName, payload, syslogPayload, getResetInfo;
+
+String clientName;
+String payload;
+String syslogPayload;
+String getResetInfo;
 
 // globals / dht22
 bool bDHTstarted = false;
@@ -472,6 +479,21 @@ void setup()
   data_mqtt.acflow       = 1;
   data_mqtt.acauto       = 0;
 
+  data_curr.tempinside1  = 0;
+  data_curr.tempinside2  = 0;
+  data_curr.tempoutside  = 0;
+  data_curr.humidity     = 0;
+  data_curr.powerall     = 0;
+  data_curr.powerac      = 0;
+  data_curr.nemoweight   = 0;
+  data_curr.doorpir      = 0;
+  data_curr.hostall      = 0;
+  data_curr.hosttwo      = 0;
+  data_curr.accmd        = 0;
+  data_curr.actemp       = 27;
+  data_curr.acflow       = 1;
+  data_curr.acauto       = 0;
+
   Wire.begin(0, 2);
   //twi_setClock(200000);
   //delay(100);
@@ -535,7 +557,7 @@ void setup()
     Attempt++;
     if (Attempt > 3)
     {
-        break;
+      break;
     }
     yield();
   }
@@ -636,26 +658,86 @@ void loop()
     {
       if (timeStatus() != timeNotSet)
       {
-        //if (now() != prevDisplay)
+        if (bDHTstarted)
+        {
+          acquirestatus = DHT.acquiring();
+          if (!acquirestatus)
+          {
+            acquireresult = DHT.getStatus();
+#if defined(DHT_DEBUG_TIMING)
+            printEdgeTiming(&DHT);
+#endif
+            if ( acquireresult == 0 )
+            {
+              data_mqtt.tempinside2 = DHT.getCelsius();
+              data_mqtt.humidity    = DHT.getHumidity();
+
+              Wire.beginTransmission(SLAVE_ADDRESS);
+              I2C_writeAnything(data_esp);
+              Wire.endTransmission();
+
+              if (Wire.requestFrom(SLAVE_ADDRESS, sizeof(data_nano)))
+              {
+                I2C_readAnything(data_nano);
+              }
+              data_mqtt.dustDensity = data_nano.dustDensity;
+
+            }
+            bDHTstarted = false;
+          }
+        }
+
+        if (
+          data_curr.tempinside1 != data_mqtt.tempinside1 ||
+          data_curr.tempinside2 != data_mqtt.tempinside2 ||
+          data_curr.tempoutside != data_mqtt.tempoutside ||
+          data_curr.humidity    != data_mqtt.humidity
+        )
+        {
+          displayTemperature();
+          data_curr.tempinside1 = data_mqtt.tempinside1;
+          data_curr.tempinside2 = data_mqtt.tempinside2;
+          data_curr.tempoutside = data_mqtt.tempoutside;
+          data_curr.humidity    = data_mqtt.humidity;
+        }
+
+        if ( data_curr.powerall != data_mqtt.powerall )
+        {
+          displaypowerAvg(data_mqtt.powerall);
+          data_curr.powerall = data_mqtt.powerall;
+        }
+
+        if ( data_curr.nemoweight != data_mqtt.nemoweight )
+        {
+          displayNemoWeight(data_mqtt.nemoweight);
+          data_curr.nemoweight = data_mqtt.nemoweight;
+        }
+
+        if ( data_curr.doorpir != data_mqtt.doorpir )
+        {
+          displayPIR(data_mqtt.doorpir);
+          data_curr.doorpir = data_mqtt.doorpir;
+        }
+
+        if (
+          data_curr.hostall != data_mqtt.hostall ||
+          data_curr.hosttwo != data_mqtt.hosttwo
+        )
+        {
+          displayHost(data_mqtt.hosttwo, data_mqtt.hostall);
+          data_curr.hostall = data_mqtt.hostall;
+          data_curr.hosttwo = data_mqtt.hosttwo;
+        }
+
+        if ( data_curr.dustDensity != data_mqtt.dustDensity )
+        {
+          displaydustDensity(data_nano.dustDensity);
+          data_curr.dustDensity = data_mqtt.dustDensity;
+        }
+
         if (balm_isr)
         {
           digitalClockDisplay();
-
-          Wire.beginTransmission(SLAVE_ADDRESS);
-          I2C_writeAnything(data_esp);
-          Wire.endTransmission();
-
-          if (Wire.requestFrom(SLAVE_ADDRESS, sizeof(data_nano)))
-          {
-            I2C_readAnything(data_nano);
-          }
-
-          displayTemperature();
-          displaypowerAvg(data_mqtt.powerall);
-          displayNemoWeight(data_mqtt.nemoweight);
-          displayPIR(data_mqtt.doorpir);
-          displayHost(data_mqtt.hosttwo, data_mqtt.hostall);
-          displaydustDensity(data_nano.dustDensity);
 
           if (!Rtc.IsDateTimeValid())
           {
@@ -681,24 +763,6 @@ void loop()
 
           balm_isr = false;
           //prevDisplay = now();
-        }
-      }
-
-      if (bDHTstarted)
-      {
-        acquirestatus = DHT.acquiring();
-        if (!acquirestatus)
-        {
-          acquireresult = DHT.getStatus();
-#if defined(DHT_DEBUG_TIMING)
-          printEdgeTiming(&DHT);
-#endif
-          if ( acquireresult == 0 )
-          {
-            data_mqtt.tempinside2 = DHT.getCelsius();
-            data_mqtt.humidity    = DHT.getHumidity();
-          }
-          bDHTstarted = false;
         }
       }
 
@@ -957,7 +1021,7 @@ void sendUdpmsg(String msgtosend)
   free(p);
 }
 
-void printEdgeTiming(class PietteTech_DHT *_d)
+void printEdgeTiming(class PietteTech_DHT * _d)
 {
   byte n;
 #if defined(DHT_DEBUG_TIMING)

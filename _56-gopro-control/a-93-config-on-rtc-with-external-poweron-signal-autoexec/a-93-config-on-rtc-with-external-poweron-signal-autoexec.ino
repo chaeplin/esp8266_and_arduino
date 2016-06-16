@@ -233,7 +233,7 @@ bool rtc_config_read() {
   bool ok = system_rtc_mem_read(65, &rtc_boot_mode, sizeof(rtc_boot_mode));
   uint32_t hash = calc_hash(rtc_boot_mode);
   if (!ok || rtc_boot_mode.hash != hash) {
-    rtc_boot_mode.gopro_mode     = false;
+    rtc_boot_mode.gopro_mode     = true;
     rtc_boot_mode.formatspiffs   = false;
     rtc_boot_mode.Temperature    = 0;
     rtc_boot_mode.gopro_size     = 0;
@@ -314,9 +314,21 @@ void lcd_redraw() {
 }
 
 void gopro_connect() {
+#define GIPSET_STATIC { 10, 5, 5, 109 }
+#define GIPSET_GATEWAY { 10, 5, 5, 9 }
+#define GIPSET_SUBNET { 255, 255, 255, 0 }
+#define GIPSET_DNS {  10, 5, 5, 9 }
+
+  IPAddress gip_static = GIPSET_STATIC;
+  IPAddress gip_gateway = GIPSET_GATEWAY;
+  IPAddress gip_subnet = GIPSET_SUBNET;
+  IPAddress gip_dns = GIPSET_DNS;
+
   WiFi.mode(WIFI_STA);
   wifi_station_connect();
   WiFi.begin(goprossid, gopropassword);
+  WiFi.config(IPAddress(gip_static), IPAddress(gip_gateway), IPAddress(gip_subnet), IPAddress(gip_dns));
+
 
   lcd.clear();
   lcd.setCursor(0, 0);
@@ -325,7 +337,7 @@ void gopro_connect() {
 
   int Attempt = 0;
   while (WiFi.status() != WL_CONNECTED) {
-    delay(100);
+    delay(200);
 
     int n = (Attempt % 20);
     lcd.setCursor(n, 1);
@@ -358,7 +370,7 @@ void wifi_connect() {
 #define IPSET_STATIC { 192, 168, 10, 60 }
 #define IPSET_GATEWAY { 192, 168, 10, 1 }
 #define IPSET_SUBNET { 255, 255, 255, 0 }
-#define IPSET_DNS { 192, 168, 10, 10 }
+#define IPSET_DNS { 192, 168, 10, 1 }
 
   IPAddress ip_static = IPSET_STATIC;
   IPAddress ip_gateway = IPSET_GATEWAY;
@@ -673,6 +685,8 @@ void setup() {
   WiFi.mode(WIFI_OFF);
   rtc_config_read();
 
+  pinMode(goproPowerPin, OUTPUT);
+
   Wire.begin(0, 2);
   //twi_setClock(200000);
   //delay(100);
@@ -786,15 +800,14 @@ void setup() {
     if ( rtc_boot_mode.twitter_phase > 1 ) {
       wifi_connect();
     } else {
-      
-      pinMode(goproPowerPin, OUTPUT);
-      
-      digitalWrite(goproPowerPin, LOW);
-      delay(50);
       digitalWrite(goproPowerPin, HIGH);
-      delay(50);
+      delay(200);
       digitalWrite(goproPowerPin, LOW);
-
+      delay(10);
+      digitalWrite(goproPowerPin, HIGH);
+      delay(200);
+      digitalWrite(goproPowerPin, LOW);
+      delay(10);
       gopro_connect();
     }
   }
@@ -2021,7 +2034,7 @@ bool gopro_poweron() {
   lcd.setCursor(0, 1);
   lcd.print("code : ");
   lcd.print(httpCode);
-
+  delay(2000);
 
   if (httpCode == HTTP_CODE_OK) {
     http.end();
@@ -2037,7 +2050,7 @@ bool gopro_poweron() {
 
     if (httpCode2 == HTTP_CODE_OK) {
       http.end();
-      delay(1000);
+      delay(2000);
       http.begin("http://10.5.5.9:80/bacpac/SH?t=" + String(gopropassword) + "&p=%01");
       int httpCode3 = http.GET();
 
