@@ -731,14 +731,33 @@ void loop()
 
         if (data_mqtt.accmd > 0 )
         {
-          if (data_curr.accmd  < 2)
-          { // on
-            data_curr.accmd = data_esp.accmd = 2;
-          }
-          else
+          switch (data_curr.accmd) 
           {
-            data_curr.accmd = data_esp.accmd = 1;
+            case 0:
+              data_curr.accmd = data_esp.accmd = 2;
+              break;
+            
+            case 1:
+              data_curr.accmd = data_esp.accmd = 2;
+              break;
+            
+            case 2:
+              data_curr.accmd = data_esp.accmd = 1;
+              break;
+            
+            case 3:
+              data_curr.accmd = data_esp.accmd = 2;
+              break;
+            
+            case 4:
+              data_curr.accmd = data_esp.accmd = 1;
+              break;
+            
+            default:
+              data_curr.accmd = data_esp.accmd = 1;
+              break;
           }
+
           data_mqtt.accmd = 0;
 
           if (DEBUG_PRINT) {

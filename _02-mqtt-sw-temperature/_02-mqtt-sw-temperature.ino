@@ -152,7 +152,8 @@ char* lowpower      = "lowpower";
 //
 char subtopic_0[]   = "esp8266/cmd/light";   // light command
 char subtopic_1[]   = "esp8266/cmd/timer1";
-char* substopic[2] = { subtopic_0, subtopic_1 } ;
+char subtopic_2[]   = "esp8266/check";
+char* substopic[3] = { subtopic_0, subtopic_1, subtopic_2 } ;
 //
 unsigned int localPort = 12390;
 const int timeZone = 9;
@@ -274,7 +275,7 @@ boolean reconnect() {
       }
 
       client.loop();
-      for (int i = 0; i < 2; ++i) {
+      for (int i = 0; i < 3; ++i) {
         client.subscribe(substopic[i]);
         client.loop();
       }
@@ -308,6 +309,20 @@ void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int lengt
     syslogPayload += receivedpayload;
     sendUdpSyslog(syslogPayload);
   }
+
+  if ( receivedtopic == substopic[2] ) {
+    if ( receivedpayload == "{\"CHECKING\":\"1\"}")
+    {
+      String lightpayload = "{\"LIGHT\":";
+      lightpayload += relaystatus;
+      lightpayload += "}";
+        
+      sendmqttMsg(rslttopic, lightpayload, 1);
+    }
+    return;
+  }
+
+
   parseMqttMsg(receivedpayload, receivedtopic);
 }
 
@@ -361,7 +376,7 @@ void parseMqttMsg(String receivedpayload, String receivedtopic) {
       syslogPayload += lightoffmin;
       sendUdpSyslog(syslogPayload);
     }
-  }
+  }  
 }
 
 void setup() {

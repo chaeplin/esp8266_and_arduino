@@ -179,8 +179,9 @@ void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int lengt
   syslogPayload += receivedpayload;
   sendUdpSyslog(syslogPayload);
 
-  if ( receivedpayload == "{\"DOOR\":\"CHECKING\"}")
+  if ( receivedpayload == "{\"CHECKING\":\"1\"}")
   {
+    /*
     String check_doorpayload = "{\"DOOR\":";
     if ( sensor_data.door == 0 ) {
       check_doorpayload += "\"CHECK_CLOSED\"";
@@ -190,6 +191,22 @@ void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int lengt
       check_doorpayload += "\"CHECK_OPEN\"";
     }
     check_doorpayload += "}";
+    */
+    String check_doorpayload = "door: ";
+    if ( sensor_data.door == 0 ) {
+      check_doorpayload += "check_closed";
+    }
+    else
+    {
+      check_doorpayload += "check_open";
+    }
+    check_doorpayload += "\r\n";
+    check_doorpayload += "powerAvg: ";
+    check_doorpayload += sensor_data.ct1_rp;
+    check_doorpayload += "\r\n";
+    check_doorpayload += "powerAC: ";
+    check_doorpayload += ave1.mean();
+    
     sendmqttMsg(doortopic, check_doorpayload);
   }
 }
