@@ -7,7 +7,8 @@
 
 #include "/usr/local/src/ap_setting.h"
 
-extern "C" {
+extern "C" 
+{
 #include "user_interface.h"
 }
 
@@ -21,7 +22,8 @@ ADC_MODE(ADC_VCC);
 #define I2C_SLAVE_ADDR  8
 #define I2C_MATRIX_ADDR 0x70
 
-volatile struct {
+volatile struct 
+{
   uint32_t hash;
   uint16_t button;
   uint16_t esp8266;
@@ -68,7 +70,8 @@ PubSubClient client(mqtt_server, 1883, callback, wifiClient);
 Adafruit_8x8matrix matrix = Adafruit_8x8matrix();
 
 /* for hash */
-static uint32_t fnv_1_hash_32(uint8_t *bytes, size_t length) {
+static uint32_t fnv_1_hash_32(uint8_t *bytes, size_t length) 
+{
   static const uint32_t FNV_OFFSET_BASIS_32 = 2166136261U;
   static const uint32_t FNV_PRIME_32 = 16777619U;
   uint32_t hash = FNV_OFFSET_BASIS_32;;
@@ -76,12 +79,14 @@ static uint32_t fnv_1_hash_32(uint8_t *bytes, size_t length) {
   return hash;
 }
 
-template <class T> uint32_t calc_hash(T& data) {
+template <class T> uint32_t calc_hash(T& data) 
+{
   return fnv_1_hash_32(((uint8_t*)&data) + sizeof(data.hash), sizeof(T) - sizeof(data.hash));
 }
 
 /* for i2c */
-template <typename T> unsigned int I2C_readAnything(T& value) {
+template <typename T> unsigned int I2C_readAnything(T& value) 
+{
   byte * p = (byte*) &value;
   unsigned int i;
   for (i = 0; i < sizeof value; i++)
@@ -89,7 +94,8 @@ template <typename T> unsigned int I2C_readAnything(T& value) {
   return i;
 }
 
-template <typename T> unsigned int I2C_writeAnything (const T& value) {
+template <typename T> unsigned int I2C_writeAnything (const T& value) 
+{
   Wire.write((byte *) &value, sizeof (value));
   return sizeof (value);
 }
@@ -187,40 +193,54 @@ fail_heart[] =
   B00000000
 };
 
-void callback(char* intopic, byte* inpayload, unsigned int length) {
+void callback(char* intopic, byte* inpayload, unsigned int length) 
+{
   String receivedtopic = intopic;
   String receivedpayload ;
 
-  for (int i = 0; i < length; i++) {
+  for (int i = 0; i < length; i++) 
+  {
     receivedpayload += (char)inpayload[i];
   }
 
-  if ( receivedpayload == "{\"LIGHT\":1,\"READY\":1}") {
+  if ( receivedpayload == "{\"LIGHT\":1,\"READY\":1}") 
+  {
     relaystatus = HIGH ;
     relayReady = HIGH ;
-  } else if ( receivedpayload == "{\"LIGHT\":0,\"READY\":1}") {
+  } 
+  else if ( receivedpayload == "{\"LIGHT\":0,\"READY\":1}") 
+  {
     relaystatus = LOW ;
     relayReady = HIGH ;
-  } else if ( receivedpayload == "{\"LIGHT\":1,\"READY\":0}") {
+  } 
+  else if ( receivedpayload == "{\"LIGHT\":1,\"READY\":0}") 
+  {
     relayReady = LOW ;
-  } else if ( receivedpayload == "{\"LIGHT\":0,\"READY\":0}") {
+  } else if ( receivedpayload == "{\"LIGHT\":0,\"READY\":0}") 
+  {
     relayReady = LOW ;
   }
 
   subMsgReceived = HIGH;
 }
 
-boolean reconnect() {
-  if (client.connect((char*) clientName.c_str())) {
+boolean reconnect() 
+{
+  if (client.connect((char*) clientName.c_str())) 
+  {
     client.subscribe(subtopic);
-  } else {
-
+  } 
+  else 
+  {
+    ;
   }
   return client.connected();
 }
 
-void wifi_connect() {
-  if (WiFi.status() != WL_CONNECTED) {
+void wifi_connect() 
+{
+  if (WiFi.status() != WL_CONNECTED) 
+  {
     WiFiClient::setLocalPortStart(micros() + vdd);
     wifi_set_phy_mode(PHY_MODE_11N);
     WiFi.mode(WIFI_STA);
@@ -229,7 +249,8 @@ void wifi_connect() {
     WiFi.hostname("esp-button");
 
     int Attempt = 0;
-    while (WiFi.status() != WL_CONNECTED) {
+    while (WiFi.status() != WL_CONNECTED) 
+    {
       delay(100);
       Attempt++;
       if (Attempt == 150)
@@ -269,10 +290,12 @@ void setup() {
   delay(200);
 
   int Attempt = 0;
-  while (WiFi.status() != 3) {
+  while (WiFi.status() != 3) 
+  {
     delay(100);
     Attempt++;
-    if (Attempt == 150) {
+    if (Attempt == 150) 
+    {
       goingToSleepWithFail();
     }
   }
@@ -290,11 +313,13 @@ void setup() {
 
   reconnect();
 
-  while (1) {
+  while (1) 
+  {
     Serial.print("request msg device_data.button : ");
     readI2cMsg();
     Serial.println(device_data.button);
-    if (device_data.hash == calc_hash(device_data)) {
+    if (device_data.hash == calc_hash(device_data)) 
+    {
       haveData = false;
       delay(200);
       break;
@@ -303,7 +328,8 @@ void setup() {
   }
 
   matrix.clear();
-  switch (device_data.button) {
+  switch (device_data.button) 
+  {
     case 1:
       matrix.drawBitmap(0, 0, light, 8, 8, LED_ON);
       break;
@@ -325,42 +351,64 @@ void setup() {
 }
 
 void loop() {
-  if (WiFi.status() == 3) {
-    if (!client.connected()) {
+  if (WiFi.status() == 3) 
+  {
+    if (!client.connected()) 
+    {
       long now = millis();
-      if (now - lastReconnectAttempt > 200) {
+      if (now - lastReconnectAttempt > 200) 
+      {
         lastReconnectAttempt = now;
-        if (reconnect()) {
+        if (reconnect()) 
+        {
           lastReconnectAttempt = 0;
         }
       }
-    } else {
-
-      if (device_data.button == 1) {
-        if (( subMsgReceived == HIGH ) && ( relayReady == HIGH )) {
-          subMills = (millis() - startMills) - wifiMills ;
-          sendlightcmd();
-        }
-
-        if (( subMsgReceived == HIGH ) && ( relayReady == LOW )) {
-          subMills = (millis() - startMills) - wifiMills ;
-          goingToSleepWithFail();
-        }
-      }
-
-      if (device_data.button == 2 || device_data.button == 3) {
-        sendaccommand();
-      }
-
-      if (device_data.button == 4) {
-        goingToSleepWithFail();
-      }
-
-      if ( topicMsgSent == HIGH ) {
+    } 
+    else 
+    {
+      if ( topicMsgSent == HIGH ) 
+      {
         goingToSleep();
       }
+      else
+      {      
+        switch (device_data.button) 
+        {
+          case 1:
+            if (( subMsgReceived == HIGH ) && ( relayReady == HIGH )) 
+            {
+              subMills = (millis() - startMills) - wifiMills ;
+              sendlightcmd();
+            }
 
-      if ((millis() - startMills) > 15000) {
+            if (( subMsgReceived == HIGH ) && ( relayReady == LOW )) 
+            {
+              subMills = (millis() - startMills) - wifiMills ;
+              goingToSleepWithFail();
+            }        
+            break;
+
+          case 2:
+            sendaccommand();
+            break;
+
+          case 3:
+            sendaccommand();
+            break;
+
+          case 4:
+            goingToSleepWithFail();
+            break;
+
+          default:
+            goingToSleepWithFail();
+            break;
+        }
+      }
+
+      if ((millis() - startMills) > 15000) 
+      {
         goingToSleepWithFail();
       }
       
@@ -368,12 +416,14 @@ void loop() {
     }
   }
 
-  if ((millis() - startMills) > 15000) {
+  if ((millis() - startMills) > 15000) 
+  {
     goingToSleepWithFail();
   }
 }
 
-void sendaccommand() {
+void sendaccommand() 
+{
   String acpayload = "{\"AC\":";
   acpayload += device_data.button;
   acpayload += "}";
@@ -382,7 +432,8 @@ void sendaccommand() {
   sendbuttonstatus();
 }
 
-void sendlightcmd() {
+void sendlightcmd() 
+{
   String lightpayload = "{\"LIGHT\":";
   lightpayload += !relaystatus;
   lightpayload += "}";
@@ -391,7 +442,8 @@ void sendlightcmd() {
   sendbuttonstatus();
 }
 
-void sendbuttonstatus() {
+void sendbuttonstatus() 
+{
   String buttonpayload = "{\"VDD\":";
   buttonpayload += vdd;
   buttonpayload += ",\"buttonmillis\":";
@@ -402,36 +454,45 @@ void sendbuttonstatus() {
   buttonpayload += subMills ;
   buttonpayload += "}";
 
-  if (sendmqttMsg(buttontopic, buttonpayload)) {
+  if (sendmqttMsg(buttontopic, buttonpayload)) 
+  {
     topicMsgSent = HIGH;
   }
 }
 
-boolean sendmqttMsg(char* topictosend, String payload) {
-  if (client.connected()) {
+boolean sendmqttMsg(char* topictosend, String payload) 
+{
+  if (client.connected()) 
+  {
     unsigned int msg_length = payload.length();
     byte* p = (byte*)malloc(msg_length);
     memcpy(p, (char*) payload.c_str(), msg_length);
 
-    if ( client.publish(topictosend, p, msg_length, 1)) {
+    if ( client.publish(topictosend, p, msg_length, 1)) 
+    {
       free(p);
       return 1;
-    } else {
+    } 
+    else 
+    {
       free(p);
       return 0;
     }
   }
 }
 
-void readI2cMsg() {
-  if (Wire.requestFrom(I2C_SLAVE_ADDR, sizeof(device_data))) {
+void readI2cMsg() 
+{
+  if (Wire.requestFrom(I2C_SLAVE_ADDR, sizeof(device_data))) 
+  {
     I2C_readAnything(device_data);
   }
   haveData = true;
 }
 
-void sendI2cMsg() {
-  Serial.print("Send msg");
+void sendI2cMsg() 
+{
+  Serial.println("Send msg");
 
   device_data.esp8266 = 3;
   device_data.hash = calc_hash(device_data);
@@ -441,40 +502,55 @@ void sendI2cMsg() {
   Wire.endTransmission();
 }
 
-void goingToSleep() {
+void goingToSleep() 
+{
+  if (client.connected())
+  {
+    client.disconnect();
+    yield();
+  }  
   //delay(100);
 
   matrix.clear();
   matrix.drawBitmap(0, 0, large_heart, 8, 8, LED_ON);
   matrix.writeDisplay();
-  delay(300);
+  delay(500);
 
   sendI2cMsg();
-  //delay(200);
+  delay(20);
 
   ESP.deepSleep(0);
   delay(50);
 }
 
 
-void goingToSleepWithFail() {
+void goingToSleepWithFail() 
+{
+  if (client.connected())
+  {
+    client.disconnect();
+    yield();
+  }    
   //delay(100);
+
   matrix.clear();
   matrix.drawBitmap(0, 0, fail_heart, 8, 8, LED_ON);
   matrix.writeDisplay();
-  delay(300);
+  delay(500);
 
   sendI2cMsg();
-  //delay(200);
+  delay(20);
 
   ESP.deepSleep(0);
   delay(50);
 }
 
 
-String macToStr(const uint8_t* mac) {
+String macToStr(const uint8_t* mac) 
+{
   String result;
-  for (int i = 0; i < 6; ++i) {
+  for (int i = 0; i < 6; ++i) 
+  {
     result += String(mac[i], 16);
     if (i < 5)
       result += ':';
