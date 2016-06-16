@@ -470,7 +470,7 @@ void loop() {
         {
         payload = "{\"powerAvg\":";
         payload += sensor_data.ct1_rp;
-        payload = "{\"powerAC\":";
+        payload += ",\"powerAC\":";
         if (ave1.mean() > 50) 
         {
           payload += "1";
