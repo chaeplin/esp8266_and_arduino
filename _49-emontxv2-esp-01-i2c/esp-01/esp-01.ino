@@ -81,6 +81,7 @@ char* hellotopic  = "HELLO";
 char* willTopic   = "clients/power";
 char* willMessage = "0";
 char* subtopic    = "esp8266/check";
+char* reporttopic = "esp8266/report/s05";
 
 //
 volatile bool bdata_is_rdy;
@@ -205,9 +206,9 @@ void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int lengt
     check_doorpayload += sensor_data.ct1_rp;
     check_doorpayload += "\r\n";
     check_doorpayload += "powerAC: ";
-    check_doorpayload += ave1.mean();
+    check_doorpayload += sensor_data.ct3_rp;
     
-    sendmqttMsg(doortopic, check_doorpayload);
+    sendmqttMsg(reporttopic, check_doorpayload);
   }
 }
 
