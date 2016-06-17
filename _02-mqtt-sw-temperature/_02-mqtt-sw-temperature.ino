@@ -148,6 +148,8 @@ char* willTopic     = "clients/relay";
 char* willMessage   = "0";
 char* topicAverage  = "esp8266/arduino/s06";
 char* lowpower      = "lowpower";
+char* reporttopic   = "esp8266/report/s02";
+
 // subscribe
 //
 char subtopic_0[]   = "esp8266/cmd/light";   // light command
@@ -313,11 +315,17 @@ void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int lengt
   if ( receivedtopic == substopic[2] ) {
     if ( receivedpayload == "{\"CHECKING\":\"1\"}")
     {
-      String lightpayload = "{\"LIGHT\":";
-      lightpayload += relaystatus;
-      lightpayload += "}";
+      String lightpayload = "lamp: ";
+      if (relaystatus == 1)
+      {
+        lightpayload += "on";
+      }
+      else
+      {
+        lightpayload += "off";
+      }
         
-      sendmqttMsg(rslttopic, lightpayload, 1);
+      sendmqttMsg(reporttopic, lightpayload, 1);
     }
     return;
   }

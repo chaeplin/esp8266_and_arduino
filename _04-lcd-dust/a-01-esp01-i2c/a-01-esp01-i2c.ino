@@ -50,6 +50,7 @@ char* topic = "esp8266/arduino/s03";
 char* hellotopic = "HELLO";
 char* willTopic = "clients/dust";
 char* willMessage = "0";
+char* reporttopic = "esp8266/report/s03";
 
 const char subtopic_0[] = "esp8266/arduino/s02";
 const char subtopic_1[] = "radio/test/2";
@@ -59,8 +60,20 @@ const char subtopic_4[] = "raspberrypi/doorpir";
 const char subtopic_5[] = "home/check/checkhwmny";
 const char subtopic_6[] = "esp8266/cmd/ac";
 const char subtopic_7[] = "esp8266/cmd/acset";
+const char subtopic_8[] = "esp8266/check";
 
-const char* substopic[8] = { subtopic_0, subtopic_1, subtopic_2, subtopic_3, subtopic_4, subtopic_5, subtopic_6, subtopic_7};
+const char* substopic[9] =
+{
+  subtopic_0,
+  subtopic_1,
+  subtopic_2,
+  subtopic_3,
+  subtopic_4,
+  subtopic_5,
+  subtopic_6,
+  subtopic_7,
+  subtopic_8
+};
 
 volatile struct
 {
@@ -182,6 +195,61 @@ void ICACHE_RAM_ATTR dht_wrapper()
   DHT.isrCallback();
 }
 
+void ICACHE_RAM_ATTR sendUdpSyslog(String msgtosend)
+{
+  unsigned int msg_length = msgtosend.length();
+  byte* p = (byte*)malloc(msg_length);
+  memcpy(p, (char*) msgtosend.c_str(), msg_length);
+
+  udp.beginPacket(mqtt_server, 514);
+  udp.write("esp-lcddust: ");
+  udp.write(p, msg_length);
+  udp.endPacket();
+  free(p);
+}
+
+void ICACHE_RAM_ATTR sendUdpmsg(String msgtosend)
+{
+  unsigned int msg_length = msgtosend.length();
+  byte* p = (byte*)malloc(msg_length);
+  memcpy(p, (char*) msgtosend.c_str(), msg_length);
+
+  udp.beginPacket(mqtt_server, 8089);
+  udp.write(p, msg_length);
+  udp.endPacket();
+  free(p);
+}
+
+void ICACHE_RAM_ATTR sendmqttMsg(char* topictosend, String payload)
+{
+  unsigned int msg_length = payload.length();
+
+  byte* p = (byte*)malloc(msg_length);
+  memcpy(p, (char*) payload.c_str(), msg_length);
+
+  if (client.publish(topictosend, p, msg_length, 1))
+  {
+    /*
+      syslogPayload = topictosend;
+      syslogPayload += " - ";
+      syslogPayload += payload;
+      syslogPayload += " : Publish ok";
+      sendUdpSyslog(syslogPayload);
+    */
+    free(p);
+  }
+  else
+  {
+    syslogPayload = topictosend;
+    syslogPayload += " - ";
+    syslogPayload += payload;
+    syslogPayload += " : Publish fail";
+    sendUdpSyslog(syslogPayload);
+    free(p);
+  }
+  client.loop();
+}
+
 void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int length)
 {
   String receivedtopic = intopic;
@@ -197,15 +265,48 @@ void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int lengt
     receivedpayload += (char)inpayload[i];
   }
 
-  /*
-    if (DEBUG_PRINT) {
+  if (DEBUG_PRINT) {
     syslogPayload = "mqtt ====> ";
     syslogPayload += intopic;
     syslogPayload += " ====> ";
     syslogPayload += receivedpayload;
     sendUdpSyslog(syslogPayload);
+  }
+
+  if ( receivedpayload == "{\"CHECKING\":\"1\"}")
+  {
+    String check_payload = "ac status: ";
+    if (data_curr.accmd == 1)
+    {
+      check_payload += "off";
     }
-  */
+    else
+    {
+      check_payload += "on";
+    }
+    check_payload += "\r\n";
+    check_payload += "temp inside: ";
+    check_payload += ((data_mqtt.tempinside1 + data_mqtt.tempinside2) / 2);
+    check_payload += "\r\n";
+    check_payload += "temp outside: ";
+    check_payload += data_mqtt.tempoutside;
+    check_payload += "\r\n";
+    check_payload += "humidity: ";
+    check_payload += data_mqtt.humidity;
+    check_payload += "\r\n";
+    check_payload += "dustDensity: ";
+    check_payload += data_curr.dustDensity;
+    check_payload += "\r\n";
+    check_payload += "soil moisture: ";
+    check_payload += data_nano.moisture;
+    check_payload += "\r\n";
+    check_payload += "host all/2: ";
+    check_payload += data_mqtt.hostall;
+    check_payload += "/";
+    check_payload += data_mqtt.hosttwo;
+
+    sendmqttMsg(reporttopic, check_payload);
+  }
 
   parseMqttMsg(receivedpayload, receivedtopic);
 }
@@ -289,7 +390,62 @@ void parseMqttMsg(String receivedpayload, String receivedtopic)
   {
     if (root.containsKey("AC"))
     {
-      data_mqtt.accmd = 1;
+      data_mqtt.accmd = root["AC"];
+      switch (data_mqtt.accmd)
+      {
+        case 0:
+          data_curr.accmd = data_esp.accmd = 2;
+          break;
+
+        case 1:
+          data_curr.accmd = data_esp.accmd = 2;
+          break;
+
+        case 2:
+          data_curr.accmd = data_esp.accmd = 1;
+          break;
+
+        case 3:
+          data_curr.accmd = data_esp.accmd = 2;
+          break;
+
+        case 4:
+          data_curr.accmd = data_esp.accmd = 1;
+          break;
+
+        case 5:
+          if (data_curr.accmd == 1)
+          {
+            data_curr.accmd = data_esp.accmd = 2;
+          }
+          else
+          {
+            data_curr.accmd = data_esp.accmd = 1;
+          }
+          break;
+
+        default:
+          data_curr.accmd = data_esp.accmd = 1;
+          break;
+      }
+      
+      String ac_payload = "ac status : ";
+      if (data_curr.accmd == 1)
+      {
+        ac_payload += "off";
+      }
+      else
+      {
+        ac_payload += "on";
+      }
+
+      sendmqttMsg(reporttopic, ac_payload);
+
+      if (DEBUG_PRINT) {
+        syslogPayload = "accmd ====> ";
+        syslogPayload += data_esp.accmd;
+        sendUdpSyslog(syslogPayload);
+      }
     }
   }
 
@@ -328,10 +484,11 @@ boolean reconnect()
     }
 
     client.loop();
-    for (int i = 0; i < 8; ++i)
+    for (int i = 0; i < 9; ++i)
     {
       client.subscribe(substopic[i]);
       client.loop();
+      yield();
 
       if (DEBUG_PRINT)
       {
@@ -340,6 +497,7 @@ boolean reconnect()
         syslogPayload += " - ";
         syslogPayload += substopic[i];
         sendUdpSyslog(syslogPayload);
+        yield();
       }
     }
 
@@ -729,44 +887,6 @@ void loop()
           data_curr.dustDensity = data_mqtt.dustDensity;
         }
 
-        if (data_mqtt.accmd > 0 )
-        {
-          switch (data_curr.accmd) 
-          {
-            case 0:
-              data_curr.accmd = data_esp.accmd = 2;
-              break;
-            
-            case 1:
-              data_curr.accmd = data_esp.accmd = 2;
-              break;
-            
-            case 2:
-              data_curr.accmd = data_esp.accmd = 1;
-              break;
-            
-            case 3:
-              data_curr.accmd = data_esp.accmd = 2;
-              break;
-            
-            case 4:
-              data_curr.accmd = data_esp.accmd = 1;
-              break;
-            
-            default:
-              data_curr.accmd = data_esp.accmd = 1;
-              break;
-          }
-
-          data_mqtt.accmd = 0;
-
-          if (DEBUG_PRINT) {
-            syslogPayload = "accmd ====> ";
-            syslogPayload += data_esp.accmd;
-            sendUdpSyslog(syslogPayload);
-          }
-        }
-
         if (balm_isr)
         {
           digitalClockDisplay();
@@ -837,7 +957,7 @@ void loop()
         payload += millis();
         payload += "}";
 
-        sendmqttMsg(payload);
+        sendmqttMsg(topic, payload);
 
         sentMills = millis();
 
@@ -1027,31 +1147,6 @@ void displaydustDensity(float dustDensity)
   }
 }
 
-void sendUdpSyslog(String msgtosend)
-{
-  unsigned int msg_length = msgtosend.length();
-  byte* p = (byte*)malloc(msg_length);
-  memcpy(p, (char*) msgtosend.c_str(), msg_length);
-
-  udp.beginPacket(mqtt_server, 514);
-  udp.write("esp-lcddust: ");
-  udp.write(p, msg_length);
-  udp.endPacket();
-  free(p);
-}
-
-void sendUdpmsg(String msgtosend)
-{
-  unsigned int msg_length = msgtosend.length();
-  byte* p = (byte*)malloc(msg_length);
-  memcpy(p, (char*) msgtosend.c_str(), msg_length);
-
-  udp.beginPacket(mqtt_server, 8089);
-  udp.write(p, msg_length);
-  udp.endPacket();
-  free(p);
-}
-
 void printEdgeTiming(class PietteTech_DHT * _d)
 {
   byte n;
@@ -1093,36 +1188,6 @@ void printEdgeTiming(class PietteTech_DHT * _d)
   udppayload += _d->getCelsius();
 
   sendUdpmsg(udppayload);
-}
-
-void sendmqttMsg(String payloadtosend)
-{
-  unsigned int msg_length = payloadtosend.length();
-
-  byte* p = (byte*)malloc(msg_length);
-  memcpy(p, (char*) payloadtosend.c_str(), msg_length);
-
-  if ( client.publish(topic, p, msg_length, 1))
-  {
-    if (DEBUG_PRINT) {
-      /*
-        Serial.print(payloadtosend);
-        Serial.println(" : Publish ok");
-      */
-    }
-    free(p);
-  }
-  else
-  {
-    if (DEBUG_PRINT)
-    {
-      /*
-        Serial.print(payloadtosend);
-        Serial.println(" : Publish fail");
-      */
-    }
-    free(p);
-  }
 }
 
 String macToStr(const uint8_t* mac)

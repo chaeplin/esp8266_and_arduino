@@ -424,8 +424,9 @@ void loop() {
 
 void sendaccommand() 
 {
+  int i =5;
   String acpayload = "{\"AC\":";
-  acpayload += device_data.button;
+  acpayload += i;
   acpayload += "}";
 
   sendmqttMsg(actopic, acpayload);
