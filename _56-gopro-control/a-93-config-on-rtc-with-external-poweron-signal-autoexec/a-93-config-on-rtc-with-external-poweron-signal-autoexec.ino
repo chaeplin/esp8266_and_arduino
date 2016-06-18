@@ -27,8 +27,10 @@
 // https://github.com/Makuna/Rtc
 #include <RtcDS3231.h>
 /* -- */
-extern "C" {
-  typedef struct {
+extern "C"
+{
+  typedef struct
+  {
     uint32_t Intermediate_Hash[SHA1_SIZE / 4];  /* Message Digest */
     uint32_t Length_Low;                        /* Message length in bits */
     uint32_t Length_High;                       /* Message length in bits */
@@ -116,7 +118,8 @@ IPAddress influxdbudp = MQTT_SERVER;
 IPAddress mqtt_server = MQTT_SERVER;
 IPAddress time_server = MQTT_SERVER;
 /* ---- */
-struct {
+typedef struct
+{
   float Temperature1;
   float Temperature2;
   float Humidity;
@@ -126,9 +129,11 @@ struct {
   float data4;
   uint16_t powerAvg;
   uint16_t pir;
-} solar_data;
+} lcd_data;
+lcd_data solar_data, curr_data;
 /* ---- */
-struct {
+struct
+{
   uint32_t hash;
   bool gopro_mode;
   bool formatspiffs;
@@ -213,7 +218,8 @@ byte customblock[8]     = { B00100, B00100, B00100, B00100, B00100, B00100, B001
 //
 bool x;
 
-static uint32_t fnv_1_hash_32(uint8_t *bytes, size_t length) {
+static uint32_t fnv_1_hash_32(uint8_t *bytes, size_t length)
+{
   static const uint32_t FNV_OFFSET_BASIS_32 = 2166136261U;
   static const uint32_t FNV_PRIME_32 = 16777619U;
   uint32_t hash = FNV_OFFSET_BASIS_32;
@@ -221,18 +227,22 @@ static uint32_t fnv_1_hash_32(uint8_t *bytes, size_t length) {
   return hash;
 }
 
-template <class T> uint32_t calc_hash(T& data) {
+template <class T> uint32_t calc_hash(T& data)
+{
   return fnv_1_hash_32(((uint8_t*)&data) + sizeof(data.hash), sizeof(T) - sizeof(data.hash));
 }
 
-void alm_isr() {
+void alm_isr()
+{
   balm_isr = true;
 }
 
-bool rtc_config_read() {
+bool rtc_config_read()
+{
   bool ok = system_rtc_mem_read(65, &rtc_boot_mode, sizeof(rtc_boot_mode));
   uint32_t hash = calc_hash(rtc_boot_mode);
-  if (!ok || rtc_boot_mode.hash != hash) {
+  if (!ok || rtc_boot_mode.hash != hash)
+  {
     rtc_boot_mode.gopro_mode     = false;
     rtc_boot_mode.formatspiffs   = false;
     rtc_boot_mode.Temperature    = 0;
@@ -244,7 +254,9 @@ bool rtc_config_read() {
     rtc_boot_mode.attempt_detail = 0;
     rtc_boot_mode.pic_taken      = 0;
     ok = false;
-  } else {
+  }
+  else
+  {
     gopro_dir  = rtc_boot_mode.gopro_dir;
     gopro_file = rtc_boot_mode.gopro_file;
     media_id  = rtc_boot_mode.media_id;
@@ -252,13 +264,15 @@ bool rtc_config_read() {
   return ok;
 }
 
-bool rtc_config_save() {
+bool rtc_config_save()
+{
   strncpy(rtc_boot_mode.gopro_dir, gopro_dir.c_str(), sizeof(rtc_boot_mode.gopro_dir));
   strncpy(rtc_boot_mode.gopro_file, gopro_file.c_str(), sizeof(rtc_boot_mode.gopro_file));
   strncpy(rtc_boot_mode.media_id, media_id.c_str(), sizeof(rtc_boot_mode.media_id));
   rtc_boot_mode.hash = calc_hash(rtc_boot_mode);
   bool ok = system_rtc_mem_write(65, &rtc_boot_mode, sizeof(rtc_boot_mode));
-  if (!ok) {
+  if (!ok)
+  {
     ok = false;
   }
   return ok;
@@ -277,19 +291,24 @@ bool rtc_config_save() {
   }
 */
 
-void saveConfig_helper() {
+void saveConfig_helper()
+{
   lcd.clear();
   lcd.setCursor(0, 0);
-  if (!rtc_config_save()) {
+  if (!rtc_config_save())
+  {
     lcd.print("[CONFIG] save fail");
-  } else {
+  }
+  else
+  {
     lcd.print("[CONFIG] saved");
   }
   delay(2000);
 }
 
 
-void lcd_redraw() {
+void lcd_redraw()
+{
   lcd.clear();
   lcd.setCursor(0, 1);
   lcd.write(1);
@@ -313,7 +332,8 @@ void lcd_redraw() {
   lcd.print((char)223);
 }
 
-void gopro_connect() {
+void gopro_connect()
+{
 #define GIPSET_STATIC { 10, 5, 5, 109 }
 #define GIPSET_GATEWAY { 10, 5, 5, 9 }
 #define GIPSET_SUBNET { 255, 255, 255, 0 }
@@ -336,20 +356,24 @@ void gopro_connect() {
   lcd.print(goprossid);
 
   int Attempt = 0;
-  while (WiFi.status() != WL_CONNECTED) {
+  while (WiFi.status() != WL_CONNECTED)
+  {
     delay(200);
 
     int n = (Attempt % 20);
     lcd.setCursor(n, 1);
     lcd.print("*");
-    if (n < 19) {
+    if (n < 19)
+    {
       lcd.setCursor((n + 1), 1);
       lcd.print(" ");
     }
     Attempt++;
-    if (Attempt == 300) {
+    if (Attempt == 300)
+    {
       rtc_boot_mode.attempt_this++;
-      if ( rtc_boot_mode.attempt_this > 1) {
+      if ( rtc_boot_mode.attempt_this > 1)
+      {
         rtc_boot_mode.attempt_phase = 0;
         rtc_boot_mode.attempt_detail = 1;
         rtc_boot_mode.twitter_phase = 8;
@@ -365,7 +389,8 @@ void gopro_connect() {
   delay(1000);
 }
 
-void wifi_connect() {
+void wifi_connect()
+{
 
 #define IPSET_STATIC { 192, 168, 10, 60 }
 #define IPSET_GATEWAY { 192, 168, 10, 1 }
@@ -390,7 +415,8 @@ void wifi_connect() {
   lcd.print(ssid);
 
   int Attempt = 0;
-  while (WiFi.status() != WL_CONNECTED) {
+  while (WiFi.status() != WL_CONNECTED)
+  {
     delay(100);
 
     int n = (Attempt % 20);
@@ -413,7 +439,8 @@ void wifi_connect() {
   lcd_redraw();
 }
 
-void spiffs_format() {
+void spiffs_format()
+{
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("[SPIFFS] format ....");
@@ -424,7 +451,8 @@ void spiffs_format() {
 }
 
 /* ----------------------------------- */
-String make_signature(const char* secret_one, const char* secret_two, String base_string) {
+String make_signature(const char* secret_one, const char* secret_two, String base_string)
+{
 
   String signing_key = URLEncode(secret_one);
   signing_key += "&";
@@ -446,17 +474,21 @@ String make_signature(const char* secret_one, const char* secret_two, String bas
 
 // from http://hardwarefun.com/tutorials/url-encoding-in-arduino
 // modified by chaeplin
-String URLEncode(const char* msg) {
+String URLEncode(const char* msg)
+{
   const char *hex = "0123456789ABCDEF";
   String encodedMsg = "";
 
-  while (*msg != '\0') {
+  while (*msg != '\0')
+  {
     if ( ('a' <= *msg && *msg <= 'z')
          || ('A' <= *msg && *msg <= 'Z')
          || ('0' <= *msg && *msg <= '9')
          || *msg  == '-' || *msg == '_' || *msg == '.' || *msg == '~' ) {
       encodedMsg += *msg;
-    } else {
+    }
+    else
+    {
       encodedMsg += '%';
       encodedMsg += hex[*msg >> 4];
       encodedMsg += hex[*msg & 0xf];
@@ -467,7 +499,8 @@ String URLEncode(const char* msg) {
 }
 
 // https://github.com/igrr/axtls-8266/blob/master/crypto/hmac.c
-void ssl_hmac_sha1(const uint8_t *msg, int length, const uint8_t *key, int key_len, uint8_t *digest) {
+void ssl_hmac_sha1(const uint8_t *msg, int length, const uint8_t *key, int key_len, uint8_t *digest)
+{
   SHA1_CTX context;
   uint8_t k_ipad[64];
   uint8_t k_opad[64];
@@ -494,21 +527,27 @@ void ssl_hmac_sha1(const uint8_t *msg, int length, const uint8_t *key, int key_l
   SHA1_Final(digest, &context);
 }
 /* -- */
-void sendmqttMsg(char* topictosend, String topicpayload) {
+
+void sendmqttMsg(char* topictosend, String topicpayload)
+{
   unsigned int msg_length = topicpayload.length();
 
   byte* p = (byte*)malloc(msg_length);
   memcpy(p, (char*) topicpayload.c_str(), msg_length);
 
-  if (mqttclient.publish(topictosend, p, msg_length, 1)) {
+  if (mqttclient.publish(topictosend, p, msg_length, 1))
+  {
     free(p);
-  } else {
+  }
+  else
+  {
     free(p);
   }
   mqttclient.loop();
 }
 
-void sendUdpSyslog(String msgtosend) {
+void sendUdpSyslog(String msgtosend)
+{
   unsigned int msg_length = msgtosend.length();
   byte* p = (byte*)malloc(msg_length);
   memcpy(p, (char*) msgtosend.c_str(), msg_length);
@@ -520,7 +559,8 @@ void sendUdpSyslog(String msgtosend) {
   free(p);
 }
 
-void sendUdpmsg(String msgtosend) {
+void sendUdpmsg(String msgtosend)
+{
   unsigned int msg_length = msgtosend.length();
   byte* p = (byte*)malloc(msg_length);
   memcpy(p, (char*) msgtosend.c_str(), msg_length);
@@ -530,12 +570,14 @@ void sendUdpmsg(String msgtosend) {
   udp.endPacket();
   free(p);
 }
-/* -- */
-time_t requestSync() {
+
+time_t requestSync()
+{
   return 0;
 }
 
-time_t requestRtc() {
+time_t requestRtc()
+{
   RtcDateTime Epoch32Time = Rtc.GetDateTime();
   return (Epoch32Time + 946684800);
 }
@@ -544,7 +586,8 @@ time_t requestRtc() {
 const int NTP_PACKET_SIZE = 48;
 byte packetBuffer[NTP_PACKET_SIZE];
 
-void sendNTPpacket(IPAddress & address) {
+void sendNTPpacket(IPAddress & address)
+{
   memset(packetBuffer, 0, NTP_PACKET_SIZE);
   packetBuffer[0] = 0b11100011;
   packetBuffer[1] = 0;
@@ -559,13 +602,16 @@ void sendNTPpacket(IPAddress & address) {
   udp.endPacket();
 }
 
-time_t getNtpTime() {
+time_t getNtpTime()
+{
   while (udp.parsePacket() > 0) ;
   sendNTPpacket(time_server);
   uint32_t beginWait = millis();
-  while (millis() - beginWait < 2500) {
+  while (millis() - beginWait < 2500)
+  {
     int size = udp.parsePacket();
-    if (size >= NTP_PACKET_SIZE) {
+    if (size >= NTP_PACKET_SIZE)
+    {
       udp.read(packetBuffer, NTP_PACKET_SIZE);
       unsigned long secsSince1900;
       secsSince1900 =  (unsigned long)packetBuffer[40] << 24;
@@ -579,9 +625,11 @@ time_t getNtpTime() {
 }
 
 /* --- */
-String macToStr(const uint8_t* mac) {
+String macToStr(const uint8_t* mac)
+{
   String result;
-  for (int i = 0; i < 6; ++i) {
+  for (int i = 0; i < 6; ++i)
+  {
     result += String(mac[i], 16);
     if (i < 5)
       result += ':';
@@ -589,15 +637,21 @@ String macToStr(const uint8_t* mac) {
   return result;
 }
 
-boolean reconnect() {
-  if (!mqttclient.connected()) {
-    if (mqttclient.connect((char*) clientName.c_str())) {
+boolean reconnect()
+{
+  if (!mqttclient.connected())
+  {
+    if (mqttclient.connect((char*) clientName.c_str()))
+    {
 
       mqttclient.loop();
+      yield();
 
-      for (int i = 0; i < 6; ++i) {
+      for (int i = 0; i < 6; ++i)
+      {
         mqttclient.subscribe(substopic[i]);
         mqttclient.loop();
+        yield();
       }
     } //else {
     //}
@@ -605,11 +659,13 @@ boolean reconnect() {
   return mqttclient.connected();
 }
 
-void callback(char* intopic, byte* inpayload, unsigned int length) {
+void callback(char* intopic, byte* inpayload, unsigned int length)
+{
   String receivedtopic = intopic;
   String receivedpayload ;
 
-  for (int i = 0; i < length; i++) {
+  for (int i = 0; i < length; i++)
+  {
     receivedpayload += (char)inpayload[i];
   }
   parseMqttMsg(receivedpayload, receivedtopic);
@@ -622,55 +678,72 @@ void parseMqttMsg(String receivedpayload, String receivedtopic) {
   StaticJsonBuffer<400> jsonBuffer;
   JsonObject& root = jsonBuffer.parseObject(json);
 
-  if (!root.success()) {
+  if (!root.success())
+  {
     return;
   }
 
-  if ( receivedtopic == substopic[0] ) {
-    if (root.containsKey("data1")) {
+  if ( receivedtopic == substopic[0] )
+  {
+    if (root.containsKey("data1"))
+    {
       solar_data.data1 = root["data1"];
     }
-    if (root.containsKey("data2")) {
+    if (root.containsKey("data2"))
+    {
       solar_data.data2 = root["data2"];
     }
     lastTime = millis();
   }
 
-  if ( receivedtopic == substopic[1] ) {
-    if (root.containsKey("Humidity")) {
+  if ( receivedtopic == substopic[1] )
+  {
+    if (root.containsKey("Humidity"))
+    {
       solar_data.Humidity = root["Humidity"];
     }
 
-    if (root.containsKey("Temperature")) {
+    if (root.containsKey("Temperature"))
+    {
       solar_data.Temperature1 = root["Temperature"];
     }
   }
 
-  if ( receivedtopic == substopic[2] ) {
-    if (root.containsKey("powerAvg")) {
+  if ( receivedtopic == substopic[2] )
+  {
+    if (root.containsKey("powerAvg"))
+    {
       solar_data.powerAvg = root["powerAvg"];
     }
   }
 
-  if ( receivedtopic == substopic[3] ) {
-    if (root.containsKey("data1")) {
+  if ( receivedtopic == substopic[3] )
+  {
+    if (root.containsKey("data1"))
+    {
       solar_data.Temperature2 = root["data1"];
     }
   }
 
-  if ( receivedtopic == substopic[4] ) {
-    if (root.containsKey("DOORPIR")) {
-      if (solar_data.pir != root["DOORPIR"]) {
+  if ( receivedtopic == substopic[4] )
+  {
+    if (root.containsKey("DOORPIR"))
+    {
+      if (solar_data.pir != root["DOORPIR"])
+      {
         solar_data.pir  = int(root["DOORPIR"]);
       }
     }
   }
 
-  if ( receivedtopic == substopic[5] ) {
-    if (root.containsKey("data1")) {
+  if ( receivedtopic == substopic[5] )
+  {
+    if (root.containsKey("data1"))
+    {
       solar_data.data3 = root["data1"];
     }
-    if (root.containsKey("data2")) {
+    if (root.containsKey("data2"))
+    {
       solar_data.data4 = root["data2"];
     }
     lastTime2 = millis();
@@ -679,7 +752,8 @@ void parseMqttMsg(String receivedpayload, String receivedtopic) {
   msgcallback = !msgcallback;
 }
 
-void setup() {
+void setup()
+{
   Serial.swap();
   system_update_cpu_freq(SYS_CPU_160MHz);
   WiFi.mode(WIFI_OFF);
@@ -706,8 +780,26 @@ void setup() {
   getResetInfo += ESP.getResetInfo().substring(0, 80);
 
   //
-  solar_data.Temperature1 = solar_data.Temperature2 = solar_data.Humidity = 0;
-  solar_data.data1 = solar_data.data2 = solar_data.data3 = solar_data.data4 = solar_data.powerAvg = 0;
+  solar_data.Temperature1 = 0;
+  solar_data.Temperature2 = 0;
+  solar_data.Humidity     = 0;
+  solar_data.data1        = 0;
+  solar_data.data2        = 0;
+  solar_data.data3        = 0;
+  solar_data.data4        = 0;
+  solar_data.powerAvg     = 0;
+  solar_data.pir          = 0;
+
+  curr_data.Temperature1 = 0;
+  curr_data.Temperature2 = 0;
+  curr_data.Humidity     = 0;
+  curr_data.data1        = 0;
+  curr_data.data2        = 0;
+  curr_data.data3        = 0;
+  curr_data.data4        = 0;
+  curr_data.powerAvg     = 0;
+  curr_data.pir          = 0;
+
   lastTime = lastTime2 = millis();
 
   // lcd
@@ -723,14 +815,16 @@ void setup() {
   lcd.createChar(6, powericon);
   lcd.createChar(7, valueisinvalid);
 
-  for ( int i = 1 ; i < 19 ; i++) {
+  for ( int i = 1 ; i < 19 ; i++)
+  {
     lcd.setCursor(i, 0);
     lcd.write(4);
     lcd.setCursor(i, 3);
     lcd.write(4);
   }
 
-  for ( int i = 0 ; i < 4 ; i++) {
+  for ( int i = 0 ; i < 4 ; i++)
+  {
     lcd.setCursor(0, i);
     lcd.write(4);
     lcd.setCursor(19, i);
@@ -738,33 +832,42 @@ void setup() {
   }
 
   lcd.setCursor(4, 1);
-  if (rtc_boot_mode.gopro_mode) {
+  if (rtc_boot_mode.gopro_mode)
+  {
     lcd.print("[Gopro mode]");
-  } else {
+  }
+  else
+  {
     lcd.print("[Clock mode]");
   }
 
   delay(1000);
   lcd.clear();
 
-  if (!SPIFFS.begin()) {
+  if (!SPIFFS.begin())
+  {
     lcd.setCursor(0, 0);
     lcd.print("[SPIFFS] mnt fail");
     delay(1000);
     return;
   }
 
-  if (rtc_boot_mode.formatspiffs) {
+  if (rtc_boot_mode.formatspiffs)
+  {
     spiffs_format();
     rtc_boot_mode.formatspiffs = false;
     saveConfig_helper();
   }
 
-  if (rtc_boot_mode.gopro_mode) {
+  if (rtc_boot_mode.gopro_mode)
+  {
     lcd.setCursor(0, 1);
-    if (!rtc_config_read()) {
+    if (!rtc_config_read())
+    {
       lcd.print("[CONFIG] load fail");
-    } else {
+    }
+    else
+    {
       lcd.print("[CONFIG] loaded");
       lcd.setCursor(0, 2);
       lcd.print("[CONFIG] [PH] : ");
@@ -773,7 +876,8 @@ void setup() {
     delay(1000);
 
     // check fie size in config
-    if ( rtc_boot_mode.twitter_phase != 0 && rtc_boot_mode.gopro_size == 0 && rtc_boot_mode.twitter_phase != 8) {
+    if ( rtc_boot_mode.twitter_phase != 0 && rtc_boot_mode.gopro_size == 0 && rtc_boot_mode.twitter_phase != 8)
+    {
       rtc_boot_mode.attempt_this  = 0;
       rtc_boot_mode.twitter_phase = 0;
       saveConfig_helper();
@@ -781,25 +885,35 @@ void setup() {
       ESP.reset();
     }
 
-    if ( rtc_boot_mode.twitter_phase == 0) {
+    if ( rtc_boot_mode.twitter_phase == 0)
+    {
       Dir dir = SPIFFS.openDir("/");
-      while (dir.next()) {
-        if ( dir.fileName().startsWith("/GOPR")) {
+      while (dir.next())
+      {
+        if ( dir.fileName().startsWith("/GOPR"))
+        {
           SPIFFS.remove(dir.fileName());
         }
-        if ( dir.fileName().startsWith("/config")) {
+        if ( dir.fileName().startsWith("/config"))
+        {
           SPIFFS.remove(dir.fileName());
         }
       }
     }
   }
 
-  if (!rtc_boot_mode.gopro_mode || rtc_boot_mode.attempt_this > 4) {
+  if (!rtc_boot_mode.gopro_mode || rtc_boot_mode.attempt_this > 4)
+  {
     wifi_connect();
-  } else {
-    if ( rtc_boot_mode.twitter_phase > 1 ) {
+  }
+  else
+  {
+    if ( rtc_boot_mode.twitter_phase > 1 )
+    {
       wifi_connect();
-    } else {
+    }
+    else
+    {
       digitalWrite(goproPowerPin, HIGH);
       delay(200);
       digitalWrite(goproPowerPin, LOW);
@@ -812,10 +926,12 @@ void setup() {
     }
   }
 
-  if (!rtc_boot_mode.gopro_mode || rtc_boot_mode.twitter_phase > 1) {
+  if (!rtc_boot_mode.gopro_mode || rtc_boot_mode.twitter_phase > 1)
+  {
     udp.begin(localPort);
 
-    if (!Rtc.IsDateTimeValid()) {
+    if (!Rtc.IsDateTimeValid())
+    {
       lcd.setCursor(0, 3);
       lcd.print("RTC is inValid");
       delay(1000);
@@ -823,26 +939,32 @@ void setup() {
       setSyncProvider(requestSync);
 
       int Attempt = 0;
-      while ( timeStatus() == timeNotSet ) {
+      while ( timeStatus() == timeNotSet )
+      {
         setSyncProvider(getNtpTime);
         Attempt++;
-        if (Attempt > 3) {
+        if (Attempt > 3)
+        {
           break;
         }
         yield();
       }
 
-      if (timeStatus() == timeSet) {
+      if (timeStatus() == timeSet)
+      {
         lcd.setCursor(0, 3);
         lcd.print("ntp synced");
 
         Rtc.SetDateTime(now() - 946684800);
-        if (!Rtc.GetIsRunning()) {
+        if (!Rtc.GetIsRunning())
+        {
           Rtc.SetIsRunning(true);
         }
       } //else {
       // }
-    } else {
+    }
+    else
+    {
       lcd.setCursor(0, 3);
       lcd.print("RTC is Valid");
       delay(1000);
@@ -854,7 +976,8 @@ void setup() {
 
   Rtc.Enable32kHzPin(false);
 
-  if (!rtc_boot_mode.gopro_mode) {
+  if (!rtc_boot_mode.gopro_mode)
+  {
     /*
       Rtc.SetSquareWavePin(DS3231SquareWavePin_ModeAlarmBoth);
 
@@ -891,27 +1014,34 @@ void setup() {
       DS3231AlarmTwoControl_MinutesMatch);
     Rtc.SetAlarmTwo(alarm1);
     Rtc.LatchAlarmsTriggeredFlags();
-  } else {
+  }
+  else
+  {
     Rtc.SetSquareWavePin(DS3231SquareWavePin_ModeNone);
   }
 
   //OTA
-  if (!rtc_boot_mode.gopro_mode) {
+  if (!rtc_boot_mode.gopro_mode)
+  {
     ArduinoOTA.setPort(8266);
     ArduinoOTA.setHostname("esp-solar");
     ArduinoOTA.setPassword(otapassword);
-    ArduinoOTA.onStart([]() {
+    ArduinoOTA.onStart([]()
+    {
       sendUdpSyslog("ArduinoOTA Start");
     });
-    ArduinoOTA.onEnd([]() {
+    ArduinoOTA.onEnd([]()
+    {
       sendUdpSyslog("ArduinoOTA End");
     });
-    ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+    ArduinoOTA.onProgress([](unsigned int progress, unsigned int total)
+    {
       syslogPayload = "Progress: ";
       syslogPayload += (progress / (total / 100));
       sendUdpSyslog(syslogPayload);
     });
-    ArduinoOTA.onError([](ota_error_t error) {
+    ArduinoOTA.onError([](ota_error_t error)
+    {
       if (error == OTA_AUTH_ERROR) abort();
       else if (error == OTA_BEGIN_ERROR) abort();
       else if (error == OTA_CONNECT_ERROR) abort();
@@ -934,10 +1064,13 @@ void setup() {
 time_t prevDisplay = 0;
 
 void loop() {
-  if (!rtc_boot_mode.gopro_mode) {
-    if (balm_isr) {
+  if (!rtc_boot_mode.gopro_mode)
+  {
+    if (balm_isr)
+    {
       DS3231AlarmFlag flag = Rtc.LatchAlarmsTriggeredFlags();
-      if (flag & DS3231AlarmFlag_Alarm2) {
+      if (flag & DS3231AlarmFlag_Alarm2)
+      {
         rtc_boot_mode.gopro_mode  = true;
         rtc_boot_mode.Temperature = solar_data.Temperature2 ;
         rtc_boot_mode.attempt_this  = 0;
@@ -952,57 +1085,117 @@ void loop() {
       balm_isr = false;
     }
 
-    if (WiFi.status() == WL_CONNECTED) {
-      if (!mqttclient.connected()) {
+    if (WiFi.status() == WL_CONNECTED)
+    {
+      if (!mqttclient.connected())
+      {
         unsigned long now = millis();
-        if (now - lastReconnectAttempt > 100) {
+        if (now - lastReconnectAttempt > 100)
+        {
           lastReconnectAttempt = now;
-          if (reconnect()) {
+          if (reconnect())
+          {
             lastReconnectAttempt = 0;
           }
         }
-      } else {
-        if (timeStatus() != timeNotSet) {
-          if (now() != prevDisplay) {
-            prevDisplay = now();
-            digitalClockDisplay();
+      }
+      else
+      {
+        if (timeStatus() != timeNotSet)
+        {
+          if (
+            curr_data.Temperature1 != solar_data.Temperature1 ||
+            curr_data.Temperature2 != solar_data.Temperature2 ||
+            curr_data.Humidity     != solar_data.Humidity
+          )
+          {
             displayTemperature();
+            curr_data.Temperature1 = solar_data.Temperature1;
+            curr_data.Temperature2 = solar_data.Temperature2;
+            curr_data.Humidity     = solar_data.Humidity;
+          }
+
+          if (curr_data.powerAvg != solar_data.powerAvg)
+          {
             displaypowerAvg();
+            curr_data.powerAvg = solar_data.powerAvg;
+          }
+
+          if (curr_data.pir != solar_data.pir)
+          {
             displaypir();
+            curr_data.pir = solar_data.pir ;
+          }
 
-            if (second() % 10 == 0) {
-              displayData();
-              displayData2();
+          if (
+            curr_data.data1 != solar_data.data1 ||
+            curr_data.data2 != solar_data.data2 
+            )
+          {
+            displayData();
+            curr_data.data1 = solar_data.data1;
+            curr_data.data2 = solar_data.data2;            
+          }
 
-              if (( millis() - lastTime ) > 120000 ) {
+          if (
+            curr_data.data3 != solar_data.data3 ||
+            curr_data.data4 != solar_data.data4
+          )
+          {
+            displayData2();
+            curr_data.data3 = solar_data.data3;
+            curr_data.data4 = solar_data.data4;
+          }
+
+          if (now() != prevDisplay)
+          {
+
+            digitalClockDisplay();
+            prevDisplay = now();
+
+            if (second() % 10 == 0)
+            {
+              if (( millis() - lastTime ) > 120000 )
+              {
                 lcd.setCursor(7, 2);
                 lcd.write(7);
-              } else {
+              }
+              else
+              {
                 lcd.setCursor(7, 2);
                 lcd.print(" ");
               }
 
-              if (( millis() - lastTime2 ) > 120000 ) {
+              if (( millis() - lastTime2 ) > 120000 )
+              {
                 lcd.setCursor(7, 3);
                 lcd.write(7);
-              } else {
+              }
+              else
+              {
                 lcd.setCursor(7, 3);
                 lcd.print(" ");
               }
             }
 
-            if (!Rtc.IsDateTimeValid()) {
+            if (!Rtc.IsDateTimeValid())
+            {
               lcd.setCursor(18, 0);
               lcd.write(7);
-            } else {
+            }
+            else
+            {
               lcd.setCursor(18, 0);
               lcd.print(" ");
             }
 
-            if (msgcallback) {
+            if (msgcallback)
+            {
               lcd.setCursor(19, 0);
               lcd.write(5);
-            } else {
+            }
+            else
+            {
               lcd.setCursor(19, 0);
               lcd.print(" ");
             }
@@ -1011,28 +1204,38 @@ void loop() {
         mqttclient.loop();
       }
       ArduinoOTA.handle();
-    } else {
+    }
+    else
+    {
       wifi_connect();
     }
-  } else {
+  }
+  else
+  {
 
-    if (WiFi.status() == WL_CONNECTED) {
+    if (WiFi.status() == WL_CONNECTED)
+    {
       // gopro mode
 
-      if (x) {
+      if (x)
+      {
         // switch todo
 
         value_timestamp  = now();
         value_nonce      = *(volatile uint32_t *)0x3FF20E44;
 
-        if ( rtc_boot_mode.twitter_phase == 8 ) {
-          if (rtc_boot_mode.attempt_phase == 0 && rtc_boot_mode.attempt_detail == 1) {
+        if ( rtc_boot_mode.twitter_phase == 8 )
+        {
+          if (rtc_boot_mode.attempt_phase == 0 && rtc_boot_mode.attempt_detail == 1)
+          {
             value_status  = "esp-01 / ";
             value_status += hour();
             value_status += ":";
             value_status += minute();
             value_status += " gopro wifi err, check plz";
-          } else {
+          }
+          else
+          {
             value_status  = "esp-01 / ";
             value_status += hour();
             value_status += ":";
@@ -1041,7 +1244,9 @@ void loop() {
             value_status += rtc_boot_mode.attempt_phase;
             value_status += " err, check plz";
           }
-        } else {
+        }
+        else
+        {
           value_status  = "esp-01 / ";
           value_status += rtc_boot_mode.Temperature;
           value_status += "C / ";
@@ -1054,7 +1259,8 @@ void loop() {
           value_status += minute();
         }
 
-        switch (rtc_boot_mode.twitter_phase) {
+        switch (rtc_boot_mode.twitter_phase)
+        {
 
           case 0:
             // WIFI : GOPRO
@@ -1121,11 +1327,13 @@ void loop() {
   }
 }
 
-void displayData() {
+void displayData()
+{
   lcd.setCursor(7, 2);
   lcd.print("    ");
   lcd.setCursor(7, 2);
-  if ( solar_data.data1 < 1000 ) {
+  if ( solar_data.data1 < 1000 )
+  {
     lcd.print(" ");
   }
   lcd.print(solar_data.data1, 0);
@@ -1136,11 +1344,13 @@ void displayData() {
   lcd.print(solar_data.data2, 2);
 }
 
-void displayData2() {
+void displayData2()
+{
   lcd.setCursor(7, 3);
   lcd.print("    ");
   lcd.setCursor(7, 3);
-  if ( solar_data.data3 < 1000 ) {
+  if ( solar_data.data3 < 1000 )
+  {
     lcd.print(" ");
   }
   lcd.print(solar_data.data3, 0);
@@ -1152,56 +1362,71 @@ void displayData2() {
   //lcd.print((solar_data.data4 * 100000), 0);
 }
 
-void displaypir() {
-  if ( solar_data.pir == 1) {
-    for ( int i = 0 ; i <= 2 ; i ++ ) {
+void displaypir()
+{
+  if ( solar_data.pir == 1)
+  {
+    for ( int i = 0 ; i <= 2 ; i ++ )
+    {
       lcd.setCursor(19, i);
       lcd.write(5);
     }
-  } else {
-    for ( int i = 0 ; i <= 2 ; i ++ ) {
+  }
+  else
+  {
+    for ( int i = 0 ; i <= 2 ; i ++ )
+    {
       lcd.setCursor(19, i);
       lcd.print(" ");
     }
   }
 }
 
-void displaypowerAvg() {
-  if (solar_data.powerAvg < 9999) {
+void displaypowerAvg()
+{
+  if (solar_data.powerAvg < 9999)
+  {
     String str_Power = String(solar_data.powerAvg);
     int length_Power = str_Power.length();
 
     lcd.setCursor(2, 3);
-    for ( int i = 0; i < ( 4 - length_Power ) ; i++ ) {
+    for ( int i = 0; i < ( 4 - length_Power ) ; i++ )
+    {
       lcd.print(" ");
     }
     lcd.print(str_Power);
   }
 }
 
-void displayTemperaturedigit(float Temperature) {
+void displayTemperaturedigit(float Temperature)
+{
   String str_Temperature = String(int(Temperature)) ;
   int length_Temperature = str_Temperature.length();
 
-  for ( int i = 0; i < ( 3 - length_Temperature ) ; i++ ) {
+  for ( int i = 0; i < ( 3 - length_Temperature ) ; i++ )
+  {
     lcd.print(" ");
   }
   lcd.print(Temperature, 1);
 }
 
-void displayTemperature() {
+void displayTemperature()
+{
   lcd.setCursor(1, 1);
   displayTemperaturedigit(solar_data.Temperature1);
 
   lcd.setCursor(7, 1);
 
-  float tempdiff = solar_data.Temperature2 - solar_data.Temperature1 ;
+  float tempdiff = solar_data.Temperature2 - solar_data.Temperature1;
   displayTemperaturedigit(solar_data.Temperature2);
 
   lcd.setCursor(14, 1);
-  if ( tempdiff > 0 ) {
+  if ( tempdiff > 0 )
+  {
     lcd.print("+");
-  } else if ( tempdiff < 0 ) {
+  }
+  else if ( tempdiff < 0 )
+  {
     lcd.print("-");
   }
 
@@ -1210,19 +1435,24 @@ void displayTemperature() {
 
   lcd.setCursor(15, 1);
   lcd.print(abs(tempdiff), 1);
-  if ( length_tempdiff == 1) {
+  if ( length_tempdiff == 1)
+  {
     lcd.print(" ");
   }
 
   lcd.setCursor(2, 2);
-  if ( solar_data.Humidity >= 10 ) {
+  if ( solar_data.Humidity >= 10 )
+  {
     lcd.print(solar_data.Humidity, 1);
-  } else {
+  }
+  else
+  {
     lcd.print(" ");
     lcd.print(solar_data.Humidity, 1);
   }
 }
-void digitalClockDisplay() {
+void digitalClockDisplay()
+{
   // digital clock display of the time
   lcd.setCursor(0, 0);
   printDigitsnocolon(month());
@@ -1237,34 +1467,43 @@ void digitalClockDisplay() {
   printDigits(second());
 }
 
-void printDigitsnocolon(int digits) {
-  if (digits < 10) {
+void printDigitsnocolon(int digits)
+{
+  if (digits < 10)
+  {
     lcd.print('0');
   }
   lcd.print(digits);
 }
 
 
-void printDigits(int digits) {
+void printDigits(int digits)
+{
   // utility for digital clock display: prints preceding colon and leading 0
   lcd.print(":");
-  if (digits < 10) {
+  if (digits < 10)
+  {
     lcd.print('0');
   }
   lcd.print(digits);
 }
 
 /* ------------------------------- */
-String get_hash_str(String content_more, String content_last, int positionofchunk, int get_size, bool bpost = false) {
+String get_hash_str(String content_more, String content_last, int positionofchunk, int get_size, bool bpost = false)
+{
 
   File f = SPIFFS.open("/" + gopro_file, "r");
-  if (!f) {
+  if (!f)
+  {
     return "0";
-  } else {
+  }
+  else
+  {
     f.seek(positionofchunk, SeekSet);
   }
 
-  if ( !bpost ) {
+  if ( !bpost )
+  {
 
     char buff[1400] = { 0 };
     int len = get_size; // file size
@@ -1275,18 +1514,22 @@ String get_hash_str(String content_more, String content_last, int positionofchun
 
     SHA1_Update(&context, (uint8_t*) content_more.c_str(), content_more.length());
 
-    while (f.available()) {
+    while (f.available())
+    {
       int c = f.readBytes(buff, ((len > sizeof(buff)) ? sizeof(buff) : len));
 
-      if ( c > 0 ) {
+      if ( c > 0 )
+      {
         SHA1_Update(&context, (uint8_t*) buff, c);
       }
 
-      if (len > 0) {
+      if (len > 0)
+      {
         len -= c;
       }
 
-      if (c == 0) {
+      if (c == 0)
+      {
         break;
       }
     }
@@ -1297,7 +1540,9 @@ String get_hash_str(String content_more, String content_last, int positionofchun
 
     return URLEncode(base64::encode(digestkey, 20).c_str());
 
-  } else {
+  }
+  else
+  {
 
     char buff[1400] = { 0 };
     int len = get_size;
@@ -1310,16 +1555,20 @@ String get_hash_str(String content_more, String content_last, int positionofchun
     int pre_progress = 0;
     int count = 0;
 
-    while (f.available()) {
+    while (f.available())
+    {
       int c = f.readBytes(buff, ((len > sizeof(buff)) ? sizeof(buff) : len));
-      if ( c > 0 ) {
+      if ( c > 0 )
+      {
         sslclient.write((const uint8_t *) buff, c);
       }
 
       float progress = ((get_size - len) / (get_size / 100));
-      if (int(progress) != pre_progress ) {
+      if (int(progress) != pre_progress )
+      {
         lcd.setCursor(13, 3);
-        if (progress < 10) {
+        if (progress < 10)
+        {
           lcd.print(" ");
         }
 
@@ -1328,15 +1577,18 @@ String get_hash_str(String content_more, String content_last, int positionofchun
         pre_progress = int(progress);
       }
 
-      if (len > 0) {
+      if (len > 0)
+      {
         len -= c;
       }
 
-      if (c == 0) {
+      if (c == 0)
+      {
         break;
       }
 
-      if (!sslclient.connected()) {
+      if (!sslclient.connected())
+      {
         f.close();
         return "0";
         break;
@@ -1348,7 +1600,8 @@ String get_hash_str(String content_more, String content_last, int positionofchun
       count++;
 
       // up error
-      if (count > 300) {
+      if (count > 300)
+      {
         rtc_boot_mode.attempt_this++;
         saveConfig_helper();
 
@@ -1363,13 +1616,16 @@ String get_hash_str(String content_more, String content_last, int positionofchun
   }
 }
 
-bool do_http_append_post(String content_header, String content_more, String content_last, int positionofchunk, int get_size) {
-  if (!sslclient.connect(UPLOAD_BASE_HOST, HTTPSPORT)) {
+bool do_http_append_post(String content_header, String content_more, String content_last, int positionofchunk, int get_size)
+{
+  if (!sslclient.connect(UPLOAD_BASE_HOST, HTTPSPORT))
+  {
     return false;
   }
 
 
-  if (!sslclient.verify(upload_fingerprint, UPLOAD_BASE_HOST)) {
+  if (!sslclient.verify(upload_fingerprint, UPLOAD_BASE_HOST))
+  {
     lcd.setCursor(0, 2);
     lcd.print("[P:3] ssl fail");
     return false;
@@ -1381,7 +1637,8 @@ bool do_http_append_post(String content_header, String content_more, String cont
   sslclient.print(content_header);
 
   String ok = get_hash_str(content_more, content_last, positionofchunk, get_size, true);
-  if (ok == "0") {
+  if (ok == "0")
+  {
     lcd.setCursor(0, 2);
     lcd.print("[P:3] put err, reset");
     delay(2000);
@@ -1389,37 +1646,45 @@ bool do_http_append_post(String content_header, String content_more, String cont
   }
 
   int _returnCode = 0;
-  while (sslclient.connected()) {
+  while (sslclient.connected())
+  {
     String line = sslclient.readStringUntil('\n');
-    if (line.startsWith("HTTP/1.")) {
+    if (line.startsWith("HTTP/1."))
+    {
       _returnCode = line.substring(9, line.indexOf(' ', 9)).toInt();
       break;
     }
   }
 
-  if (_returnCode >= 200 && _returnCode < 400) {
+  if (_returnCode >= 200 && _returnCode < 400)
+  {
     rtc_boot_mode.chunked_no++;
     rtc_boot_mode.attempt_this = 0;
     saveConfig_helper();
     return true;
-  } else {
+  }
+  else
+  {
     return false;
   }
 }
 
-bool do_http_text_post(String OAuth_header) {
+bool do_http_text_post(String OAuth_header)
+{
   String httppayload = "";
   String req_body_to_post;
 
   String uri_to_post = UPLOAD_BASE_URI;
 
-  if (rtc_boot_mode.twitter_phase == 6) {
+  if (rtc_boot_mode.twitter_phase == 6)
+  {
     uri_to_post = BASE_URI;
     uri_to_post += "?media_ids=";
     uri_to_post += media_id;
   }
 
-  if (rtc_boot_mode.twitter_phase == 8) {
+  if (rtc_boot_mode.twitter_phase == 8)
+  {
     uri_to_post = BASE_URI;
   }
 
@@ -1429,7 +1694,8 @@ bool do_http_text_post(String OAuth_header) {
   lcd.print("case ");
   lcd.print(rtc_boot_mode.twitter_phase);
   lcd.print(" : ");
-  switch (rtc_boot_mode.twitter_phase) {
+  switch (rtc_boot_mode.twitter_phase)
+  {
     case 2:
       req_body_to_post = "command=INIT&media_type=image%2Fjpeg&total_bytes=";
       req_body_to_post += rtc_boot_mode.gopro_size;
@@ -1464,16 +1730,20 @@ bool do_http_text_post(String OAuth_header) {
   http.addHeader("Content-Type", "application/x-www-form-urlencoded");
   int httpCode = http.POST(req_body_to_post);
 
-  if (httpCode > 0) {
-    if (rtc_boot_mode.twitter_phase == 2 || rtc_boot_mode.twitter_phase == 4) {
-      if ((httpCode >= 200) && (httpCode < 400)) {
+  if (httpCode > 0)
+  {
+    if (rtc_boot_mode.twitter_phase == 2 || rtc_boot_mode.twitter_phase == 4)
+    {
+      if ((httpCode >= 200) && (httpCode < 400))
+      {
         httppayload = http.getString();
       }
     }
     http.end();
     delay(100);
 
-    if (rtc_boot_mode.twitter_phase == 6) {
+    if (rtc_boot_mode.twitter_phase == 6)
+    {
       syslogPayload = "do_http_text_post 1: ";
       syslogPayload += " - httpCode : ";
       syslogPayload += httpCode;
@@ -1484,9 +1754,12 @@ bool do_http_text_post(String OAuth_header) {
     lcd.print(httpCode);
     lcd.setCursor(0, 2);
 
-  } else {
+  }
+  else
+  {
     http.end();
-    if (rtc_boot_mode.twitter_phase == 6) {
+    if (rtc_boot_mode.twitter_phase == 6)
+    {
       syslogPayload = "do_http_text_post 2: ";
       syslogPayload += " - httpCode : ";
       syslogPayload += httpCode;
@@ -1497,7 +1770,8 @@ bool do_http_text_post(String OAuth_header) {
       delay(200);
     }
 
-    if (rtc_boot_mode.twitter_phase == 2 ) {
+    if (rtc_boot_mode.twitter_phase == 2 )
+    {
       rtc_boot_mode.attempt_this++;
       saveConfig_helper();
       delay(200);
@@ -1509,16 +1783,21 @@ bool do_http_text_post(String OAuth_header) {
 
   delay(1000);
 
-  if (rtc_boot_mode.twitter_phase == 6 || rtc_boot_mode.twitter_phase == 8) {
-    if ((httpCode >= 200) && (httpCode < 400)) {
+  if (rtc_boot_mode.twitter_phase == 6 || rtc_boot_mode.twitter_phase == 8)
+  {
+    if ((httpCode >= 200) && (httpCode < 400))
+    {
       rtc_boot_mode.attempt_this  = 0;
       rtc_boot_mode.twitter_phase = 7;
       rtc_boot_mode.attempt_phase = 7;
       saveConfig_helper();
       delay(200);
       return true;
-    } else {
-      if (rtc_boot_mode.twitter_phase == 6) {
+    }
+    else
+    {
+      if (rtc_boot_mode.twitter_phase == 6)
+      {
         rtc_boot_mode.attempt_this   = 0;
         rtc_boot_mode.attempt_phase  = 6;
         rtc_boot_mode.attempt_detail = 1;
@@ -1530,18 +1809,22 @@ bool do_http_text_post(String OAuth_header) {
     }
   }
 
-  if (rtc_boot_mode.twitter_phase == 2 || rtc_boot_mode.twitter_phase == 4) {
+  if (rtc_boot_mode.twitter_phase == 2 || rtc_boot_mode.twitter_phase == 4)
+  {
     char json[] = "{\"media_id\":000000000000000000,\"media_id_string\":\"000000000000000000\",\"size\":0000000,\"expires_after_secs\":86400,\"image\":{\"image_type\":\"image\\/jpeg\",\"w\":0000,\"h\":0000}}" ;
     httppayload.toCharArray(json, 200);
     StaticJsonBuffer<200> jsonBuffer;
     JsonObject& root = jsonBuffer.parseObject(json);
 
-    if (!root.success()) {
+    if (!root.success())
+    {
       return false;
     }
 
-    if (rtc_boot_mode.twitter_phase == 2) {
-      if (root.containsKey("media_id_string")) {
+    if (rtc_boot_mode.twitter_phase == 2)
+    {
+      if (root.containsKey("media_id_string"))
+      {
         media_id = root["media_id_string"].asString();
         rtc_boot_mode.attempt_this  = 0;
         rtc_boot_mode.twitter_phase = 3;
@@ -1549,8 +1832,11 @@ bool do_http_text_post(String OAuth_header) {
         saveConfig_helper();
         return true;
       }
-    } else {
-      if (root.containsKey("media_id_string")) {
+    }
+    else
+    {
+      if (root.containsKey("media_id_string"))
+      {
         /*
           if (media_id == root["media_id_string"].asString()) {
           if (root.containsKey("processing_info")) {
@@ -1577,9 +1863,11 @@ bool do_http_text_post(String OAuth_header) {
   }
 }
 
-String make_OAuth_header(String oauth_signature, String hashStr = "0") {
+String make_OAuth_header(String oauth_signature, String hashStr = "0")
+{
   String OAuth_header = "OAuth ";
-  if (rtc_boot_mode.twitter_phase == 3) {
+  if (rtc_boot_mode.twitter_phase == 3)
+  {
     OAuth_header += UPLOAD_OAUTH_KEY;
     OAuth_header += "=\"";
     OAuth_header += hashStr;
@@ -1619,11 +1907,13 @@ String make_OAuth_header(String oauth_signature, String hashStr = "0") {
 
 }
 
-String make_base_string(String para_string) {
+String make_base_string(String para_string)
+{
   String base_string = KEY_HTTP_METHOD;
   base_string += "&";
 
-  switch (rtc_boot_mode.twitter_phase) {
+  switch (rtc_boot_mode.twitter_phase)
+  {
     case 6:
       base_string += URLEncode(BASE_URL);
       break;
@@ -1643,10 +1933,12 @@ String make_base_string(String para_string) {
   return base_string;
 }
 
-String make_para_string(String hashStr = "0") {
+String make_para_string(String hashStr = "0")
+{
   String para_string;
 
-  switch (rtc_boot_mode.twitter_phase) {
+  switch (rtc_boot_mode.twitter_phase)
+  {
     case 2: // INIT
       para_string += URLEncode(UPLOAD_COMMAND);
       para_string += "=" ;
@@ -1721,7 +2013,8 @@ String make_para_string(String hashStr = "0") {
   para_string += "=";
   para_string += VALUE_VERSION;
 
-  switch (rtc_boot_mode.twitter_phase) {
+  switch (rtc_boot_mode.twitter_phase)
+  {
     case 2:
       para_string += "&";
       para_string += UPLOAD_MEDIA_SIZE;
@@ -1754,7 +2047,8 @@ String make_para_string(String hashStr = "0") {
 }
 
 /* PHASE 8 : TWEET error*/
-bool tweet_error() {
+bool tweet_error()
+{
   bool rtn = false;
 
   lcd.clear();
@@ -1768,9 +2062,12 @@ bool tweet_error() {
   rtn                    = do_http_text_post(OAuth_header);
 
   lcd.setCursor(0, 2);
-  if (rtn) {
+  if (rtn)
+  {
     lcd.print("[P:8] OK");
-  } else {
+  }
+  else
+  {
     lcd.print("[P:8] FAIL");
   }
   delay(2000);
@@ -1780,10 +2077,12 @@ bool tweet_error() {
 
 
 /* PHASE 6 : TWEET */
-bool tweet_status() {
+bool tweet_status()
+{
   bool rtn = false;
 
-  if ( rtc_boot_mode.attempt_this > 4) {
+  if ( rtc_boot_mode.attempt_this > 4)
+  {
     rtc_boot_mode.attempt_this  = 0;
     rtc_boot_mode.twitter_phase = 8;
     saveConfig_helper();
@@ -1802,9 +2101,12 @@ bool tweet_status() {
   rtn                    = do_http_text_post(OAuth_header);
 
   lcd.setCursor(0, 2);
-  if (rtn) {
+  if (rtn)
+  {
     lcd.print("[P:6] OK");
-  } else {
+  }
+  else
+  {
     lcd.print("[P:6] FAIL");
   }
   delay(2000);
@@ -1813,7 +2115,8 @@ bool tweet_status() {
 }
 
 /* PHASE 5 : STATUS CHECK */
-void tweet_check() {
+void tweet_check()
+{
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("[P:5] CHECKING");
@@ -1824,10 +2127,12 @@ void tweet_check() {
 }
 
 /* PHASE 4 : FINALIZE */
-bool tweet_fin() {
+bool tweet_fin()
+{
   bool rtn = false;
 
-  if ( rtc_boot_mode.attempt_this > 4) {
+  if ( rtc_boot_mode.attempt_this > 4)
+  {
     rtc_boot_mode.attempt_this  = 0;
     rtc_boot_mode.twitter_phase = 8;
     saveConfig_helper();
@@ -1846,9 +2151,12 @@ bool tweet_fin() {
   rtn                    = do_http_text_post(OAuth_header);
 
   lcd.setCursor(0, 1);
-  if (rtn) {
+  if (rtn)
+  {
     lcd.print("[P:4] OK");
-  } else {
+  }
+  else
+  {
     lcd.print("[P:4] FAIL");
   }
   delay(2000);
@@ -1856,10 +2164,12 @@ bool tweet_fin() {
 }
 
 /* PHASE 3 : APPEND */
-bool tweet_append() {
+bool tweet_append()
+{
   bool rtn = false;
 
-  if ( rtc_boot_mode.attempt_this > 4) {
+  if ( rtc_boot_mode.attempt_this > 4)
+  {
     rtc_boot_mode.attempt_this  = 0;
     rtc_boot_mode.twitter_phase = 8;
     saveConfig_helper();
@@ -1877,13 +2187,15 @@ bool tweet_append() {
   int get_size = CHUNKED_FILE_SIZE;
   int positionofchunk = (CHUNKED_FILE_SIZE * rtc_boot_mode.chunked_no);
 
-  if (positionofchunk >= rtc_boot_mode.gopro_size) {
+  if (positionofchunk >= rtc_boot_mode.gopro_size)
+  {
     rtc_boot_mode.twitter_phase = 4;
     saveConfig_helper();
     return true;
   }
 
-  if (( positionofchunk + get_size) > rtc_boot_mode.gopro_size) {
+  if (( positionofchunk + get_size) > rtc_boot_mode.gopro_size)
+  {
     get_size = rtc_boot_mode.gopro_size - positionofchunk;
   }
 
@@ -1930,11 +2242,14 @@ bool tweet_append() {
   lcd.setCursor(0, 0);
   lcd.print("[P:3] APPEND");
   lcd.setCursor(0, 1);
-  if (rtn) {
+  if (rtn)
+  {
     lcd.print("[P:3] chk : ");
     lcd.print(rtc_boot_mode.chunked_no - 1);
     lcd.print(" OK");
-  } else {
+  }
+  else
+  {
     lcd.print(" FAIL");
   }
 
@@ -1948,10 +2263,12 @@ bool tweet_append() {
 }
 
 /* PHASE 2 : INIT */
-bool tweet_init() {
+bool tweet_init()
+{
   bool rtn = false;
 
-  if ( rtc_boot_mode.attempt_this > 4) {
+  if ( rtc_boot_mode.attempt_this > 4)
+  {
     rtc_boot_mode.attempt_this  = 0;
     rtc_boot_mode.twitter_phase = 8;
     saveConfig_helper();
@@ -1971,11 +2288,14 @@ bool tweet_init() {
 
   lcd.clear();
   lcd.setCursor(0, 0);
-  if (rtn) {
+  if (rtn)
+  {
     lcd.print("[P:2] ");
     lcd.setCursor(0, 1);
     lcd.print(media_id);
-  } else {
+  }
+  else
+  {
     lcd.print("[P:2] FAIL");
   }
   delay(2000);
@@ -1983,7 +2303,8 @@ bool tweet_init() {
   return rtn;
 }
 
-bool gopro_poweroff() {
+bool gopro_poweroff()
+{
   /*
     bool rtn = false;
     HTTPClient http;
@@ -2021,7 +2342,8 @@ bool gopro_poweroff() {
   return true;
 }
 
-bool gopro_poweron() {
+bool gopro_poweron()
+{
   bool rtn = false;
   HTTPClient http;
 
@@ -2036,7 +2358,8 @@ bool gopro_poweron() {
   lcd.print(httpCode);
   delay(2000);
 
-  if (httpCode == HTTP_CODE_OK) {
+  if (httpCode == HTTP_CODE_OK)
+  {
     http.end();
     delay(3000);
     // 5MP
@@ -2048,7 +2371,8 @@ bool gopro_poweron() {
     lcd.print(" ");
     lcd.print(httpCode2);
 
-    if (httpCode2 == HTTP_CODE_OK) {
+    if (httpCode2 == HTTP_CODE_OK)
+    {
       http.end();
       delay(2000);
       http.begin("http://10.5.5.9:80/bacpac/SH?t=" + String(gopropassword) + "&p=%01");
@@ -2057,7 +2381,8 @@ bool gopro_poweron() {
       lcd.print(" ");
       lcd.print(httpCode3);
 
-      if (httpCode3 == HTTP_CODE_OK) {
+      if (httpCode3 == HTTP_CODE_OK)
+      {
         rtn = true;
       }
     }
@@ -2069,8 +2394,10 @@ bool gopro_poweron() {
 
 
 /* PHASE 1 : start : get last file */
-bool get_gopro_file() {
-  if ( rtc_boot_mode.attempt_this > 2) {
+bool get_gopro_file()
+{
+  if ( rtc_boot_mode.attempt_this > 2)
+  {
     rtc_boot_mode.attempt_this  = 0;
     rtc_boot_mode.twitter_phase = 8;
     saveConfig_helper();
@@ -2097,12 +2424,15 @@ bool get_gopro_file() {
   http.begin(url);
 
   int httpCode = http.GET();
-  if (httpCode > 0) {
-    if (httpCode == HTTP_CODE_OK) {
+  if (httpCode > 0)
+  {
+    if (httpCode == HTTP_CODE_OK)
+    {
       int len = http.getSize();
       uint8_t buff[1460] = { 0 };
 
-      if ( len != rtc_boot_mode.gopro_size ) {
+      if ( len != rtc_boot_mode.gopro_size )
+      {
         http.end();
         rtc_boot_mode.twitter_phase = 0;
         rtc_boot_mode.attempt_this++;
@@ -2120,7 +2450,8 @@ bool get_gopro_file() {
       WiFiClient * stream = http.getStreamPtr();
       //stream->setTimeout(1000);
       File f = SPIFFS.open("/" + gopro_file, "w");
-      if (!f) {
+      if (!f)
+      {
         lcd.setCursor(0, 1);
         lcd.print("[P:1] SPIFFS err");
         delay(1000);
@@ -2138,16 +2469,20 @@ bool get_gopro_file() {
 
       unsigned long dnstart = millis();
 
-      while (http.connected() && (len > 0 || len == -1)) {
+      while (http.connected() && (len > 0 || len == -1))
+      {
         size_t size = stream->available();
-        if (size) {
+        if (size)
+        {
           int c = stream->readBytes(buff, ((size > sizeof(buff)) ? sizeof(buff) : size));
           f.write(buff, c);
 
           float progress = ((rtc_boot_mode.gopro_size - len) / (rtc_boot_mode.gopro_size / 100));
-          if (int(progress) != pre_progress ) {
+          if (int(progress) != pre_progress )
+          {
             lcd.setCursor(13, 1);
-            if (progress < 10) {
+            if (progress < 10)
+            {
               lcd.print(" ");
             }
 
@@ -2156,17 +2491,20 @@ bool get_gopro_file() {
             pre_progress = int(progress);
           }
 
-          if (len > 0) {
+          if (len > 0)
+          {
             len -= c;
           }
         }
+
         lcd.setCursor(0, 2);
         lcd.print("[P:1] cnt : ");
         lcd.print(count);
         count++;
 
         // download error
-        if ( count > 1800 ) {
+        if ( count > 1800 )
+        {
           rtc_boot_mode.formatspiffs = true;
           rtc_boot_mode.attempt_this++;
           rtc_boot_mode.twitter_phase = 0;
@@ -2196,7 +2534,8 @@ bool get_gopro_file() {
 
       delay(2000);
       File fr = SPIFFS.open("/" + gopro_file, "r");
-      if (!fr || fr.size() != rtc_boot_mode.gopro_size ) {
+      if (!fr || fr.size() != rtc_boot_mode.gopro_size )
+      {
         lcd.print("err");
         delay(1000);
 
@@ -2220,16 +2559,21 @@ bool get_gopro_file() {
 
       rtn = true;
     }
-  } else {
+  }
+  else
+  {
     rtn = false;
   }
   http.end();
 
   lcd.clear();
   lcd.setCursor(0, 0);
-  if (rtn) {
+  if (rtn)
+  {
     lcd.print("[P:1] OK");
-  } else {
+  }
+  else
+  {
     lcd.print("[P:1] FAIL");
   }
 
@@ -2238,8 +2582,10 @@ bool get_gopro_file() {
 }
 
 /* PHASE 0 : start : get gopro file list */
-bool get_gpro_list() {
-  if ( rtc_boot_mode.attempt_this > 4) {
+bool get_gpro_list()
+{
+  if ( rtc_boot_mode.attempt_this > 4)
+  {
     rtc_boot_mode.twitter_phase = 8;
     rtc_boot_mode.attempt_this  = 0;
     saveConfig_helper();
@@ -2254,19 +2600,24 @@ bool get_gpro_list() {
   lcd.setCursor(0, 0);
   lcd.print("[P:0] POWER ON ");
   int Attempt = 0;
-  while (1) {
-    if (gopro_poweron()) {
+  while (1)
+  {
+    if (gopro_poweron())
+    {
       lcd.setCursor(0, 2);
       lcd.print("---> OK");
       delay(3000);
 
       break;
-    } else {
+    }
+    else
+    {
       delay(1000);
     }
 
     Attempt++;
-    if (Attempt > 5) {
+    if (Attempt > 5)
+    {
       lcd.setCursor(0, 2);
       lcd.print("---> FAIL");
       delay(1000);
@@ -2286,9 +2637,12 @@ bool get_gpro_list() {
   HTTPClient http;
   http.begin("http://10.5.5.9:8080/gp/gpMediaList");
   int httpCode = http.GET();
-  if (httpCode > 0) {
-    if (httpCode == HTTP_CODE_OK) {
-      while (http.connected()) {
+  if (httpCode > 0)
+  {
+    if (httpCode == HTTP_CODE_OK)
+    {
+      while (http.connected())
+      {
         int len = http.getSize();
         WiFiClient * stream = http.getStreamPtr();
 
@@ -2296,7 +2650,8 @@ bool get_gpro_list() {
         String filename;
         String filesize;
 
-        while (http.connected() && (len > 0 || len == -1)) {
+        while (http.connected() && (len > 0 || len == -1))
+        {
           //stream->setTimeout(500);
           String line = stream->readStringUntil(',');
 
@@ -2307,17 +2662,20 @@ bool get_gpro_list() {
           line.replace("}", "");
           line.replace("]]", "");
 
-          if (line.startsWith("d:")) {
+          if (line.startsWith("d:"))
+          {
             line.replace("d:", "");
             directory = line;
           }
 
-          if (line.startsWith("n:")) {
+          if (line.startsWith("n:"))
+          {
             line.replace("n:", "");
             filename = line;
           }
 
-          if (line.startsWith("s:")) {
+          if (line.startsWith("s:"))
+          {
             line.replace("s:", "");
             filesize = line;
           }
@@ -2326,7 +2684,8 @@ bool get_gpro_list() {
         lcd.setCursor(0, 1);
         lcd.print(filesize.toInt());
 
-        if ( filesize.toInt() < 2600000 ) {
+        if ( filesize.toInt() < 2600000 )
+        {
           gopro_dir     = directory.c_str();
           gopro_file    = filename.c_str();
           media_id      = "0000000000000000000";
@@ -2340,8 +2699,9 @@ bool get_gpro_list() {
           saveConfig_helper();
 
           rtn = true;
-        } else {
-
+        }
+        else
+        {
           lcd.setCursor(0, 2);
           lcd.print("[P:0] big file");
           delay(2000);
@@ -2352,17 +2712,22 @@ bool get_gpro_list() {
         }
       }
     }
-  } else {
+  }
+  else
+  {
     rtn = false;
   }
   http.end();
 
   //lcd.clear();
   lcd.setCursor(0, 3);
-  if (rtn) {
+  if (rtn)
+  {
     lcd.print("[P:0] ");
     lcd.print(gopro_file);
-  } else {
+  }
+  else
+  {
     lcd.print("[P:0] FAIL");
   }
   delay(2000);
@@ -2371,4 +2736,3 @@ bool get_gpro_list() {
 }
 
 // end
-
