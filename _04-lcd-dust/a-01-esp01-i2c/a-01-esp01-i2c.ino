@@ -30,7 +30,7 @@
 #define DHTTYPE  DHT22        // Sensor type DHT11/21/22/AM2301/AM2302
 #define DHTPIN   3            // Digital pin for communications
 
-#define DEBUG_PRINT 1
+#define DEBUG_PRINT 0
 #define SQWV_PIN 1
 
 extern "C"
@@ -348,6 +348,15 @@ void parseMqttMsg(String receivedpayload, String receivedtopic)
     if (root.containsKey("powerAC"))
     {
       data_mqtt.powerac = root["powerAC"];
+
+      if ( data_mqtt.powerac == 1)
+      {
+        data_curr.accmd = 2;
+      }
+      else
+      {
+        data_curr.accmd = 1;
+      }
     }
   }
 
@@ -428,7 +437,7 @@ void parseMqttMsg(String receivedpayload, String receivedtopic)
           data_curr.accmd = data_esp.accmd = 1;
           break;
       }
-      
+
       String ac_payload = "ac status : ";
       if (data_curr.accmd == 1)
       {
