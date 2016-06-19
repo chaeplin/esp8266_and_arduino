@@ -30,7 +30,7 @@
 #define DHTTYPE  DHT22        // Sensor type DHT11/21/22/AM2301/AM2302
 #define DHTPIN   3            // Digital pin for communications
 
-#define DEBUG_PRINT 0
+#define DEBUG_PRINT 1
 #define SQWV_PIN 1
 
 extern "C"

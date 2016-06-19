@@ -12,14 +12,13 @@
 
 #define I2C_SLAVE_ADDR  8
 
-#define I2C_VCC 12
 #define ESP_RST 17
 #define BUTTON_INT 2 // int 0
 // not used yet
 //#define MMA_INT 3
 
 /* for hash */
-static uint32_t fnv_1_hash_32(uint8_t *bytes, size_t length) 
+static uint32_t fnv_1_hash_32(uint8_t *bytes, size_t length)
 {
   static const uint32_t FNV_OFFSET_BASIS_32 = 2166136261U;
   static const uint32_t FNV_PRIME_32 = 16777619U;
@@ -28,13 +27,13 @@ static uint32_t fnv_1_hash_32(uint8_t *bytes, size_t length)
   return hash;
 }
 
-template <class T> uint32_t calc_hash(T& data) 
+template <class T> uint32_t calc_hash(T& data)
 {
   return fnv_1_hash_32(((uint8_t*)&data) + sizeof(data.hash), sizeof(T) - sizeof(data.hash));
 }
 
 /* for i2c */
-template <typename T> unsigned int I2C_readAnything(T& value) 
+template <typename T> unsigned int I2C_readAnything(T& value)
 {
   byte * p = (byte*) &value;
   unsigned int i;
@@ -43,7 +42,7 @@ template <typename T> unsigned int I2C_readAnything(T& value)
   return i;
 }
 
-template <typename T> unsigned int I2C_writeAnything (const T& value) 
+template <typename T> unsigned int I2C_writeAnything (const T& value)
 {
   Wire.write((byte *) &value, sizeof (value));
   return sizeof (value);
@@ -52,165 +51,136 @@ template <typename T> unsigned int I2C_writeAnything (const T& value)
 unsigned int startMiils;
 uint16_t pir_interuptCount = 0;
 volatile bool haveData = false;
-volatile bool bbutton_isr = false;
+volatile bool bbutton_up_isr = false;
 
-volatile struct 
+unsigned long duration;
+
+typedef struct
 {
   uint32_t hash;
   uint16_t button;
   uint16_t esp8266;
-} device_data;
+} data;
 
-void button_isr() 
+volatile data device_esp;
+volatile data device_pro;
+
+void button_up_isr()
 {
-  bbutton_isr = true;
+  detachInterrupt(digitalPinToInterrupt(BUTTON_INT));
+  duration = millis() - startMiils;
+  bbutton_up_isr = true;
 }
 
-void turn_off_8x8() 
+void button_down_isr()
 {
-  digitalWrite(I2C_VCC, LOW);
+  startMiils = millis();
+  detachInterrupt(digitalPinToInterrupt(BUTTON_INT));
+  attachInterrupt(digitalPinToInterrupt(BUTTON_INT), button_up_isr, RISING);
 }
 
-void turn_on_8x8() 
+void reset_esp()
 {
-  digitalWrite(I2C_VCC, HIGH);
-}
-
-void reset_esp() 
-{
+  Serial.println("Reseting esp....");
   digitalWrite(ESP_RST, LOW);
-  delay(10);
+  delay(5);
   digitalWrite(ESP_RST, HIGH);
 }
 
-void requestEvent() 
+void requestEvent()
 {
-  I2C_writeAnything(device_data);
+  I2C_writeAnything(device_pro);
 }
 
-void receiveEvent(int howMany) 
+void receiveEvent(int howMany)
 {
-  if (howMany >= sizeof(device_data)) 
+  if (howMany >= sizeof(device_esp))
   {
-    I2C_readAnything(device_data);
+    I2C_readAnything(device_esp);
   }
-  haveData = true;
+  if (device_esp.hash == calc_hash(device_esp))
+  {
+    haveData = true;
+  }
 }
 
-void device_data_helper() 
-{
-  device_data.button = pir_interuptCount;
-  device_data.hash = calc_hash(device_data);
-}
-
-void goingSleep() 
+void goingSleep()
 {
   Serial.println("going to sleep....");
   Serial.flush();
-  
-  attachInterrupt(digitalPinToInterrupt(BUTTON_INT), button_isr, FALLING);
+
+  bbutton_up_isr = false;
+  haveData = false;
+  device_pro.button = device_pro.esp8266 = 0;
+  device_pro.hash = calc_hash(device_pro);
+
+  attachInterrupt(digitalPinToInterrupt(BUTTON_INT), button_down_isr, FALLING);
   LowPower.powerDown(SLEEP_FOREVER, ADC_OFF, BOD_OFF);
 
-  startMiils = millis();
   Serial.println("Wake up....");
+  reset_esp();
 }
 
-void setup() 
+void setup()
 {
   adc_disable();
 
-  device_data.button = device_data.esp8266 = 0;
-  device_data.hash = calc_hash(device_data);
-
-  startMiils = millis();
+  device_pro.button = device_pro.esp8266 = 0;
+  device_pro.hash = calc_hash(device_pro);
 
   pinMode(ESP_RST, OUTPUT);
-  pinMode(I2C_VCC, OUTPUT);
   pinMode(BUTTON_INT, INPUT_PULLUP);
 
   digitalWrite(ESP_RST, HIGH);
 
   Serial.begin(115200);
-  while (!Serial) 
-  {
-    ;
-  }
+  Serial.flush();
 
   Serial.println("Starting....");
-  //attachInterrupt(digitalPinToInterrupt(BUTTON_INT), button_isr, FALLING);
 
   Wire.begin(I2C_SLAVE_ADDR);
   Wire.onRequest(requestEvent);
   Wire.onReceive(receiveEvent);
+
+  goingSleep();
 }
 
-void loop() 
+void loop()
 {
-  goingSleep();
-  turn_on_8x8();
-  reset_esp();
-
-  while (1) 
+  while (!bbutton_up_isr)
   {
-    if (bbutton_isr) 
+    if ((millis() - startMiils) > 500)
     {
-      Serial.println("Button pressed....");
-      
-      while (!digitalRead(BUTTON_INT)) 
-      {
-        if ((millis() - startMiils) > 500) 
-        {
-          break;
-        }
-      }
-
-      if ((millis() - startMiils) < 500) 
-      {
-        pir_interuptCount = 1;
-      } 
-      else 
-      {
-        pir_interuptCount = 2;
-      }
-
-      device_data_helper();
-      bbutton_isr = false;
-
-      Serial.print("millis : ");
-      Serial.println(millis() - startMiils);
-      
-      Serial.print("Button : ");
-      Serial.println(pir_interuptCount);
-    }
-
-    if ((millis() - startMiils) > 20000) 
-    {
-      Serial.println("Timed out");
+      detachInterrupt(digitalPinToInterrupt(BUTTON_INT));
+      duration = 500;
+      bbutton_up_isr = true;
       break;
-    }
-
-    if (haveData) 
-    {
-      if (device_data.hash == calc_hash(device_data)) 
-      {
-        Serial.print("Msg received : ");
-        Serial.println(device_data.esp8266);
-        if (device_data.esp8266 == 3) 
-        {
-          haveData = false;
-          break;
-        }
-      }
     }
   }
 
-  turn_off_8x8();
-  pir_interuptCount = 0;
-  device_data.button = 0;
-  device_data.esp8266 = 0;
-  haveData = false;
-  bbutton_isr = false;
-  Serial.flush();
+  if (duration < 500)
+  {
+    pir_interuptCount = 1;
+  }
+  else
+  {
+    pir_interuptCount = 2;
+  }
+
+  device_pro.button = pir_interuptCount;
+  device_pro.hash = calc_hash(device_pro);
+  
+  if (haveData)
+  {
+    Serial.println("Got msg");
+    goingSleep();
+  }
+
+  if ((millis() - startMiils) > 20000)
+  {
+    Serial.println("Timed out");
+    goingSleep();
+  }
 }
 
 // -
