@@ -52,6 +52,7 @@ unsigned int startMiils;
 uint16_t pir_interuptCount = 0;
 volatile bool haveData = false;
 volatile bool bbutton_up_isr = false;
+volatile bool bbutton_downp_isr = false;
 
 unsigned long duration;
 
@@ -74,6 +75,7 @@ void button_up_isr()
 
 void button_down_isr()
 {
+  bbutton_downp_isr = true;
   startMiils = millis();
   detachInterrupt(digitalPinToInterrupt(BUTTON_INT));
   attachInterrupt(digitalPinToInterrupt(BUTTON_INT), button_up_isr, RISING);
@@ -109,7 +111,7 @@ void goingSleep()
   Serial.println("going to sleep....");
   Serial.flush();
 
-  bbutton_up_isr = false;
+  bbutton_up_isr = bbutton_downp_isr = false;
   haveData = false;
   device_pro.button = device_pro.esp8266 = 0;
   device_pro.hash = calc_hash(device_pro);
@@ -117,8 +119,11 @@ void goingSleep()
   attachInterrupt(digitalPinToInterrupt(BUTTON_INT), button_down_isr, FALLING);
   LowPower.powerDown(SLEEP_FOREVER, ADC_OFF, BOD_OFF);
 
-  Serial.println("Wake up....");
-  reset_esp();
+  if (bbutton_downp_isr)
+  {
+    Serial.println("Wake up....");
+    reset_esp();
+  }
 }
 
 void setup()
