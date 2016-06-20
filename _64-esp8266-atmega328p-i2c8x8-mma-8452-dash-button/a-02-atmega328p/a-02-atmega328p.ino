@@ -53,6 +53,7 @@ uint16_t pir_interuptCount = 0;
 volatile bool haveData = false;
 volatile bool bbutton_up_isr = false;
 volatile bool bbutton_downp_isr = false;
+bool dataUpdated = false;
 
 unsigned long duration;
 
@@ -111,18 +112,23 @@ void goingSleep()
   Serial.println("going to sleep....");
   Serial.flush();
 
-  bbutton_up_isr = bbutton_downp_isr = false;
-  haveData = false;
+  bbutton_up_isr = bbutton_downp_isr = haveData = dataUpdated = false;
   device_pro.button = device_pro.esp8266 = 0;
   device_pro.hash = calc_hash(device_pro);
 
   attachInterrupt(digitalPinToInterrupt(BUTTON_INT), button_down_isr, FALLING);
   LowPower.powerDown(SLEEP_FOREVER, ADC_OFF, BOD_OFF);
 
+  delay(10);
   if (bbutton_downp_isr)
   {
-    Serial.println("Wake up....");
+    Serial.print("Wake up with button, startMiils : ");
+    Serial.println(startMiils);
     reset_esp();
+  }
+  else
+  {
+    Serial.print("Wake up, startMiils : ");
   }
 }
 
@@ -141,7 +147,7 @@ void setup()
   Serial.begin(115200);
   Serial.flush();
 
-  Serial.println("Starting....");
+  Serial.println("\r\nStarting....");
 
   Wire.begin(I2C_SLAVE_ADDR);
   Wire.onRequest(requestEvent);
@@ -152,29 +158,36 @@ void setup()
 
 void loop()
 {
-  while (!bbutton_up_isr)
+  if (!bbutton_up_isr)
   {
     if ((millis() - startMiils) > 500)
     {
       detachInterrupt(digitalPinToInterrupt(BUTTON_INT));
       duration = 500;
       bbutton_up_isr = true;
-      break;
     }
-  }
-
-  if (duration < 500)
-  {
-    pir_interuptCount = 1;
   }
   else
   {
-    pir_interuptCount = 2;
+    if (!dataUpdated)
+    {
+      if (duration < 500)
+      {
+        pir_interuptCount = 1;
+      }
+      else
+      {
+        pir_interuptCount = 2;
+      }
+      device_pro.button = pir_interuptCount;
+      device_pro.hash = calc_hash(device_pro);
+
+      Serial.print("device_pro.button: ");
+      Serial.println(device_pro.button);
+      dataUpdated = true;
+    }
   }
 
-  device_pro.button = pir_interuptCount;
-  device_pro.hash = calc_hash(device_pro);
-  
   if (haveData)
   {
     Serial.println("Got msg");
