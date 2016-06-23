@@ -1,4 +1,4 @@
-// esp12 4M / 3M flash / esp-solar / 160MHz
+// esp12 4M / 3M flash / esp-solar / 80MHz / V2.2
 /*
   gopro wifi : https://github.com/KonradIT/goprowifihack
   twitter api : https://dev.twitter.com/rest/reference/post/media/upload
@@ -334,20 +334,21 @@ void lcd_redraw()
 
 void gopro_connect()
 {
-#define GIPSET_STATIC { 10, 5, 5, 109 }
+#define GIPSET_STATIC  { 10, 5, 5, 109 }
 #define GIPSET_GATEWAY { 10, 5, 5, 9 }
-#define GIPSET_SUBNET { 255, 255, 255, 0 }
-#define GIPSET_DNS {  10, 5, 5, 9 }
+#define GIPSET_SUBNET  { 255, 255, 255, 0 }
+#define GIPSET_DNS     { 10, 5, 5, 9 }
 
-  IPAddress gip_static = GIPSET_STATIC;
+  IPAddress gip_static  = GIPSET_STATIC;
   IPAddress gip_gateway = GIPSET_GATEWAY;
-  IPAddress gip_subnet = GIPSET_SUBNET;
-  IPAddress gip_dns = GIPSET_DNS;
+  IPAddress gip_subnet  = GIPSET_SUBNET;
+  IPAddress gip_dns     = GIPSET_DNS;
 
   WiFi.mode(WIFI_STA);
   wifi_station_connect();
+  WiFi.config(gip_static, gip_gateway, gip_subnet, gip_dns);
   WiFi.begin(goprossid, gopropassword);
-  WiFi.config(IPAddress(gip_static), IPAddress(gip_gateway), IPAddress(gip_subnet), IPAddress(gip_dns));
+  //WiFi.config(IPAddress(gip_static), IPAddress(gip_gateway), IPAddress(gip_subnet), IPAddress(gip_dns));
 
 
   lcd.clear();
@@ -392,10 +393,10 @@ void gopro_connect()
 void wifi_connect()
 {
 
-#define IPSET_STATIC { 192, 168, 10, 60 }
+#define IPSET_STATIC  { 192, 168, 10, 60 }
 #define IPSET_GATEWAY { 192, 168, 10, 1 }
-#define IPSET_SUBNET { 255, 255, 255, 0 }
-#define IPSET_DNS { 192, 168, 10, 1 }
+#define IPSET_SUBNET  { 255, 255, 255, 0 }
+#define IPSET_DNS     { 192, 168, 10, 1 }
 
   IPAddress ip_static = IPSET_STATIC;
   IPAddress ip_gateway = IPSET_GATEWAY;
@@ -405,8 +406,9 @@ void wifi_connect()
   wifi_set_phy_mode(PHY_MODE_11N);
   WiFi.mode(WIFI_STA);
   wifi_station_connect();
+  WiFi.config(ip_static, ip_gateway, ip_subnet, ip_dns);
   WiFi.begin(ssid, password);
-  WiFi.config(IPAddress(ip_static), IPAddress(ip_gateway), IPAddress(ip_subnet), IPAddress(ip_dns));
+  //WiFi.config(IPAddress(ip_static), IPAddress(ip_gateway), IPAddress(ip_subnet), IPAddress(ip_dns));
   WiFi.hostname("esp-solar");
 
   lcd.clear();
