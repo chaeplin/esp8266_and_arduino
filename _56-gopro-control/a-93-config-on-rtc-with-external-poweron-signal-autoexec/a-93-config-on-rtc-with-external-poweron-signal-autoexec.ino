@@ -3,6 +3,11 @@
   gopro wifi : https://github.com/KonradIT/goprowifihack
   twitter api : https://dev.twitter.com/rest/reference/post/media/upload
 */
+/*
+  D5 - I2c
+  D4 - I2C
+  D2 - DS18B20
+*/
 #include <Arduino.h>
 #include <TimeLib.h>
 #include <PubSubClient.h>
@@ -15,6 +20,7 @@
 #include <WiFiUdp.h>
 #include <ArduinoJson.h>
 #include <LiquidCrystal_I2C.h>
+#include <DallasTemperature.h>
 #include <base64.h>
 #include <FS.h>
 /* --- */
@@ -169,12 +175,13 @@ uint32_t value_nonce;
 char* hellotopic  = "HELLO";
 char* willTopic   = "clients/solar";
 char* willMessage = "0";
+char* topic       = "esp8266/arduino/solar";
 
 // subscribe
 const char subrpi[]     = "raspberrypi/data";
 const char subtopic_0[] = "esp8266/arduino/s03"; // lcd temp
 const char subtopic_1[] = "esp8266/arduino/s07"; // power
-const char subtopic_3[] = "radio/test/2";        //Outside temp
+const char subtopic_3[] = "radio/test/2";        // Outside temp
 const char subtopic_4[] = "raspberrypi/doorpir";
 const char subtopic_5[] = "raspberrypi/data2";
 
@@ -182,6 +189,21 @@ const char* substopic[6] = { subrpi, subtopic_0, subtopic_1, subtopic_3, subtopi
 
 unsigned int localPort = 12390;
 const int timeZone = 9;
+
+// DS18B20
+#define ONE_WIRE_BUS 2
+#define TEMPERATURE_PRECISION 9
+
+OneWire oneWire(ONE_WIRE_BUS);
+DallasTemperature sensors(&oneWire);
+DeviceAddress insideThermometer;
+
+// ds18b20
+bool bDalasstarted;
+float tempCinside;
+unsigned long startMills;
+#define REPORT_INTERVAL 5000 // in msec
+
 
 //
 String clientName;
@@ -195,7 +217,8 @@ WiFiClient wifiClient;
 WiFiClientSecure sslclient;
 
 LiquidCrystal_I2C lcd(0x27, 20, 4);
-PubSubClient mqttclient(mqtt_server, 1883, callback, wifiClient);
+//PubSubClient mqttclient(mqtt_server, 1883, callback, wifiClient);
+PubSubClient mqttclient(wifiClient);
 WiFiUDP udp;
 RtcDS3231 Rtc;
 
@@ -530,14 +553,14 @@ void ssl_hmac_sha1(const uint8_t *msg, int length, const uint8_t *key, int key_l
 }
 /* -- */
 
-void sendmqttMsg(char* topictosend, String topicpayload)
+void sendmqttMsg(char* topictosend, String topicpayload, bool retain = 1)
 {
   unsigned int msg_length = topicpayload.length();
 
   byte* p = (byte*)malloc(msg_length);
   memcpy(p, (char*) topicpayload.c_str(), msg_length);
 
-  if (mqttclient.publish(topictosend, p, msg_length, 1))
+  if (mqttclient.publish(topictosend, p, msg_length, retain))
   {
     free(p);
   }
@@ -649,11 +672,14 @@ boolean reconnect()
       mqttclient.loop();
       yield();
 
-      for (int i = 0; i < 6; ++i)
+      if (!rtc_boot_mode.gopro_mode)
       {
-        mqttclient.subscribe(substopic[i]);
-        mqttclient.loop();
-        yield();
+        for (int i = 0; i < 6; ++i)
+        {
+          mqttclient.subscribe(substopic[i]);
+          mqttclient.loop();
+          yield();
+        }
       }
     } //else {
     //}
@@ -763,7 +789,8 @@ void setup()
 
   pinMode(goproPowerPin, OUTPUT);
 
-  Wire.begin(0, 2);
+  //Wire.begin(0, 2);
+  Wire.begin(5, 4);
   //twi_setClock(200000);
   //delay(100);
 
@@ -846,6 +873,32 @@ void setup()
   delay(1000);
   lcd.clear();
 
+  // ds18b20
+  sensors.begin();
+  if (!sensors.getAddress(insideThermometer, 0)) {
+    lcd.setCursor(0, 0);
+    lcd.print("ds18b20 : ");
+    lcd.setCursor(0, 1);
+    lcd.print("can't find");
+    delay(1000);
+    lcd.clear();
+  }
+
+  sensors.setResolution(insideThermometer, TEMPERATURE_PRECISION);
+  sensors.requestTemperatures();
+  tempCinside = sensors.getTempC(insideThermometer);
+  sensors.setWaitForConversion(false);
+
+  if ( tempCinside < -30 ) {
+    lcd.setCursor(0, 0);
+    lcd.print("ds18b20 : ");
+    lcd.setCursor(0, 1);
+    lcd.print("Failed to read");
+    delay(1000);
+    lcd.clear();
+  }
+
+
   if (!SPIFFS.begin())
   {
     lcd.setCursor(0, 0);
@@ -907,12 +960,15 @@ void setup()
   if (!rtc_boot_mode.gopro_mode || rtc_boot_mode.attempt_this > 4)
   {
     wifi_connect();
+    mqttclient.setServer(mqtt_server, 1883);
+    mqttclient.setCallback(callback);
   }
   else
   {
     if ( rtc_boot_mode.twitter_phase > 1 )
     {
       wifi_connect();
+      mqttclient.setServer(mqtt_server, 1883);
     }
     else
     {
@@ -1060,12 +1116,23 @@ void setup()
     attachInterrupt(1, alm_isr, FALLING);
   }
 
+  startMills = millis();
   x = true;
 }
 
 time_t prevDisplay = 0;
 
 void loop() {
+
+  if (bDalasstarted)
+  {
+    if (millis() > (startMills + (750 / (1 << (12 - TEMPERATURE_PRECISION)))))
+    {
+      tempCinside  = sensors.getTempC(insideThermometer);
+      bDalasstarted = false;
+    }
+  }
+
   if (!rtc_boot_mode.gopro_mode)
   {
     if (balm_isr)
@@ -1131,12 +1198,12 @@ void loop() {
 
           if (
             curr_data.data1 != solar_data.data1 ||
-            curr_data.data2 != solar_data.data2 
-            )
+            curr_data.data2 != solar_data.data2
+          )
           {
             displayData();
             curr_data.data1 = solar_data.data1;
-            curr_data.data2 = solar_data.data2;            
+            curr_data.data2 = solar_data.data2;
           }
 
           if (
@@ -1203,6 +1270,28 @@ void loop() {
             }
           }
         }
+
+        //-----------------------------------------------
+        if ((millis() - startMills) > REPORT_INTERVAL )
+        {
+
+          payload = "{\"DS18B20\":";
+          payload += tempCinside;
+          payload += ",\"FreeHeap\":";
+          payload += ESP.getFreeHeap();
+          payload += ",\"RSSI\":";
+          payload += WiFi.RSSI();
+          payload += ",\"millis\":";
+          payload += millis();
+          payload += "}";
+
+          sendmqttMsg(topic, payload, 0);
+
+          sensors.requestTemperatures();
+          bDalasstarted = true;
+
+          startMills = millis();
+        }
         mqttclient.loop();
       }
       ArduinoOTA.handle();
@@ -1218,6 +1307,31 @@ void loop() {
     if (WiFi.status() == WL_CONNECTED)
     {
       // gopro mode
+
+      if ( rtc_boot_mode.twitter_phase > 1 )
+      {
+        //-----------------------------------------------
+        if ((millis() - startMills) > REPORT_INTERVAL )
+        {
+
+          payload = "{\"DS18B20\":";
+          payload += tempCinside;
+          payload += ",\"FreeHeap\":";
+          payload += ESP.getFreeHeap();
+          payload += ",\"RSSI\":";
+          payload += WiFi.RSSI();
+          payload += ",\"millis\":";
+          payload += millis();
+          payload += "}";
+
+          sendmqttMsg(topic, payload, 0);
+
+          sensors.requestTemperatures();
+          bDalasstarted = true;
+
+          startMills = millis();
+        }
+      }
 
       if (x)
       {
@@ -1325,6 +1439,26 @@ void loop() {
             break;
         }
       }
+      if ( rtc_boot_mode.twitter_phase > 1 )
+      {
+        if (!mqttclient.connected())
+        {
+          unsigned long now = millis();
+          if (now - lastReconnectAttempt > 100)
+          {
+            lastReconnectAttempt = now;
+            if (reconnect())
+            {
+              lastReconnectAttempt = 0;
+            }
+          }
+        }
+        else
+        {
+          mqttclient.loop();
+        }
+      }
+
     }
   }
 }
@@ -1414,13 +1548,30 @@ void displayTemperaturedigit(float Temperature)
 
 void displayTemperature()
 {
-  lcd.setCursor(1, 1);
-  displayTemperaturedigit(solar_data.Temperature1);
+  float tempdiff;
+  if (second() % 2 == 0 )
+  {
+    lcd.setCursor(1, 1);
+    displayTemperaturedigit(tempCinside);
 
-  lcd.setCursor(7, 1);
+    lcd.setCursor(7, 1);
 
-  float tempdiff = solar_data.Temperature2 - solar_data.Temperature1;
-  displayTemperaturedigit(solar_data.Temperature2);
+    tempdiff = solar_data.Temperature2 - tempCinside;
+    displayTemperaturedigit(solar_data.Temperature2);
+    
+    lcd.setCursor(1, 1);
+    lcd.write(7);
+  }
+  else
+  {
+    lcd.setCursor(1, 1);
+    displayTemperaturedigit(solar_data.Temperature1);
+
+    lcd.setCursor(7, 1);
+
+    tempdiff = solar_data.Temperature2 - solar_data.Temperature1;
+    displayTemperaturedigit(solar_data.Temperature2);
+  }
 
   lcd.setCursor(14, 1);
   if ( tempdiff > 0 )
