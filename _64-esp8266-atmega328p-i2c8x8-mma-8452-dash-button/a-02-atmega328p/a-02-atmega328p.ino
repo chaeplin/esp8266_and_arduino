@@ -77,7 +77,7 @@ void button_up_isr()
 void button_down_isr()
 {
   bbutton_downp_isr = true;
-  startMiils = millis();
+  //startMiils = millis();
   detachInterrupt(digitalPinToInterrupt(BUTTON_INT));
   attachInterrupt(digitalPinToInterrupt(BUTTON_INT), button_up_isr, RISING);
 }
@@ -112,6 +112,7 @@ void goingSleep()
   Serial.println("going to sleep....");
   Serial.flush();
 
+  startMiils = millis();
   bbutton_up_isr = bbutton_downp_isr = haveData = dataUpdated = false;
   device_pro.button = device_pro.esp8266 = 0;
   device_pro.hash = calc_hash(device_pro);
