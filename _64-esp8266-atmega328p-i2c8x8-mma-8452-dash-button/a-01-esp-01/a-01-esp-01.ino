@@ -14,10 +14,10 @@ extern "C"
 
 ADC_MODE(ADC_VCC);
 
-#define IPSET_STATIC { 192, 168, 10, 16 }
+#define IPSET_STATIC  { 192, 168, 10, 16 }
 #define IPSET_GATEWAY { 192, 168, 10, 1 }
-#define IPSET_SUBNET { 255, 255, 255, 0 }
-#define IPSET_DNS { 192, 168, 10, 10 }
+#define IPSET_SUBNET  { 255, 255, 255, 0 }
+#define IPSET_DNS     { 192, 168, 10, 10 }
 
 #define I2C_SLAVE_ADDR  8
 #define I2C_MATRIX_ADDR 0x70
@@ -62,6 +62,7 @@ const char* ssid = WIFI_SSID;
 const char* password = WIFI_PASSWORD;
 IPAddress mqtt_server = MQTT_SERVER;
 //byte mqtt_server[] = MQTT_SERVER;
+
 //
 IPAddress ip_static = IPSET_STATIC;
 IPAddress ip_gateway = IPSET_GATEWAY;
@@ -268,8 +269,9 @@ void wifi_connect()
   WiFiClient::setLocalPortStart(micros() + vdd);
   wifi_set_phy_mode(PHY_MODE_11N);
   WiFi.mode(WIFI_STA);
+  WiFi.config(ip_static, ip_gateway, ip_subnet);
   WiFi.begin(ssid, password);
-  WiFi.config(IPAddress(ip_static), IPAddress(ip_gateway), IPAddress(ip_subnet), IPAddress(ip_dns));
+  //WiFi.config(IPAddress(ip_static), IPAddress(ip_gateway), IPAddress(ip_subnet), IPAddress(ip_dns));
   WiFi.hostname("esp-button");
 
   int Attempt = 0;
