@@ -48,7 +48,7 @@ template <typename T> unsigned int I2C_writeAnything (const T& value)
   return sizeof (value);
 }
 
-unsigned int startMiils;
+unsigned long startMiils;
 uint16_t pir_interuptCount = 0;
 volatile bool haveData = false;
 volatile bool bbutton_up_isr = false;
@@ -130,6 +130,7 @@ void goingSleep()
   else
   {
     Serial.print("Wake up, startMiils : ");
+    Serial.println(startMiils);
   }
 }
 
