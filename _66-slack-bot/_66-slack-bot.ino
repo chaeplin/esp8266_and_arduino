@@ -56,8 +56,8 @@ unsigned long nextTimercheck;
 #define IR_TX_PIN 2
 #define AC_CONF_TYPE 1
 #define AC_CONF_HEATING 0
-#define AC_CONF_ON_MIN 5
-#define AC_CONF_OFF_MIN 3
+#define AC_CONF_ON_MIN 30
+#define AC_CONF_OFF_MIN 20
 
 volatile struct
 {
@@ -73,7 +73,7 @@ volatile struct
 } ir_data;
 
 IRrecv irrecv(IR_RX_PIN);
-lgWhisen lgWhisen(AC_CONF_TYPE, AC_CONF_HEATING);
+lgWhisen lgWhisen;
 
 void chane_ac_temp_flow()
 {
@@ -369,6 +369,8 @@ void setup() {
   ir_data.timerMillis = millis();;
   nextTimercheck = ir_data.intervalon;
 
+  lgWhisen.setActype(AC_CONF_TYPE);
+  lgWhisen.setHeating(AC_CONF_HEATING);
   lgWhisen.setTemp(ir_data.ac_temp);    // 18 ~ 30
   lgWhisen.setFlow(ir_data.ac_flow);    // 0 : low, 1 : mid, 2 : high, if setActype == 1, 3 : change
   lgWhisen.setIrpin(IR_TX_PIN);         // ir tx pin
