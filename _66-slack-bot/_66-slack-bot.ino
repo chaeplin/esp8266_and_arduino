@@ -1,3 +1,4 @@
+// 80MHZ NODEMCU V.1
 // slackbot testing using https://github.com/urish/arduino-slack-bot
 /**
    Arduino Real-Time Slack Bot
@@ -23,9 +24,13 @@
 #include <lgWhisen.h>
 // https://github.com/markszabo/IRremoteESP8266
 #include <IRremoteESP8266.h>
+#include <ESP8266mDNS.h>
+#include <ArduinoOTA.h>
+#include <WiFiUdp.h>
 
 #include "/usr/local/src/ap_setting.h"
 #include "/usr/local/src/slack_setting.h"
+const char* otapassword = OTA_PASSWORD;
 
 const char* api_fingerprint = "AB F0 5B A9 1A E0 AE 5F CE 32 2E 7C 66 67 49 EC DD 6D 6A 38";
 
@@ -39,6 +44,7 @@ const char* api_fingerprint = "AB F0 5B A9 1A E0 AE 5F CE 32 2E 7C 66 67 49 EC D
 
 WiFiClientSecure sslclient;
 WebSocketsClient webSocket;
+WiFiUDP udp;
 
 long nextCmdId = 1;
 bool connected = false;
@@ -379,6 +385,37 @@ void setup() {
   Serial.println();
 
   configTime(9 * 3600, 0, "pool.ntp.org", "time.nist.gov");
+
+  //OTA
+  // Port defaults to 8266
+  ArduinoOTA.setPort(8266);
+  ArduinoOTA.setHostname("esp-slackbot");
+  ArduinoOTA.setPassword(otapassword);
+  ArduinoOTA.onStart([]()
+  {
+    //sendUdpSyslog("ArduinoOTA Start");
+  });
+  ArduinoOTA.onEnd([]()
+  {
+    //sendUdpSyslog("ArduinoOTA End");
+  });
+  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total)
+  {
+    //syslogPayload = "Progress: ";
+    //syslogPayload += (progress / (total / 100));
+    //sendUdpSyslog(syslogPayload);
+  });
+  ArduinoOTA.onError([](ota_error_t error)
+  {
+    //ESP.restart();
+    if (error == OTA_AUTH_ERROR) abort();
+    else if (error == OTA_BEGIN_ERROR) abort();
+    else if (error == OTA_CONNECT_ERROR) abort();
+    else if (error == OTA_RECEIVE_ERROR) abort();
+    else if (error == OTA_END_ERROR) abort();
+  });
+
+  ArduinoOTA.begin();
 }
 
 unsigned long lastPing = 0;
@@ -398,10 +435,12 @@ void loop()
       if (lgWhisen.get_ir_mode() != 0)
       {
         ir_data.ac_mode = 1;
+        ir_data.timermode = false;
       }
       else
       {
         ir_data.ac_mode = 0;
+        ir_data.timermode = false;
       }
       if (lgWhisen.get_ir_temperature() != 255)
       {
@@ -448,15 +487,19 @@ void loop()
       // ac power down
       case 0:
         Serial.println("IR -----> AC Power Down");
+        irrecv.disableIRIn();
         lgWhisen.power_down();
         delay(5);
+        irrecv.enableIRIn();
         break;
 
       // ac on
       case 1:
         Serial.println("IR -----> AC Power On");
+        irrecv.disableIRIn();
         lgWhisen.activate();
         delay(5);
+        irrecv.enableIRIn();
         break;
 
       default:
@@ -486,7 +529,7 @@ void loop()
       ir_data.timerMillis = millis();
     }
   }
-
+  ArduinoOTA.handle();
 }
 
 // end
