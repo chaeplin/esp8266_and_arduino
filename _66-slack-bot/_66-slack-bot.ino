@@ -54,10 +54,10 @@ unsigned long nextTimercheck;
 // AC
 #define IR_RX_PIN 14
 #define IR_TX_PIN 2
-#define AC_TYPE 1
-#define AC_HEATING 0
-#define AC_ON_MIN 5
-#define AC_OFF_MIN 3
+#define AC_CONF_TYPE 1
+#define AC_CONF_HEATING 0
+#define AC_CONF_ON_MIN 5
+#define AC_CONF_OFF_MIN 3
 
 volatile struct
 {
@@ -73,7 +73,7 @@ volatile struct
 } ir_data;
 
 IRrecv irrecv(IR_RX_PIN);
-lgWhisen lgWhisen(AC_TYPE, AC_HEATING);
+lgWhisen lgWhisen(AC_CONF_TYPE, AC_CONF_HEATING);
 
 void chane_ac_temp_flow()
 {
@@ -175,7 +175,7 @@ void sendHelp()
   msg += "off -> ac off\n";
   msg += "ton -> timer start with ac on\n";
   msg += "[18 ~ 30] -> temperature set\n";
-  if (AC_TYPE == 0)
+  if (AC_CONF_TYPE == 0)
   {
     msg += "[0 ~ 2] -> flow set(low/mid/high)\n";
   }
@@ -257,7 +257,7 @@ void ICACHE_RAM_ATTR processSlackMessage(String receivedpayload)
       }
       else if (num >= 1 && num <= 3)
       {
-        if (AC_TYPE == 0 && num == 3)
+        if (AC_CONF_TYPE == 0 && num == 3)
         {
           return;
         }
@@ -364,8 +364,8 @@ void setup() {
   ir_data.haveData    = false;
   ir_data.timermode   = false;
   ir_data.timerfirst  = false;
-  ir_data.intervalon  = (AC_ON_MIN * 60 * 1000); // ms
-  ir_data.intervaloff = (AC_OFF_MIN * 60 * 1000); // min
+  ir_data.intervalon  = (AC_CONF_ON_MIN * 60 * 1000); // ms
+  ir_data.intervaloff = (AC_CONF_OFF_MIN * 60 * 1000); // min
   ir_data.timerMillis = millis();;
   nextTimercheck = ir_data.intervalon;
 
