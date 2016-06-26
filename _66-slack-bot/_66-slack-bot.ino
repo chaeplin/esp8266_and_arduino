@@ -81,7 +81,10 @@ void chane_ac_temp_flow()
   {
     lgWhisen.setTemp(ir_data.ac_temp);
     lgWhisen.setFlow(ir_data.ac_flow);
+    irrecv.disableIRIn();
     lgWhisen.activate();
+    delay(5);
+    irrecv.enableIRIn();
   }
 }
 
