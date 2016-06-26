@@ -24,6 +24,8 @@
 #define DHT_DEBUG_TIMING
 #define REPORT_INTERVAL 5000 // in msec
 
+#define AC_TIMER_INTERVAL 1800000 // 
+
 #define SYS_CPU_80MHz 80
 #define SYS_CPU_160MHz 160
 
@@ -78,24 +80,21 @@ const char* substopic[9] =
 volatile struct
 {
   uint32_t hash;
-  float dustDensity;
+  uint16_t dustDensity;
   uint16_t moisture;
-  uint16_t irrecvd;
-  uint8_t accmd;
-  uint8_t actemp;
-  uint8_t acflow;
-  uint8_t acauto;
+  uint8_t ir_recvd;
+  uint8_t ac_mode;
+  uint8_t ac_temp;
+  uint8_t ac_flow;
 } data_nano;
 
 volatile struct
 {
   uint32_t hash;
-  float tempeinside;
-  float tempeoutside;
-  uint8_t accmd;
-  uint8_t actemp;
-  uint8_t acflow;
-  uint8_t acauto;
+  uint8_t ac_mode;
+  uint8_t ac_temp;
+  uint8_t ac_flow;
+  uint8_t ac_etc;
 } data_esp;
 
 typedef struct
@@ -111,10 +110,10 @@ typedef struct
   uint16_t doorpir;
   uint8_t hostall;
   uint8_t hosttwo;
-  uint8_t accmd;
-  uint8_t actemp;
-  uint8_t acflow;
-  uint8_t acauto;
+  uint8_t ac_mode;
+  uint8_t ac_temp;
+  uint8_t ac_flow;
+  uint8_t ac_etc;
 } data;
 
 data data_mqtt, data_curr;
@@ -126,6 +125,10 @@ unsigned long sentMills;
 bool resetInfosent = false;
 unsigned int localPort = 2390;
 const int timeZone = 9;
+
+volatile bool bac_timer_mode = false;
+volatile bool bhaveData = false;
+unsigned long timerMillis;
 
 String clientName;
 String payload;
@@ -265,18 +268,19 @@ void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int lengt
     receivedpayload += (char)inpayload[i];
   }
 
-  if (DEBUG_PRINT) {
+  if (DEBUG_PRINT)
+  {
     syslogPayload = "mqtt ====> ";
     syslogPayload += intopic;
     syslogPayload += " ====> ";
     syslogPayload += receivedpayload;
-    sendUdpSyslog(syslogPayload);
+    //sendUdpSyslog(syslogPayload);
   }
 
   if ( receivedpayload == "{\"CHECKING\":\"1\"}")
   {
     String check_payload = "ac status: ";
-    if (data_curr.accmd == 1)
+    if (data_curr.ac_mode == 0)
     {
       check_payload += "off";
     }
@@ -284,6 +288,12 @@ void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int lengt
     {
       check_payload += "on";
     }
+    check_payload += "\r\n";
+    check_payload += "ac temp set : ";
+    check_payload += data_curr.ac_temp;
+    check_payload += "\r\n";
+    check_payload += "ac flow set : ";
+    check_payload += data_curr.ac_flow;
     check_payload += "\r\n";
     check_payload += "temp inside: ";
     check_payload += ((data_mqtt.tempinside1 + data_mqtt.tempinside2) / 2);
@@ -306,6 +316,7 @@ void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int lengt
     check_payload += data_mqtt.hosttwo;
 
     sendmqttMsg(reporttopic, check_payload);
+    return;
   }
 
   parseMqttMsg(receivedpayload, receivedtopic);
@@ -344,19 +355,6 @@ void parseMqttMsg(String receivedpayload, String receivedtopic)
     if (root.containsKey("powerAvg"))
     {
       data_mqtt.powerall = root["powerAvg"];
-    }
-    if (root.containsKey("powerAC"))
-    {
-      data_mqtt.powerac = root["powerAC"];
-
-      if ( data_mqtt.powerac == 1)
-      {
-        data_curr.accmd = 2;
-      }
-      else
-      {
-        data_curr.accmd = 1;
-      }
     }
   }
 
@@ -399,60 +397,51 @@ void parseMqttMsg(String receivedpayload, String receivedtopic)
   {
     if (root.containsKey("AC"))
     {
-      data_mqtt.accmd = root["AC"];
-      switch (data_mqtt.accmd)
+      data_mqtt.ac_mode = root["AC"];
+      String ac_payload = "ac status : ";
+      switch (data_mqtt.ac_mode)
       {
         case 0:
-          data_curr.accmd = data_esp.accmd = 2;
+          data_curr.ac_mode = data_esp.ac_mode = 0;
+          bac_timer_mode = false;
+          ac_payload += "off";
           break;
 
         case 1:
-          data_curr.accmd = data_esp.accmd = 2;
-          break;
-
-        case 2:
-          data_curr.accmd = data_esp.accmd = 1;
-          break;
-
-        case 3:
-          data_curr.accmd = data_esp.accmd = 2;
-          break;
-
-        case 4:
-          data_curr.accmd = data_esp.accmd = 1;
+          data_curr.ac_mode = data_esp.ac_mode = 1;
+          bac_timer_mode = false;
+          ac_payload += "on";
           break;
 
         case 5:
-          if (data_curr.accmd == 1)
+          if (bac_timer_mode)
           {
-            data_curr.accmd = data_esp.accmd = 2;
+            bac_timer_mode = false;
+            data_curr.ac_mode = data_esp.ac_mode = 0;
+            ac_payload += "off";
           }
           else
           {
-            data_curr.accmd = data_esp.accmd = 1;
+            bac_timer_mode = true;
+            data_curr.ac_mode = data_esp.ac_mode = 1;
+            ac_payload += "timer";
           }
           break;
 
         default:
-          data_curr.accmd = data_esp.accmd = 1;
+          data_curr.ac_mode = data_esp.ac_mode = 0;
+          bac_timer_mode = false;
+          ac_payload += "off";
           break;
       }
 
-      String ac_payload = "ac status : ";
-      if (data_curr.accmd == 1)
-      {
-        ac_payload += "off";
-      }
-      else
-      {
-        ac_payload += "on";
-      }
-
+      bhaveData = true;
       sendmqttMsg(reporttopic, ac_payload);
 
-      if (DEBUG_PRINT) {
-        syslogPayload = "accmd ====> ";
-        syslogPayload += data_esp.accmd;
+      if (DEBUG_PRINT)
+      {
+        syslogPayload = "ac_mode ====> ";
+        syslogPayload += data_mqtt.ac_mode;
         sendUdpSyslog(syslogPayload);
       }
     }
@@ -460,17 +449,17 @@ void parseMqttMsg(String receivedpayload, String receivedtopic)
 
   if ( receivedtopic == substopic[7] )
   {
-    if (root.containsKey("actemp"))
+    if (root.containsKey("ac_temp"))
     {
-      data_mqtt.actemp = root["actemp"];
+      data_curr.ac_temp = data_esp.ac_temp = root["ac_temp"];
     }
-    if (root.containsKey("acflow"))
+    if (root.containsKey("ac_flow"))
     {
-      data_mqtt.acflow = root["acflow"];
+      data_curr.ac_flow = data_esp.ac_flow = root["ac_flow"];
     }
-    if (root.containsKey("acauto"))
+    if (root.containsKey("ac_etc"))
     {
-      data_mqtt.acauto = root["acauto"];
+      data_curr.ac_etc = data_esp.ac_etc = root["ac_etc"];
     }
   }
   msgcallback = !msgcallback;
@@ -561,10 +550,10 @@ void lcd_redraw()
 
 void wifi_connect()
 {
-#define IPSET_STATIC { 192, 168, 10, 61 }
+#define IPSET_STATIC  { 192, 168, 10, 61 }
 #define IPSET_GATEWAY { 192, 168, 10, 1 }
-#define IPSET_SUBNET { 255, 255, 255, 0 }
-#define IPSET_DNS { 192, 168, 10, 10 }
+#define IPSET_SUBNET  { 255, 255, 255, 0 }
+#define IPSET_DNS     { 192, 168, 10, 10 }
 
   IPAddress ip_static = IPSET_STATIC;
   IPAddress ip_gateway = IPSET_GATEWAY;
@@ -572,7 +561,7 @@ void wifi_connect()
   IPAddress ip_dns = IPSET_DNS;
 
   wifi_set_phy_mode(PHY_MODE_11N);
-  //system_phy_set_max_tpw(1);
+  system_phy_set_max_tpw(1);
   WiFi.mode(WIFI_STA);
   wifi_station_connect();
   WiFi.begin(ssid, password);
@@ -628,12 +617,10 @@ void setup()
 
   pinMode(SQWV_PIN, INPUT_PULLUP);
 
-  data_esp.tempeinside   = 0;
-  data_esp.tempeoutside  = 0;
-  data_esp.accmd         = 0;
-  data_esp.actemp        = 27;
-  data_esp.acflow        = 0;
-  data_esp.acauto        = 0;
+  data_esp.ac_mode       = 0;
+  data_esp.ac_temp       = 27;
+  data_esp.ac_flow       = 0;
+  data_esp.ac_etc        = 0;
   data_esp.hash          = calc_hash(data_esp);
 
   data_mqtt.tempinside1  = 0;
@@ -646,10 +633,10 @@ void setup()
   data_mqtt.doorpir      = 0;
   data_mqtt.hostall      = 0;
   data_mqtt.hosttwo      = 0;
-  data_mqtt.accmd        = 0;
-  data_mqtt.actemp       = 27;
-  data_mqtt.acflow       = 0;
-  data_mqtt.acauto       = 0;
+  data_mqtt.ac_mode      = 0;
+  data_mqtt.ac_temp      = 27;
+  data_mqtt.ac_flow      = 0;
+  data_mqtt.ac_etc       = 0;
 
   data_curr.tempinside1  = 0;
   data_curr.tempinside2  = 0;
@@ -661,10 +648,10 @@ void setup()
   data_curr.doorpir      = 0;
   data_curr.hostall      = 0;
   data_curr.hosttwo      = 0;
-  data_curr.accmd        = 0;
-  data_curr.actemp       = 27;
-  data_curr.acflow       = 0;
-  data_curr.acauto       = 0;
+  data_curr.ac_mode      = 0;
+  data_curr.ac_temp      = 27;
+  data_curr.ac_flow      = 0;
+  data_curr.ac_etc       = 0;
 
   Wire.begin(0, 2);
   //twi_setClock(200000);
@@ -748,7 +735,7 @@ void setup()
   }
 
   setSyncProvider(requestRtc);
-  setSyncInterval(60);
+  //setSyncInterval(300);
 
   Rtc.Enable32kHzPin(false);
   Rtc.SetSquareWavePinClockFrequency(DS3231SquareWaveClock_1Hz);
@@ -797,7 +784,7 @@ void setup()
     data_mqtt.humidity    = DHT.getHumidity();
   }
 
-  sentMills = millis();
+  sentMills = timerMillis = millis();
   lcd.clear();
   lcd_redraw();
   attachInterrupt(SQWV_PIN, alm_isr, FALLING);
@@ -892,13 +879,14 @@ void loop()
 
         if ( data_curr.dustDensity != data_mqtt.dustDensity )
         {
-          displaydustDensity(data_nano.dustDensity);
+          displaydustDensity(data_mqtt.dustDensity);
           data_curr.dustDensity = data_mqtt.dustDensity;
         }
 
         if (balm_isr)
         {
           digitalClockDisplay();
+          displayTimermode();
 
           if (!Rtc.IsDateTimeValid())
           {
@@ -922,30 +910,57 @@ void loop()
             lcd.print(" ");
           }
 
-          data_esp.actemp  = data_mqtt.actemp;
-          data_esp.acflow  = data_mqtt.acflow;
-          data_esp.acauto  = data_mqtt.acauto;
-          data_esp.hash = calc_hash(data_esp);
-
-          Wire.beginTransmission(SLAVE_ADDRESS);
-          I2C_writeAnything(data_esp);
-          Wire.endTransmission();
-
           if (Wire.requestFrom(SLAVE_ADDRESS, sizeof(data_nano)))
           {
             I2C_readAnything(data_nano);
-          }
-          data_mqtt.dustDensity = data_nano.dustDensity;
+            if (data_nano.hash == calc_hash(data_nano))
+            {
+              data_mqtt.dustDensity = data_nano.dustDensity * 0.001;
 
+              if (data_nano.ir_recvd == 1)
+              {
+                data_curr.ac_mode = data_esp.ac_mode = data_nano.ac_mode;
+                data_curr.ac_temp = data_esp.ac_temp = data_nano.ac_temp;
+                data_curr.ac_flow = data_esp.ac_flow = data_nano.ac_flow;
+                bac_timer_mode = false;
+              }
+            }
+          }
           balm_isr = false;
-          //prevDisplay = now();
+        }
+      }
+
+      if (bhaveData)
+      {
+        data_esp.hash = calc_hash(data_esp);
+        Wire.beginTransmission(SLAVE_ADDRESS);
+        I2C_writeAnything(data_esp);
+        Wire.endTransmission();
+        bhaveData = false;
+      }
+
+      if (bac_timer_mode)
+      {
+        if ((millis() - timerMillis) > AC_TIMER_INTERVAL)
+        {
+          if (data_esp.ac_mode == 0)
+          {
+            data_esp.ac_mode = 1;
+          }
+          else
+          {
+            data_esp.ac_mode = 0;
+          }
+          bhaveData = true;
+          timerMillis = millis();
         }
       }
 
       if ((millis() - sentMills) > REPORT_INTERVAL )
       {
         payload = "{\"dustDensity\":";
-        payload += data_nano.dustDensity;
+        //payload += data_nano.dustDensity * 0.001;
+        payload += data_mqtt.dustDensity;
         payload += ",\"moisture\":";
         payload += data_nano.moisture;
         payload += ",\"Humidity\":";
@@ -991,6 +1006,20 @@ void loop()
   }
 }
 
+void displayTimermode()
+{
+  if (bac_timer_mode)
+  {
+    lcd.setCursor(19, 3);
+    lcd.write(8);
+  }
+  else
+  {
+    lcd.setCursor(19, 3);
+    lcd.print(" ");
+  }
+}
+
 void displayHost(int numofhost, int numofall)
 {
   lcd.setCursor(17, 2);
@@ -1008,7 +1037,7 @@ void displayPIR(int PIR)
 {
   if ( PIR == 1)
   {
-    for ( int i = 0 ; i <= 3 ; i ++ )
+    for ( int i = 0 ; i <= 2 ; i ++ )
     {
       lcd.setCursor(19, i);
       lcd.write(5);
@@ -1016,7 +1045,7 @@ void displayPIR(int PIR)
   }
   else
   {
-    for ( int i = 0 ; i <= 3 ; i ++ )
+    for ( int i = 0 ; i <= 2 ; i ++ )
     {
       lcd.setCursor(19, i);
       lcd.print(" ");
@@ -1214,12 +1243,12 @@ String macToStr(const uint8_t* mac)
 }
 
 /*-------- NTP code ----------*/
-const int NTP_PACKET_SIZE = 48; // NTP time is in the first 48 bytes of message
-byte packetBuffer[NTP_PACKET_SIZE]; //buffer to hold incoming & outgoing packets
+const int NTP_PACKET_SIZE = 48;
+byte packetBuffer[NTP_PACKET_SIZE];
 
 time_t getNtpTime()
 {
-  while (udp.parsePacket() > 0) ; // discard any previously received packets
+  while (udp.parsePacket() > 0) ;
   sendNTPpacket(mqtt_server);
   uint32_t beginWait = millis();
   while (millis() - beginWait < 2500)
@@ -1227,9 +1256,8 @@ time_t getNtpTime()
     int size = udp.parsePacket();
     if (size >= NTP_PACKET_SIZE)
     {
-      udp.read(packetBuffer, NTP_PACKET_SIZE);  // read packet into the buffer
+      udp.read(packetBuffer, NTP_PACKET_SIZE);
       unsigned long secsSince1900;
-      // convert four bytes starting at location 40 to a long integer
       secsSince1900 =  (unsigned long)packetBuffer[40] << 24;
       secsSince1900 |= (unsigned long)packetBuffer[41] << 16;
       secsSince1900 |= (unsigned long)packetBuffer[42] << 8;
@@ -1237,28 +1265,21 @@ time_t getNtpTime()
       return secsSince1900 - 2208988800UL + timeZone * SECS_PER_HOUR;
     }
   }
-  return 0; // return 0 if unable to get the time
+  return 0;
 }
 
-// send an NTP request to the time server at the given address
 void sendNTPpacket(IPAddress & address)
 {
-  // set all bytes in the buffer to 0
   memset(packetBuffer, 0, NTP_PACKET_SIZE);
-  // Initialize values needed to form NTP request
-  // (see URL above for details on the packets)
-  packetBuffer[0] = 0b11100011;   // LI, Version, Mode
-  packetBuffer[1] = 0;     // Stratum, or type of clock
-  packetBuffer[2] = 6;     // Polling Interval
-  packetBuffer[3] = 0xEC;  // Peer Clock Precision
-  // 8 bytes of zero for Root Delay & Root Dispersion
+  packetBuffer[0] = 0b11100011;
+  packetBuffer[1] = 0;
+  packetBuffer[2] = 6;
+  packetBuffer[3] = 0xEC;
   packetBuffer[12]  = 49;
   packetBuffer[13]  = 0x4E;
   packetBuffer[14]  = 49;
   packetBuffer[15]  = 52;
-  // all NTP fields have been given values, now
-  // you can send a packet requesting a timestamp:
-  udp.beginPacket(address, 123); //NTP requests are to port 123
+  udp.beginPacket(address, 123);
   udp.write(packetBuffer, NTP_PACKET_SIZE);
   udp.endPacket();
 }

@@ -1,9 +1,9 @@
 #include <avr/pgmspace.h>
 #include <IRremote.h>
+#include <lgWhisen.h>
 #include <Wire.h>
 #include <Average.h>
 #include <avr/pgmspace.h>
-#include <TimeLib.h>
 
 /* pins
   D9 : ir in
@@ -27,25 +27,30 @@
 
 volatile struct
 {
+  uint8_t ac_mode;
+  uint8_t ac_temp;
+  uint8_t ac_flow;
+  uint8_t ac_etc;
+} current_nano;
+
+volatile struct
+{
   uint32_t hash;
-  float dustDensity;
+  uint16_t dustDensity;
   uint16_t moisture;
-  uint16_t irrecvd;
-  uint8_t accmd;
-  uint8_t actemp;
-  uint8_t acflow;
-  uint8_t acauto;
+  uint8_t ir_recvd;
+  uint8_t ac_mode;
+  uint8_t ac_temp;
+  uint8_t ac_flow;
 } data_nano;
 
 volatile struct
 {
   uint32_t hash;
-  float tempeinside;
-  float tempeoutside;
-  uint8_t accmd;
-  uint8_t actemp;
-  uint8_t acflow;
-  uint8_t acauto;
+  uint8_t ac_mode;
+  uint8_t ac_temp;
+  uint8_t ac_flow;
+  uint8_t ac_etc;
 } data_esp;
 
 int dustMeasured = 0;
@@ -56,21 +61,11 @@ float moisture = 0;
 volatile bool haveData = false;
 volatile bool balm_isr;
 
-/* ac */
-const int AC_TYPE    = 0;     // 0 : TOWER, 1 : WALL
-int AC_POWER_ON      = 0;     // 0 : off, 1 : on
-int AC_AIR_ACLEAN    = 0;     // 0 : off,  1 : on --> power on
-int AC_TEMPERATURE   = 27;    // temperature : 18 ~ 30
-int AC_FLOW          = 0;     // 0 : low, 1 : mid , 2 : high
-int AC_FLOW_TOWER[3] = {0, 4, 6};
-int AC_FLOW_WALL[3]  = {0, 2, 4};
-
-unsigned long AC_CODE_TO_SEND;
-
 Average<float> ave1(10);
 Average<float> ave2(10);
+
 IRrecv irrecv(IR_IN_PIN);
-IRsend irsend;
+lgWhisen lgWhisen(0, 0);
 
 /* for hash */
 static uint32_t fnv_1_hash_32(uint8_t *bytes, size_t length)
@@ -102,110 +97,6 @@ template <typename T> unsigned int I2C_writeAnything (const T& value)
   return sizeof (value);
 }
 
-// IR
-void ac_send_code(unsigned long code)
-{
-  Serial.print("code to send : ");
-  //  Serial.print(code, BIN);
-  //  Serial.print(" : ");
-  Serial.println(code, HEX);
-
-  delay(100);
-  irsend.sendLG(code, 28);
-
-  delay(100);
-  irrecv.enableIRIn(); // Start the receiver
-}
-
-void ac_activate(int temperature, int air_flow)
-{
-
-  int AC_MSBITS1 = 8;
-  int AC_MSBITS2 = 8;
-  int AC_MSBITS3 = 0;
-  int AC_MSBITS4 = 0;
-  int AC_MSBITS5 = temperature - 15;
-  int AC_MSBITS6 ;
-
-  if ( AC_TYPE == 0) 
-  {
-    AC_MSBITS6 = AC_FLOW_TOWER[air_flow];
-  } 
-  else 
-  {
-    AC_MSBITS6 = AC_FLOW_WALL[air_flow];
-  }
-
-  int AC_MSBITS7 = (AC_MSBITS3 + AC_MSBITS4 + AC_MSBITS5 + AC_MSBITS6) & B00001111;
-
-  AC_CODE_TO_SEND =  AC_MSBITS1 << 4 ;
-  AC_CODE_TO_SEND =  (AC_CODE_TO_SEND + AC_MSBITS2) << 4;
-  AC_CODE_TO_SEND =  (AC_CODE_TO_SEND + AC_MSBITS3) << 4;
-  AC_CODE_TO_SEND =  (AC_CODE_TO_SEND + AC_MSBITS4) << 4;
-  AC_CODE_TO_SEND =  (AC_CODE_TO_SEND + AC_MSBITS5) << 4;
-  AC_CODE_TO_SEND =  (AC_CODE_TO_SEND + AC_MSBITS6) << 4;
-  AC_CODE_TO_SEND =  (AC_CODE_TO_SEND + AC_MSBITS7);
-
-  ac_send_code(AC_CODE_TO_SEND);
-
-  AC_POWER_ON = 1;
-  AC_TEMPERATURE = temperature;
-  AC_FLOW = air_flow;
-}
-
-void ac_change_air_swing(int air_swing)
-{
-  if ( AC_TYPE == 0) 
-  {
-    if ( air_swing == 1) 
-    {
-      AC_CODE_TO_SEND = 0x881316B;
-    } 
-    else 
-    {
-      AC_CODE_TO_SEND = 0x881317C;
-    }
-  } 
-  else 
-  {
-    if ( air_swing == 1) 
-    {
-      AC_CODE_TO_SEND = 0x8813149;
-    } 
-    else 
-    {
-      AC_CODE_TO_SEND = 0x881315A;
-    }
-  }
-
-  ac_send_code(AC_CODE_TO_SEND);
-}
-
-void ac_power_down()
-{
-  AC_CODE_TO_SEND = 0x88C0051;
-
-  ac_send_code(AC_CODE_TO_SEND);
-
-  AC_POWER_ON = 0;
-}
-
-void ac_air_clean(int air_clean)
-{
-  if ( air_clean == 1) 
-  {
-    AC_CODE_TO_SEND = 0x88C000C;
-  } 
-  else 
-  {
-    AC_CODE_TO_SEND = 0x88C0084;
-  }
-
-  ac_send_code(AC_CODE_TO_SEND);
-
-  AC_AIR_ACLEAN = air_clean;
-}
-
 void alm_isr()
 {
   balm_isr = true;
@@ -216,16 +107,24 @@ void setup()
   Serial.begin(115200);
   Serial.println("Starting....");
 
+  current_nano.ac_mode = 0;
+  current_nano.ac_temp = 27;
+  current_nano.ac_flow = 0;
+  current_nano.ac_etc  = 0;
+
   data_nano.dustDensity  = 0;
   data_nano.moisture     = 0;
-  data_nano.irrecvd      = 0;
-  data_nano.accmd        = 0;
-  data_nano.actemp       = 27;
-  data_nano.acflow       = 1;
-  data_nano.acauto       = 0;
+  data_nano.ir_recvd     = 0;
+  data_nano.ac_mode      = current_nano.ac_mode;
+  data_nano.ac_temp      = current_nano.ac_temp;
+  data_nano.ac_flow      = current_nano.ac_flow;
   data_nano.hash         = calc_hash(data_nano);
 
   balm_isr = false;
+
+  lgWhisen.setTemp(current_nano.ac_temp);
+  lgWhisen.setFlow(current_nano.ac_flow);
+  irrecv.enableIRIn();
 
   pinMode(SQWV_PIN, INPUT_PULLUP);
   pinMode(DUST_OUT_PIN, OUTPUT);
@@ -241,59 +140,92 @@ void setup()
 
 void loop()
 {
+  decode_results results;
+
+  if (irrecv.decode(&results))
+  {
+    if (lgWhisen.decode(&results))
+    {
+      data_nano.ir_recvd = 1;
+
+      if (lgWhisen.get_ir_mode() != 0)
+      {
+        data_nano.ac_mode = 1;
+      }
+      else
+      {
+        data_nano.ac_mode = 0;
+      }
+
+      data_nano.ac_temp = lgWhisen.get_ir_temperature();
+      data_nano.ac_flow = lgWhisen.get_ir_flow();
+    }
+    irrecv.enableIRIn();
+  }
+
   if (balm_isr)
   {
     getdust();
     getmoisture();
+
+    data_nano.dustDensity  = dustDensity * 1000;
+    data_nano.moisture     = moisture;
+    if (data_nano.ir_recvd == 0)
+    {
+      data_nano.ac_mode = current_nano.ac_mode;
+      data_nano.ac_temp = current_nano.ac_temp;
+      data_nano.ac_flow = current_nano.ac_flow;
+    }
     balm_isr = false;
   }
 
   if (haveData)
   {
     Serial.println("I have data...");
-    data_nano.dustDensity = dustDensity;
-    data_nano.moisture    = moisture;
-    data_nano.actemp      = AC_TEMPERATURE = data_esp.actemp;
-    data_nano.acflow      = AC_FLOW        = data_esp.acflow;
 
+    current_nano.ac_temp = data_esp.ac_temp;
+    current_nano.ac_flow = data_esp.ac_flow;
 
-    Serial.print("data_nano - data_esp : ");
-    Serial.print(data_nano.accmd);
-    Serial.print(" - ");
-    Serial.println(data_esp.accmd);
-    
-    if (data_nano.accmd != data_esp.accmd) 
+    lgWhisen.setTemp(current_nano.ac_temp);
+    lgWhisen.setFlow(current_nano.ac_flow);
+
+    if (current_nano.ac_mode != data_esp.ac_mode)
     {
-      switch (data_esp.accmd) 
+      switch (data_esp.ac_mode)
       {
         // ac power down
-        case 1:
+        case 0:
           Serial.println("IR -----> AC Power Down");
-          ac_power_down();
-          delay(50);
+          lgWhisen.power_down();
+          delay(5);
           break;
 
         // ac on
-        case 2:
+        case 1:
           Serial.println("IR -----> AC Power On");
-          ac_activate(AC_TEMPERATURE, AC_FLOW);
-          delay(50);
+          lgWhisen.activate();
+          delay(5);
           break;
 
         default:
-        break;
+          break;
       }
-      data_nano.accmd = data_esp.accmd;
+      current_nano.ac_mode = data_esp.ac_mode;
     }
-
-    data_nano.hash  = calc_hash(data_nano);
     haveData = false;
   }
 }
 
 void requestEvent()
 {
-  I2C_writeAnything(data_nano);
+  data_nano.hash = calc_hash(data_nano);
+  if (I2C_writeAnything(data_nano) > 0)
+  {
+    if (data_nano.ir_recvd == 1)
+    {
+      data_nano.ir_recvd = 0;
+    }
+  }
 }
 
 void receiveEvent(int howMany)
@@ -301,11 +233,10 @@ void receiveEvent(int howMany)
   if (howMany >= sizeof(data_esp))
   {
     I2C_readAnything(data_esp);
-  }
-
-  if (data_esp.hash == calc_hash(data_esp))
-  {
-    haveData = true;
+    if (data_esp.hash == calc_hash(data_esp))
+    {
+      haveData = true;
+    }
   }
 }
 
@@ -314,18 +245,14 @@ void getdust()
   digitalWrite(DUST_OUT_PIN, LOW);
   delayMicroseconds(dust_samplingTime);
   ave1.push(analogRead(DUST_IN_PIN));
-  //dustMeasured = analogRead(DUST_IN_PIN);
   delayMicroseconds(dust_deltaTime);
   digitalWrite(DUST_OUT_PIN, HIGH);
-  //ave1.push(dustMeasured);
   dustDensity = (0.17 * (ave1.mean() * readVcc()) - 0.1);
 }
 
 void getmoisture()
 {
   ave2.push(analogRead(MOISTURE_PIN));
-  //moistureMeasured = analogRead(MOISTURE_PIN);
-  //ave2.push(moistureMeasured);
   moisture = ave2.mean();
 }
 
