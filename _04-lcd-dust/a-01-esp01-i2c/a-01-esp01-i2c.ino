@@ -128,7 +128,8 @@ const int timeZone = 9;
 
 volatile bool bac_timer_mode = false;
 volatile bool bhaveData = false;
-unsigned long timerMillis;
+unsigned long timerMillis = 0;
+bool btimerFirst = true;
 
 String clientName;
 String payload;
@@ -280,13 +281,27 @@ void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int lengt
   if ( receivedpayload == "{\"CHECKING\":\"1\"}")
   {
     String check_payload = "ac status: ";
-    if (data_curr.ac_mode == 0)
+    if (bac_timer_mode)
     {
-      check_payload += "off";
+      if (data_curr.ac_mode == 0)
+      {
+        check_payload += "timer:off";
+      }
+      else
+      {
+        check_payload += "timer:on";
+      }
     }
     else
     {
-      check_payload += "on";
+      if (data_curr.ac_mode == 0)
+      {
+        check_payload += "off";
+      }
+      else
+      {
+        check_payload += "on";
+      }      
     }
     check_payload += "\r\n";
     check_payload += "ac temp set : ";
@@ -784,7 +799,7 @@ void setup()
     data_mqtt.humidity    = DHT.getHumidity();
   }
 
-  sentMills = timerMillis = millis();
+  sentMills = millis();
   lcd.clear();
   lcd_redraw();
   attachInterrupt(SQWV_PIN, alm_isr, FALLING);
@@ -887,7 +902,7 @@ void loop()
         {
           digitalClockDisplay();
           displayTimermode();
-
+          
           if (!Rtc.IsDateTimeValid())
           {
             lcd.setCursor(18, 0);
@@ -941,7 +956,7 @@ void loop()
 
       if (bac_timer_mode)
       {
-        if ((millis() - timerMillis) > AC_TIMER_INTERVAL)
+        if ((millis() - timerMillis) > AC_TIMER_INTERVAL || btimerFirst)
         {
           if (data_esp.ac_mode == 0)
           {
@@ -951,7 +966,8 @@ void loop()
           {
             data_esp.ac_mode = 0;
           }
-          bhaveData = true;
+          btimerFirst = false;
+          bhaveData   = true;
           timerMillis = millis();
         }
       }
