@@ -236,7 +236,7 @@ void ICACHE_RAM_ATTR processSlackMessage(String receivedpayload)
       Serial.println("->flow 0");
       ir_data.ac_flow = 0;
       chane_ac_temp_flow();
-      sendCheck(); 
+      sendCheck();
     }
     else
     {
@@ -247,7 +247,7 @@ void ICACHE_RAM_ATTR processSlackMessage(String receivedpayload)
         Serial.println(num);
         ir_data.ac_temp = num;
         chane_ac_temp_flow();
-        sendCheck(); 
+        sendCheck();
       }
       else if (num >= 1 && num <= 3)
       {
@@ -261,11 +261,11 @@ void ICACHE_RAM_ATTR processSlackMessage(String receivedpayload)
           Serial.println(num);
           ir_data.ac_flow = num;
           chane_ac_temp_flow();
-          sendCheck(); 
+          sendCheck();
         }
       }
     }
-    
+
   }
 }
 
@@ -403,8 +403,15 @@ void loop()
       {
         ir_data.ac_mode = 0;
       }
-      ir_data.ac_temp = lgWhisen.get_ir_temperature();
-      ir_data.ac_flow = lgWhisen.get_ir_flow();
+      if (lgWhisen.get_ir_temperature() != 255)
+      {
+        ir_data.ac_temp = lgWhisen.get_ir_temperature();
+      }
+      if (lgWhisen.get_ir_flow() != 255)
+      {
+        ir_data.ac_flow = lgWhisen.get_ir_flow();
+      }
+      sendCheck();
     }
     irrecv.enableIRIn();
   }
@@ -479,7 +486,7 @@ void loop()
       ir_data.timerMillis = millis();
     }
   }
-  
+
 }
 
 // end
