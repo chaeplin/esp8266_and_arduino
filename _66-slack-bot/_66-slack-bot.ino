@@ -13,7 +13,9 @@
 */
 
 #include <Arduino.h>
+#include <TimeLib.h>
 #include <ESP8266WiFi.h>
+#include <PubSubClient.h>
 #include <WiFiClientSecure.h>
 #include <ESP8266HTTPClient.h>
 // https://github.com/Links2004/arduinoWebSockets
@@ -27,10 +29,13 @@
 #include <ESP8266mDNS.h>
 #include <ArduinoOTA.h>
 #include <WiFiUdp.h>
+#include <Average.h>
 
+extern "C" {
+#include "user_interface.h"
+}
 #include "/usr/local/src/ap_setting.h"
 #include "/usr/local/src/slack_setting.h"
-const char* otapassword = OTA_PASSWORD;
 
 const char* api_fingerprint = "AB F0 5B A9 1A E0 AE 5F CE 32 2E 7C 66 67 49 EC DD 6D 6A 38";
 
@@ -41,15 +46,17 @@ const char* api_fingerprint = "AB F0 5B A9 1A E0 AE 5F CE 32 2E 7C 66 67 49 EC D
 
 //#define WIFI_SSID       "wifi-name"
 //#define WIFI_PASSWORD   "wifi-password"
+//#definr OTA_PASSWORD    "ota-password"
 
-WiFiClientSecure sslclient;
+//
+IPAddress mqtt_server = MQTT_SERVER;
+
+WiFiClient wifiClient;
 WebSocketsClient webSocket;
 WiFiUDP udp;
 
 long nextCmdId = 1;
 bool connected = false;
-
-unsigned long nextTimercheck;
 
 // AC
 #define IR_RX_PIN 14
@@ -70,10 +77,82 @@ volatile struct
   unsigned long intervalon;  // ms
   unsigned long intervaloff; // ms
   unsigned long timerMillis;
+  unsigned long nextTimercheck;
 } ir_data;
 
+// mqtt
+void callback(char* intopic, byte* inpayload, unsigned int length);
+
+const char* hellotopic  = "HELLO";
+const char* willTopic   = "clients/nodemcu";
+const char* willMessage = "0";
+const char* substopic   = "esp8266/arduino/solar";
+
+String clientName;
+
+PubSubClient mqttclient(mqtt_server, 1883, callback, wifiClient);
+
+// Timelib
+unsigned int localPort = 12390;
+const int timeZone = 9;
+
+// temp received by mqtt
+Average<float> ave(20);
+
+// ir
 IRrecv irrecv(IR_RX_PIN);
 lgWhisen lgWhisen;
+
+boolean reconnect() {
+  if (!mqttclient.connected())
+  {
+    if (mqttclient.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage))
+    {
+      mqttclient.publish(willTopic, "1", true);
+      mqttclient.loop();
+      mqttclient.publish(hellotopic, "hello again 1 from nodemcu ");
+      mqttclient.loop();
+      mqttclient.subscribe(substopic);
+      mqttclient.loop();
+      yield();
+    }
+  }
+  return mqttclient.connected();
+}
+
+void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int length)
+{
+  String receivedtopic = intopic;
+  String receivedpayload ;
+
+  for (int i = 0; i < length; i++) {
+    receivedpayload += (char)inpayload[i];
+  }
+
+  Serial.printf("[MQTT] payload: %s\n", receivedpayload.c_str());
+  if (length <= 200)
+  {
+    parseMqttMsg(receivedpayload, receivedtopic);
+  }
+}
+
+void parseMqttMsg(String receivedpayload, String receivedtopic)
+{
+  char json[] = "{\"DS18B20\":28.00,\"FreeHeap\":32384,\"RSSI\":-74,\"millis\":2413775}";
+
+  receivedpayload.toCharArray(json, 200);
+  StaticJsonBuffer<200> jsonBuffer;
+  JsonObject& root = jsonBuffer.parseObject(json);
+
+  if (!root.success()) {
+    return;
+  }
+
+  if (root.containsKey("DS18B20"))
+  {
+    ave.push(root["DS18B20"]);
+  }
+}
 
 void chane_ac_temp_flow()
 {
@@ -125,40 +204,41 @@ void sendCheck()
   root["id"] = nextCmdId++;
   root["channel"] = SLACK_CHANNEL;
 
-  String msg = "ac status: ";
+  String msg = "ac status : ";
   if (ir_data.timermode)
   {
-    int timeremain = ((nextTimercheck - (millis() - ir_data.timerMillis)) / 1000 ) / 60;
+    int timeremain = ((ir_data.nextTimercheck - (millis() - ir_data.timerMillis)) / 1000 ) / 60;
     if (ir_data.ac_mode == 0)
     {
-      msg += "timer:off, next change in ";
+      msg += ":timer_clock::black_square_for_stop:, next change in ";
       msg += timeremain;
-      msg += " min\n";
+      msg += " min";
     }
     else
     {
-      msg += "timer:on, next change in ";
+      msg += ":timer_clock::arrows_counterclockwise:, next change in ";
       msg += timeremain;
-      msg += " min\n";
+      msg += " min";
     }
   }
   else
   {
     if (ir_data.ac_mode == 0)
     {
-      msg += "off\n";
+      msg += ":black_square_for_stop:";
     }
     else
     {
-      msg += "on\n";
+      msg += ":arrows_counterclockwise:";
     }
   }
-  msg += "ac temp set : ";
+
+  msg += "\nac :thermometer: set : ";
   msg += ir_data.ac_temp;
-  msg += "\n";
-  msg += "ac flow set : ";
+  msg += "\nac flow set : ";
   msg += ir_data.ac_flow;
-  msg += " \r\n\r\n";
+  msg += "\ncurr :thermometer: : ";
+  msg += ave.mean();
 
   root["text"] = msg.c_str();
   String json;
@@ -186,7 +266,7 @@ void sendHelp()
   {
     msg += "[0 ~ 3] -> flow set(low/mid/high/change)\n";
   }
-  msg += "check -> report ac status\r\n";
+  msg += "check -> report ac status";
 
   root["text"] = msg.c_str();
   String json;
@@ -213,11 +293,13 @@ void ICACHE_RAM_ATTR processSlackMessage(String receivedpayload)
     if (String(text) == "help")
     {
       sendHelp();
+      return;
     }
     else if (String(text) == "check")
     {
       Serial.println("->check");
       sendCheck();
+      return;
     }
     else if (String(text) == "on")
     {
@@ -225,6 +307,7 @@ void ICACHE_RAM_ATTR processSlackMessage(String receivedpayload)
       ir_data.ac_mode   = 1;
       ir_data.timermode = false;
       ir_data.haveData  = true;
+      return;
     }
     else if (String(text) == "off")
     {
@@ -232,6 +315,7 @@ void ICACHE_RAM_ATTR processSlackMessage(String receivedpayload)
       ir_data.ac_mode   = 0;
       ir_data.timermode = false;
       ir_data.haveData  = true;
+      return;
     }
     else if (String(text) == "ton")
     {
@@ -239,6 +323,7 @@ void ICACHE_RAM_ATTR processSlackMessage(String receivedpayload)
       ir_data.ac_mode     = 0;
       ir_data.timermode   = true;
       ir_data.timerfirst  = false;
+      return;
     }
     else if (String(text) == "0")
     {
@@ -246,6 +331,7 @@ void ICACHE_RAM_ATTR processSlackMessage(String receivedpayload)
       ir_data.ac_flow = 0;
       chane_ac_temp_flow();
       sendCheck();
+      return;
     }
     else
     {
@@ -257,6 +343,7 @@ void ICACHE_RAM_ATTR processSlackMessage(String receivedpayload)
         ir_data.ac_temp = num;
         chane_ac_temp_flow();
         sendCheck();
+        return;
       }
       else if (num >= 1 && num <= 3)
       {
@@ -271,10 +358,10 @@ void ICACHE_RAM_ATTR processSlackMessage(String receivedpayload)
           ir_data.ac_flow = num;
           chane_ac_temp_flow();
           sendCheck();
+          return;
         }
       }
     }
-
   }
 }
 
@@ -311,7 +398,8 @@ void ICACHE_RAM_ATTR webSocketEvent(WStype_t type, uint8_t *payload, size_t len)
             receivedpayload.indexOf(SLACK_USER) != -1 &&
             receivedpayload.indexOf(SLACK_TEAM) != -1 )
         {
-          if (len < 1024) {
+          if (len < 1024)
+          {
             processSlackMessage(receivedpayload);
           }
         }
@@ -327,8 +415,7 @@ void ICACHE_RAM_ATTR webSocketEvent(WStype_t type, uint8_t *payload, size_t len)
   Returns true if the connection was established successfully.
 */
 bool connectToSlack()
-{
-  // Step 1: Find WebSocket address via RTM API (https://api.slack.com/methods/rtm.start)
+{ // Step 1: Find WebSocket address via RTM API (https://api.slack.com/methods/rtm.start)
   HTTPClient http;
   String uri_to_post = "/api/rtm.start?token=";
   uri_to_post += SLACK_BOT_TOKEN;
@@ -354,7 +441,39 @@ bool connectToSlack()
   return true;
 }
 
-void setup() {
+void wifi_connect()
+{
+  wifi_set_phy_mode(PHY_MODE_11N);
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  WiFi.hostname("esp-slackbot");
+
+  int Attempt = 1;
+  Serial.println("[WIFI] connecting...");
+  while (WiFi.status() != WL_CONNECTED)
+  {
+    Serial.print(". ");
+    if ( Attempt % 30 == 0 ) {
+      Serial.println();
+    }
+    delay(100);
+    Attempt++;
+    if (Attempt == 300)
+    {
+      Serial.println();
+      Serial.println("[WIFI] -----> Could not connect to WIFI");
+      delay(200);
+      ESP.restart();
+    }
+  }
+  Serial.println();
+  Serial.println("[WIFI] ===> WiFi connected");
+  Serial.print("[WIFI] ------> IP address: ");
+  Serial.println(WiFi.localIP());
+}
+
+void setup()
+{
   Serial.begin(115200);
   Serial.println();
   Serial.println("Starting....... ");
@@ -370,7 +489,7 @@ void setup() {
   ir_data.intervalon  = (AC_CONF_ON_MIN * 60 * 1000); // ms
   ir_data.intervaloff = (AC_CONF_OFF_MIN * 60 * 1000); // min
   ir_data.timerMillis = millis();;
-  nextTimercheck = ir_data.intervalon;
+  ir_data.nextTimercheck = ir_data.intervalon;
 
   lgWhisen.setActype(AC_CONF_TYPE);
   lgWhisen.setHeating(AC_CONF_HEATING);
@@ -380,22 +499,35 @@ void setup() {
 
   irrecv.enableIRIn();
 
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  while (WiFi.status() != WL_CONNECTED)
-  {
-    Serial.print(". ");
-    delay(100);
-  }
-  Serial.println();
 
-  configTime(9 * 3600, 0, "pool.ntp.org", "time.nist.gov");
+  // wifi connect
+  wifi_connect();
+
+  clientName = "esp8266-";
+  uint8_t mac[6];
+  WiFi.macAddress(mac);
+  clientName += macToStr(mac);
+  clientName += "-";
+  clientName += String(micros() & 0xff, 16);
+
+  // ntp update
+  udp.begin(localPort);
+  setSyncProvider(getNtpTime);
+
+  if (timeStatus() == timeNotSet)
+  {
+    setSyncProvider(getNtpTime);
+    delay(200);
+  }
+
+  // mqtt connect
+  reconnect();
 
   //OTA
   // Port defaults to 8266
   ArduinoOTA.setPort(8266);
   ArduinoOTA.setHostname("esp-slackbot");
-  ArduinoOTA.setPassword(otapassword);
+  ArduinoOTA.setPassword(OTA_PASSWORD);
   ArduinoOTA.onStart([]()
   {
     //sendUdpSyslog("ArduinoOTA Start");
@@ -424,117 +556,235 @@ void setup() {
 }
 
 unsigned long lastPing = 0;
+long lastReconnectAttempt = 0;
+time_t prevDisplay = 0;
 
 /**
   Sends a ping every 5 seconds, and handles reconnections
 */
 void loop()
 {
-  // ac ir rx
-  decode_results results;
-
-  if (irrecv.decode(&results))
+  if (WiFi.status() == WL_CONNECTED)
   {
-    if (lgWhisen.decode(&results))
+    if (now() != prevDisplay)
     {
-      if (lgWhisen.get_ir_mode() != 0)
+      prevDisplay = now();
+      if (timeStatus() == timeSet)
       {
-        ir_data.ac_mode = 1;
-        ir_data.timermode = false;
+        digitalClockDisplay();
+      }
+    }
+
+    if (!mqttclient.connected())
+    {
+      unsigned long now = millis();
+      if (now - lastReconnectAttempt > 100)
+      {
+        lastReconnectAttempt = now;
+        if (reconnect())
+        {
+          lastReconnectAttempt = 0;
+        }
+      }
+    }
+    else
+    {
+      // ac ir rx
+      decode_results results;
+
+      if (irrecv.decode(&results))
+      {
+        if (lgWhisen.decode(&results))
+        {
+          if (lgWhisen.get_ir_mode() != 0)
+          {
+            ir_data.ac_mode = 1;
+            ir_data.timermode = false;
+          }
+          else
+          {
+            ir_data.ac_mode = 0;
+            ir_data.timermode = false;
+          }
+
+          if (lgWhisen.get_ir_temperature() != 255)
+          {
+            ir_data.ac_temp = lgWhisen.get_ir_temperature();
+          }
+
+          if (lgWhisen.get_ir_flow() != 255)
+          {
+            ir_data.ac_flow = lgWhisen.get_ir_flow();
+          }
+
+          sendCheck();
+        }
+        irrecv.enableIRIn();
+      }
+
+      // slack
+      webSocket.loop();
+
+      if (connected) {
+        // Send ping every 5 seconds, to keep the connection alive
+        if (millis() - lastPing > 5000)
+        {
+          sendPing();
+          lastPing = millis();
+        }
       }
       else
-      {
-        ir_data.ac_mode = 0;
-        ir_data.timermode = false;
+      { // Try to connect / reconnect to slack
+        connected = connectToSlack();
+        if (!connected)
+        {
+          delay(500);
+        }
       }
-      if (lgWhisen.get_ir_temperature() != 255)
-      {
-        ir_data.ac_temp = lgWhisen.get_ir_temperature();
-      }
-      if (lgWhisen.get_ir_flow() != 255)
-      {
-        ir_data.ac_flow = lgWhisen.get_ir_flow();
-      }
-      sendCheck();
-    }
-    irrecv.enableIRIn();
-  }
 
-  // slack
-  webSocket.loop();
+      // ac change, ir tx
+      if (ir_data.haveData)
+      {
+        lgWhisen.setTemp(ir_data.ac_temp);
+        lgWhisen.setFlow(ir_data.ac_flow);
 
-  if (connected) {
-    // Send ping every 5 seconds, to keep the connection alive
-    if (millis() - lastPing > 5000)
-    {
-      sendPing();
-      lastPing = millis();
+        switch (ir_data.ac_mode)
+        { // ac power down
+          case 0:
+            Serial.println("IR -----> AC Power Down");
+            irrecv.disableIRIn();
+            lgWhisen.power_down();
+            delay(5);
+            irrecv.enableIRIn();
+            break;
+
+          // ac on
+          case 1:
+            Serial.println("IR -----> AC Power On");
+            irrecv.disableIRIn();
+            lgWhisen.activate();
+            delay(5);
+            irrecv.enableIRIn();
+            break;
+
+          default:
+            break;
+        }
+        sendCheck();
+        ir_data.haveData = false;
+      }
+
+      // ac timer
+      if (ir_data.timermode)
+      {
+        if (((millis() - ir_data.timerMillis) > ir_data.nextTimercheck) || !ir_data.timerfirst)
+        {
+          if (ir_data.ac_mode == 0)
+          {
+            ir_data.ac_mode = 1;
+            ir_data.nextTimercheck = ir_data.intervalon;
+          }
+          else
+          {
+            ir_data.ac_mode = 0;
+            ir_data.nextTimercheck = ir_data.intervaloff;
+          }
+          ir_data.haveData = true;
+          ir_data.timerfirst  = true;
+          ir_data.timerMillis = millis();
+        }
+      }
+      mqttclient.loop();
     }
+    ArduinoOTA.handle();
   }
   else
   {
-    // Try to connect / reconnect to slack
-    connected = connectToSlack();
-    if (!connected)
-    {
-      delay(500);
-    }
+    wifi_connect();
+    setSyncProvider(getNtpTime);
   }
-
-  // ac change, ir tx
-  if (ir_data.haveData)
-  {
-    lgWhisen.setTemp(ir_data.ac_temp);
-    lgWhisen.setFlow(ir_data.ac_flow);
-
-    switch (ir_data.ac_mode)
-    {
-      // ac power down
-      case 0:
-        Serial.println("IR -----> AC Power Down");
-        irrecv.disableIRIn();
-        lgWhisen.power_down();
-        delay(5);
-        irrecv.enableIRIn();
-        break;
-
-      // ac on
-      case 1:
-        Serial.println("IR -----> AC Power On");
-        irrecv.disableIRIn();
-        lgWhisen.activate();
-        delay(5);
-        irrecv.enableIRIn();
-        break;
-
-      default:
-        break;
-    }
-    sendCheck();
-    ir_data.haveData = false;
-  }
-
-  // ac timer
-  if (ir_data.timermode)
-  {
-    if (((millis() - ir_data.timerMillis) > nextTimercheck) || !ir_data.timerfirst)
-    {
-      if (ir_data.ac_mode == 0)
-      {
-        ir_data.ac_mode = 1;
-        nextTimercheck = ir_data.intervalon;
-      }
-      else
-      {
-        ir_data.ac_mode = 0;
-        nextTimercheck = ir_data.intervaloff;
-      }
-      ir_data.haveData = true;
-      ir_data.timerfirst  = true;
-      ir_data.timerMillis = millis();
-    }
-  }
-  ArduinoOTA.handle();
 }
 
+//----------------
+String macToStr(const uint8_t* mac)
+{
+  String result;
+  for (int i = 0; i < 6; ++i)
+  {
+    result += String(mac[i], 16);
+    if (i < 5)
+      result += ':';
+  }
+  return result;
+}
+
+/*-------- NTP code ----------*/
+const int NTP_PACKET_SIZE = 48;
+byte packetBuffer[NTP_PACKET_SIZE];
+
+time_t getNtpTime()
+{
+  while (udp.parsePacket() > 0) ;
+  sendNTPpacket(mqtt_server);
+  uint32_t beginWait = millis();
+  while (millis() - beginWait < 1500)
+  {
+    int size = udp.parsePacket();
+    if (size >= NTP_PACKET_SIZE)
+    {
+      udp.read(packetBuffer, NTP_PACKET_SIZE);
+      unsigned long secsSince1900;
+      secsSince1900 =  (unsigned long)packetBuffer[40] << 24;
+      secsSince1900 |= (unsigned long)packetBuffer[41] << 16;
+      secsSince1900 |= (unsigned long)packetBuffer[42] << 8;
+      secsSince1900 |= (unsigned long)packetBuffer[43];
+      return secsSince1900 - 2208988800UL + timeZone * SECS_PER_HOUR;
+    }
+  }
+  return 0;
+}
+
+void sendNTPpacket(IPAddress & address)
+{
+  memset(packetBuffer, 0, NTP_PACKET_SIZE);
+  packetBuffer[0] = 0b11100011;
+  packetBuffer[1] = 0;
+  packetBuffer[2] = 6;
+  packetBuffer[3] = 0xEC;
+  packetBuffer[12]  = 49;
+  packetBuffer[13]  = 0x4E;
+  packetBuffer[14]  = 49;
+  packetBuffer[15]  = 52;
+  udp.beginPacket(address, 123);
+  udp.write(packetBuffer, NTP_PACKET_SIZE);
+  udp.endPacket();
+}
+
+void digitalClockDisplay()
+{
+  Serial.print("[TIME] ");
+  Serial.print(hour());
+  printDigits(minute());
+  printDigits(second());
+  Serial.print(" ");
+  Serial.print(day());
+  Serial.print(" ");
+  Serial.print(month());
+  Serial.print(" ");
+  Serial.print(year());
+
+  Serial.print(" ave.mean(): ");
+  Serial.print(ave.mean());
+  Serial.print(" ave.stddev(): ");
+  Serial.println(ave.stddev());
+
+}
+
+void printDigits(int digits)
+{
+  Serial.print(":");
+  if (digits < 10)
+    Serial.print('0');
+  Serial.print(digits);
+}
 // end
