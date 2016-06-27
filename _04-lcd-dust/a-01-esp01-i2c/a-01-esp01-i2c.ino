@@ -254,6 +254,61 @@ void ICACHE_RAM_ATTR sendmqttMsg(char* topictosend, String payload)
   client.loop();
 }
 
+void sendCheck()
+{
+    String check_payload = "ac status: ";
+    if (bac_timer_mode)
+    {
+      if (data_curr.ac_mode == 0)
+      {
+        check_payload += ":timer_clock::black_square_for_stop:";
+      }
+      else
+      {
+        check_payload += ":timer_clock::arrows_counterclockwise:";
+      }
+    }
+    else
+    {
+      if (data_curr.ac_mode == 0)
+      {
+        check_payload += ":black_square_for_stop:";
+      }
+      else
+      {
+        check_payload += ":arrows_counterclockwise:";
+      }      
+    }
+    check_payload += "\r\n";
+    check_payload += "ac :thermometer: set : ";
+    check_payload += data_curr.ac_temp;
+    check_payload += "\r\n";
+    check_payload += "ac flow set : ";
+    check_payload += data_curr.ac_flow;
+    check_payload += "\r\n";
+    check_payload += ":thermometer: inside: ";
+    check_payload += ((data_mqtt.tempinside1 + data_mqtt.tempinside2) / 2);
+    check_payload += "\r\n";
+    check_payload += ":thermometer: outside: ";
+    check_payload += data_mqtt.tempoutside;
+    check_payload += "\r\n";
+    check_payload += "humidity: ";
+    check_payload += data_mqtt.humidity;
+    check_payload += "\r\n";
+    check_payload += "dustDensity: ";
+    check_payload += data_curr.dustDensity;
+    check_payload += "\r\n";
+    check_payload += "soil moisture: ";
+    check_payload += data_nano.moisture;
+    check_payload += "\r\n";
+    check_payload += "host all/2: ";
+    check_payload += data_mqtt.hostall;
+    check_payload += "/";
+    check_payload += data_mqtt.hosttwo;
+
+    sendmqttMsg(reporttopic, check_payload);  
+}
+
 void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int length)
 {
   String receivedtopic = intopic;
@@ -280,57 +335,7 @@ void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int lengt
 
   if ( receivedpayload == "{\"CHECKING\":\"1\"}")
   {
-    String check_payload = "ac status: ";
-    if (bac_timer_mode)
-    {
-      if (data_curr.ac_mode == 0)
-      {
-        check_payload += "timer:off";
-      }
-      else
-      {
-        check_payload += "timer:on";
-      }
-    }
-    else
-    {
-      if (data_curr.ac_mode == 0)
-      {
-        check_payload += "off";
-      }
-      else
-      {
-        check_payload += "on";
-      }      
-    }
-    check_payload += "\r\n";
-    check_payload += "ac temp set : ";
-    check_payload += data_curr.ac_temp;
-    check_payload += "\r\n";
-    check_payload += "ac flow set : ";
-    check_payload += data_curr.ac_flow;
-    check_payload += "\r\n";
-    check_payload += "temp inside: ";
-    check_payload += ((data_mqtt.tempinside1 + data_mqtt.tempinside2) / 2);
-    check_payload += "\r\n";
-    check_payload += "temp outside: ";
-    check_payload += data_mqtt.tempoutside;
-    check_payload += "\r\n";
-    check_payload += "humidity: ";
-    check_payload += data_mqtt.humidity;
-    check_payload += "\r\n";
-    check_payload += "dustDensity: ";
-    check_payload += data_curr.dustDensity;
-    check_payload += "\r\n";
-    check_payload += "soil moisture: ";
-    check_payload += data_nano.moisture;
-    check_payload += "\r\n";
-    check_payload += "host all/2: ";
-    check_payload += data_mqtt.hostall;
-    check_payload += "/";
-    check_payload += data_mqtt.hosttwo;
-
-    sendmqttMsg(reporttopic, check_payload);
+    sendCheck();
     return;
   }
 
@@ -951,6 +956,7 @@ void loop()
         Wire.beginTransmission(SLAVE_ADDRESS);
         I2C_writeAnything(data_esp);
         Wire.endTransmission();
+        sendCheck();
         bhaveData = false;
       }
 
