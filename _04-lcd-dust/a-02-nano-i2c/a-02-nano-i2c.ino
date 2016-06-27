@@ -146,6 +146,7 @@ void loop()
   {
     if (lgWhisen.decode(&results))
     {
+      Serial.println("IR Received....");
       data_nano.ir_recvd = 1;
 
       if (lgWhisen.get_ir_mode() != 0)
@@ -179,7 +180,7 @@ void loop()
     balm_isr = false;
   }
 
-  if (haveData)
+  if (haveData && data_nano.ir_recvd == 0)
   {
     Serial.println("I have data...");
 
@@ -189,29 +190,28 @@ void loop()
     lgWhisen.setTemp(current_nano.ac_temp);
     lgWhisen.setFlow(current_nano.ac_flow);
 
-    if (current_nano.ac_mode != data_esp.ac_mode)
+    switch (data_esp.ac_mode)
     {
-      switch (data_esp.ac_mode)
-      {
-        // ac power down
-        case 0:
-          Serial.println("IR -----> AC Power Down");
-          lgWhisen.power_down();
-          delay(5);
-          break;
+      // ac power down
+      case 0:
+        Serial.println("IR -----> AC Power Down");
+        lgWhisen.power_down();
+        delay(5);
+        irrecv.enableIRIn();
+        break;
 
-        // ac on
-        case 1:
-          Serial.println("IR -----> AC Power On");
-          lgWhisen.activate();
-          delay(5);
-          break;
+      // ac on
+      case 1:
+        Serial.println("IR -----> AC Power On");
+        lgWhisen.activate();
+        delay(5);
+        irrecv.enableIRIn();
+        break;
 
-        default:
-          break;
-      }
-      current_nano.ac_mode = data_esp.ac_mode;
+      default:
+        break;
     }
+    current_nano.ac_mode = data_esp.ac_mode;
     haveData = false;
   }
 }
@@ -219,12 +219,10 @@ void loop()
 void requestEvent()
 {
   data_nano.hash = calc_hash(data_nano);
-  if (I2C_writeAnything(data_nano) > 0)
+  I2C_writeAnything(data_nano);
+  if (data_nano.ir_recvd == 1)
   {
-    if (data_nano.ir_recvd == 1)
-    {
-      data_nano.ir_recvd = 0;
-    }
+    data_nano.ir_recvd = 0;
   }
 }
 

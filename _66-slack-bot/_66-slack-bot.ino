@@ -335,30 +335,38 @@ void ICACHE_RAM_ATTR processSlackMessage(String receivedpayload)
     }
     else
     {
-      uint8_t num = atoi(text);
-      if (num >= 18 && num <= 30)
+      if (String(text).length() == 2)
       {
-        Serial.print("->temp : ");
-        Serial.println(num);
-        ir_data.ac_temp = num;
-        chane_ac_temp_flow();
-        sendCheck();
-        return;
-      }
-      else if (num >= 1 && num <= 3)
-      {
-        if (AC_CONF_TYPE == 0 && num == 3)
+        uint8_t num = atoi(text);
+        if (num >= 18 && num <= 30)
         {
-          return;
-        }
-        else
-        {
-          Serial.print("->flow : ");
+          Serial.print("->temp : ");
           Serial.println(num);
-          ir_data.ac_flow = num;
+          ir_data.ac_temp = num;
           chane_ac_temp_flow();
           sendCheck();
           return;
+        }
+      }
+
+      if (String(text).length() == 1)
+      { 
+        uint8_t num = atoi(text);   
+        if (num >= 1 && num <= 3)
+        {
+          if (AC_CONF_TYPE == 0 && num == 3)
+          {
+            return;
+          }
+          else
+          {
+            Serial.print("->flow : ");
+            Serial.println(num);
+            ir_data.ac_flow = num;
+            chane_ac_temp_flow();
+            sendCheck();
+            return;
+          }
         }
       }
     }

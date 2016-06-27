@@ -1,4 +1,3 @@
-// http://arduino.esp8266.com/stable/package_esp8266com_index.json 2.2.0
 // 160MHz / 1M / 64K / ESP-01 / esp-lcddust
 /* pins
   esp-01
@@ -126,6 +125,7 @@ bool resetInfosent = false;
 unsigned int localPort = 2390;
 const int timeZone = 9;
 
+volatile bool bignoreACretained = true;
 volatile bool bac_timer_mode = false;
 volatile bool bhaveData = false;
 unsigned long timerMillis = 0;
@@ -256,57 +256,58 @@ void ICACHE_RAM_ATTR sendmqttMsg(char* topictosend, String payload)
 
 void sendCheck()
 {
-    String check_payload = "ac status: ";
-    if (bac_timer_mode)
+  String check_payload = "ac status: ";
+  if (bac_timer_mode)
+  {
+    if (data_curr.ac_mode == 0)
     {
-      if (data_curr.ac_mode == 0)
-      {
-        check_payload += ":timer_clock::black_square_for_stop:";
-      }
-      else
-      {
-        check_payload += ":timer_clock::arrows_counterclockwise:";
-      }
+      check_payload += ":timer_clock::black_square_for_stop:";
     }
     else
     {
-      if (data_curr.ac_mode == 0)
-      {
-        check_payload += ":black_square_for_stop:";
-      }
-      else
-      {
-        check_payload += ":arrows_counterclockwise:";
-      }      
+      check_payload += ":timer_clock::arrows_counterclockwise:";
     }
-    check_payload += "\r\n";
-    check_payload += "ac :thermometer: set : ";
-    check_payload += data_curr.ac_temp;
-    check_payload += "\r\n";
-    check_payload += "ac flow set : ";
-    check_payload += data_curr.ac_flow;
-    check_payload += "\r\n";
-    check_payload += ":thermometer: inside: ";
-    check_payload += ((data_mqtt.tempinside1 + data_mqtt.tempinside2) / 2);
-    check_payload += "\r\n";
-    check_payload += ":thermometer: outside: ";
-    check_payload += data_mqtt.tempoutside;
-    check_payload += "\r\n";
-    check_payload += "humidity: ";
-    check_payload += data_mqtt.humidity;
-    check_payload += "\r\n";
-    check_payload += "dustDensity: ";
-    check_payload += data_curr.dustDensity;
-    check_payload += "\r\n";
-    check_payload += "soil moisture: ";
-    check_payload += data_nano.moisture;
-    check_payload += "\r\n";
-    check_payload += "host all/2: ";
-    check_payload += data_mqtt.hostall;
-    check_payload += "/";
-    check_payload += data_mqtt.hosttwo;
+  }
+  else
+  {
+    if (data_curr.ac_mode == 0)
+    {
+      check_payload += ":black_square_for_stop:";
+    }
+    else
+    {
+      check_payload += ":arrows_counterclockwise:";
+    }
+  }
 
-    sendmqttMsg(reporttopic, check_payload);  
+  check_payload += "\r\n";
+  check_payload += "ac :thermometer: set : ";
+  check_payload += data_curr.ac_temp;
+  check_payload += "\r\n";
+  check_payload += "ac flow set : ";
+  check_payload += data_curr.ac_flow;
+  check_payload += "\r\n";
+  check_payload += ":thermometer: inside: ";
+  check_payload += ((data_mqtt.tempinside1 + data_mqtt.tempinside2) / 2);
+  check_payload += "\r\n";
+  check_payload += ":thermometer: outside: ";
+  check_payload += data_mqtt.tempoutside;
+  check_payload += "\r\n";
+  check_payload += "humidity: ";
+  check_payload += data_mqtt.humidity;
+  check_payload += "\r\n";
+  check_payload += "dustDensity: ";
+  check_payload += data_curr.dustDensity;
+  check_payload += "\r\n";
+  check_payload += "soil moisture: ";
+  check_payload += data_nano.moisture;
+  check_payload += "\r\n";
+  check_payload += "host all/2: ";
+  check_payload += data_mqtt.hostall;
+  check_payload += "/";
+  check_payload += data_mqtt.hosttwo;
+
+  sendmqttMsg(reporttopic, check_payload);
 }
 
 void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int length)
@@ -324,14 +325,16 @@ void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int lengt
     receivedpayload += (char)inpayload[i];
   }
 
-  if (DEBUG_PRINT)
-  {
-    syslogPayload = "mqtt ====> ";
-    syslogPayload += intopic;
-    syslogPayload += " ====> ";
-    syslogPayload += receivedpayload;
-    //sendUdpSyslog(syslogPayload);
-  }
+  /*
+    if (DEBUG_PRINT)
+    {
+      syslogPayload = "mqtt ====> ";
+      syslogPayload += intopic;
+      syslogPayload += " ====> ";
+      syslogPayload += receivedpayload;
+      sendUdpSyslog(syslogPayload);
+    }
+  */
 
   if ( receivedpayload == "{\"CHECKING\":\"1\"}")
   {
@@ -417,52 +420,63 @@ void parseMqttMsg(String receivedpayload, String receivedtopic)
   {
     if (root.containsKey("AC"))
     {
-      data_mqtt.ac_mode = root["AC"];
-      String ac_payload = "ac status : ";
-      switch (data_mqtt.ac_mode)
+      if (!bignoreACretained)
       {
-        case 0:
-          data_curr.ac_mode = data_esp.ac_mode = 0;
-          bac_timer_mode = false;
-          ac_payload += "off";
-          break;
+        data_mqtt.ac_mode = root["AC"];
+        String ac_payload = "ac mqtt : ";
 
-        case 1:
-          data_curr.ac_mode = data_esp.ac_mode = 1;
-          bac_timer_mode = false;
-          ac_payload += "on";
-          break;
-
-        case 5:
-          if (bac_timer_mode)
-          {
-            bac_timer_mode = false;
+        switch (data_mqtt.ac_mode)
+        {
+          case 0:
             data_curr.ac_mode = data_esp.ac_mode = 0;
+            bac_timer_mode = false;
             ac_payload += "off";
-          }
-          else
-          {
-            bac_timer_mode = true;
+            break;
+
+          case 1:
             data_curr.ac_mode = data_esp.ac_mode = 1;
-            ac_payload += "timer";
-          }
-          break;
+            bac_timer_mode = false;
+            ac_payload += "on";
+            break;
 
-        default:
-          data_curr.ac_mode = data_esp.ac_mode = 0;
-          bac_timer_mode = false;
-          ac_payload += "off";
-          break;
+          case 5:
+            if (bac_timer_mode)
+            {
+              bac_timer_mode = false;
+              data_curr.ac_mode = data_esp.ac_mode = 0;
+              ac_payload += "off";
+            }
+            else
+            {
+              bac_timer_mode = true;
+              data_curr.ac_mode = data_esp.ac_mode = 1;
+              ac_payload += "timer";
+            }
+            break;
+
+          default:
+            data_curr.ac_mode = data_esp.ac_mode = 0;
+            bac_timer_mode = false;
+            ac_payload += "off";
+            break;
+        }
+
+        bhaveData = true;
+        sendmqttMsg(reporttopic, ac_payload);
+
+        if (DEBUG_PRINT)
+        {
+          syslogPayload = "ac_mode ====> data_mqtt.ac_mode : ";
+          syslogPayload += data_mqtt.ac_mode;
+          syslogPayload += " data_esp.ac_mode : ";
+          syslogPayload += data_esp.ac_mode;
+
+          sendUdpSyslog(syslogPayload);
+        }
       }
-
-      bhaveData = true;
-      sendmqttMsg(reporttopic, ac_payload);
-
-      if (DEBUG_PRINT)
+      else
       {
-        syslogPayload = "ac_mode ====> ";
-        syslogPayload += data_mqtt.ac_mode;
-        sendUdpSyslog(syslogPayload);
+        bignoreACretained = false;
       }
     }
   }
@@ -494,6 +508,7 @@ boolean reconnect()
     if (resetInfosent == false)
     {
       client.publish(hellotopic, (char*) getResetInfo.c_str());
+      client.loop();
       resetInfosent = true;
     }
     else
@@ -713,7 +728,12 @@ void setup()
   delay(1000);
   lcd.clear();
 
-  getResetInfo = "hello from ESP8266 lcddust ";
+  // send off to ac
+  Wire.beginTransmission(SLAVE_ADDRESS);
+  I2C_writeAnything(data_esp);
+  Wire.endTransmission();
+
+  getResetInfo = "hello from lcddust ";
   getResetInfo += ESP.getResetInfo().substring(0, 80);
 
   clientName += "esp8266 - ";
@@ -905,9 +925,27 @@ void loop()
 
         if (balm_isr)
         {
+          if (Wire.requestFrom(SLAVE_ADDRESS, sizeof(data_nano)))
+          {
+            I2C_readAnything(data_nano);
+            if (data_nano.hash == calc_hash(data_nano))
+            {
+              data_mqtt.dustDensity = data_nano.dustDensity * 0.001;
+
+              if (data_nano.ir_recvd == 1)
+              {
+                data_curr.ac_mode = data_esp.ac_mode = data_nano.ac_mode;
+                data_curr.ac_temp = data_esp.ac_temp = data_nano.ac_temp;
+                data_curr.ac_flow = data_esp.ac_flow = data_nano.ac_flow;
+                bac_timer_mode = false;
+                sendCheck();
+              }
+            }
+          }
+
           digitalClockDisplay();
           displayTimermode();
-          
+
           if (!Rtc.IsDateTimeValid())
           {
             lcd.setCursor(18, 0);
@@ -930,22 +968,6 @@ void loop()
             lcd.print(" ");
           }
 
-          if (Wire.requestFrom(SLAVE_ADDRESS, sizeof(data_nano)))
-          {
-            I2C_readAnything(data_nano);
-            if (data_nano.hash == calc_hash(data_nano))
-            {
-              data_mqtt.dustDensity = data_nano.dustDensity * 0.001;
-
-              if (data_nano.ir_recvd == 1)
-              {
-                data_curr.ac_mode = data_esp.ac_mode = data_nano.ac_mode;
-                data_curr.ac_temp = data_esp.ac_temp = data_nano.ac_temp;
-                data_curr.ac_flow = data_esp.ac_flow = data_nano.ac_flow;
-                bac_timer_mode = false;
-              }
-            }
-          }
           balm_isr = false;
         }
       }
@@ -956,7 +978,6 @@ void loop()
         Wire.beginTransmission(SLAVE_ADDRESS);
         I2C_writeAnything(data_esp);
         Wire.endTransmission();
-        sendCheck();
         bhaveData = false;
       }
 
@@ -975,6 +996,7 @@ void loop()
           btimerFirst = false;
           bhaveData   = true;
           timerMillis = millis();
+          sendCheck();
         }
       }
 
