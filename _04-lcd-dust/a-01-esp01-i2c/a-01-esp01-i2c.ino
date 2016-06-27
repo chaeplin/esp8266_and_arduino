@@ -1,4 +1,4 @@
-// 160MHz / 1M / 64K / ESP-01 / esp-lcddust
+// 160MHz / 1M / 64K / ESP-01 / esp-lcddust, V2.3
 /* pins
   esp-01
   i2c(0/2)
@@ -128,7 +128,7 @@ const int timeZone = 9;
 volatile bool bignoreACretained = true;
 volatile bool bac_timer_mode = false;
 volatile bool bhaveData = false;
-unsigned long timerMillis = 0;
+unsigned long timerMillis;
 bool btimerFirst = true;
 
 String clientName;
@@ -259,13 +259,19 @@ void sendCheck()
   String check_payload = "ac status: ";
   if (bac_timer_mode)
   {
+    int timeremain = ((1800000 - (millis() - timerMillis)) / 1000 ) / 60;
+
     if (data_curr.ac_mode == 0)
     {
-      check_payload += ":timer_clock::black_square_for_stop:";
+      check_payload += ":timer_clock::black_square_for_stop:, next change in ";
+      check_payload += timeremain;
+      check_payload += " min";
     }
     else
     {
-      check_payload += ":timer_clock::arrows_counterclockwise:";
+      check_payload += ":timer_clock::arrows_counterclockwise:, next change in ";
+      check_payload += timeremain;
+      check_payload += " min";
     }
   }
   else
@@ -280,28 +286,28 @@ void sendCheck()
     }
   }
 
-  check_payload += "\r\n";
+  check_payload += "\n";
   check_payload += "ac :thermometer: set : ";
   check_payload += data_curr.ac_temp;
-  check_payload += "\r\n";
+  check_payload += "\n";
   check_payload += "ac flow set : ";
   check_payload += data_curr.ac_flow;
-  check_payload += "\r\n";
+  check_payload += "\n";
   check_payload += ":thermometer: inside: ";
   check_payload += ((data_mqtt.tempinside1 + data_mqtt.tempinside2) / 2);
-  check_payload += "\r\n";
+  check_payload += "\n";
   check_payload += ":thermometer: outside: ";
   check_payload += data_mqtt.tempoutside;
-  check_payload += "\r\n";
+  check_payload += "\n";
   check_payload += "humidity: ";
   check_payload += data_mqtt.humidity;
-  check_payload += "\r\n";
+  check_payload += "\n";
   check_payload += "dustDensity: ";
   check_payload += data_curr.dustDensity;
-  check_payload += "\r\n";
+  check_payload += "\n";
   check_payload += "soil moisture: ";
   check_payload += data_nano.moisture;
-  check_payload += "\r\n";
+  check_payload += "\n";
   check_payload += "host all/2: ";
   check_payload += data_mqtt.hostall;
   check_payload += "/";
@@ -429,39 +435,40 @@ void parseMqttMsg(String receivedpayload, String receivedtopic)
         {
           case 0:
             data_curr.ac_mode = data_esp.ac_mode = 0;
+            bhaveData = true;
             bac_timer_mode = false;
-            ac_payload += "off";
+            ac_payload += ":black_square_for_stop:";
             break;
 
           case 1:
             data_curr.ac_mode = data_esp.ac_mode = 1;
+            bhaveData = true;
             bac_timer_mode = false;
-            ac_payload += "on";
+            ac_payload += ":arrows_counterclockwise:";
             break;
 
           case 5:
             if (bac_timer_mode)
             {
               bac_timer_mode = false;
+              bhaveData = true;
               data_curr.ac_mode = data_esp.ac_mode = 0;
-              ac_payload += "off";
+              ac_payload += ":black_square_for_stop:";
             }
             else
             {
               bac_timer_mode = true;
-              data_curr.ac_mode = data_esp.ac_mode = 1;
-              ac_payload += "timer";
+              ac_payload += ":timer_clock:";
             }
             break;
 
           default:
             data_curr.ac_mode = data_esp.ac_mode = 0;
             bac_timer_mode = false;
-            ac_payload += "off";
+            ac_payload += ":black_square_for_stop:";
             break;
         }
 
-        bhaveData = true;
         sendmqttMsg(reporttopic, ac_payload);
 
         if (DEBUG_PRINT)
@@ -470,6 +477,8 @@ void parseMqttMsg(String receivedpayload, String receivedtopic)
           syslogPayload += data_mqtt.ac_mode;
           syslogPayload += " data_esp.ac_mode : ";
           syslogPayload += data_esp.ac_mode;
+          syslogPayload += " data_curr.ac_mode : ";
+          syslogPayload += data_curr.ac_mode;
 
           sendUdpSyslog(syslogPayload);
         }
@@ -687,6 +696,8 @@ void setup()
   data_curr.ac_temp      = 27;
   data_curr.ac_flow      = 0;
   data_curr.ac_etc       = 0;
+
+  timerMillis = millis();
 
   Wire.begin(0, 2);
   //twi_setClock(200000);
@@ -939,6 +950,19 @@ void loop()
                 data_curr.ac_flow = data_esp.ac_flow = data_nano.ac_flow;
                 bac_timer_mode = false;
                 sendCheck();
+
+                if (DEBUG_PRINT)
+                {
+                  syslogPayload = "ir received_mode ====> data_nano.ac_mode : ";
+                  syslogPayload += data_nano.ac_mode;
+                  syslogPayload += " data_nano.ac_temp : ";
+                  syslogPayload += data_nano.ac_temp;
+                  syslogPayload += " data_nano.ac_flow : ";
+                  syslogPayload += data_nano.ac_flow;
+
+                  sendUdpSyslog(syslogPayload);
+                }
+
               }
             }
           }
@@ -979,6 +1003,19 @@ void loop()
         I2C_writeAnything(data_esp);
         Wire.endTransmission();
         bhaveData = false;
+
+        if (DEBUG_PRINT)
+        {
+          syslogPayload = "i2c send_mode ====> data_esp.ac_mode : ";
+          syslogPayload += data_esp.ac_mode;
+          syslogPayload += " data_esp.ac_temp : ";
+          syslogPayload += data_esp.ac_temp;
+          syslogPayload += " data_esp.ac_flow : ";
+          syslogPayload += data_esp.ac_flow;
+
+          sendUdpSyslog(syslogPayload);
+        }
+
       }
 
       if (bac_timer_mode)
@@ -987,16 +1024,29 @@ void loop()
         {
           if (data_esp.ac_mode == 0)
           {
-            data_esp.ac_mode = 1;
+            data_curr.ac_mode = data_esp.ac_mode = 1;
           }
           else
           {
-            data_esp.ac_mode = 0;
+            data_curr.ac_mode = data_esp.ac_mode = 0;
           }
           btimerFirst = false;
           bhaveData   = true;
           timerMillis = millis();
           sendCheck();
+
+          if (DEBUG_PRINT)
+          {
+            syslogPayload = "i2c timer mode ====> data_esp.ac_mode : ";
+            syslogPayload += data_esp.ac_mode;
+            syslogPayload += " data_esp.ac_temp : ";
+            syslogPayload += data_esp.ac_temp;
+            syslogPayload += " data_esp.ac_flow : ";
+            syslogPayload += data_esp.ac_flow;
+
+            sendUdpSyslog(syslogPayload);
+          }
+
         }
       }
 
