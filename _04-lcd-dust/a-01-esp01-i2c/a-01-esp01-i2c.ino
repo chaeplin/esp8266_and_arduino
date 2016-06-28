@@ -456,8 +456,11 @@ void parseMqttMsg(String receivedpayload, String receivedtopic)
               ac_payload += ":black_square_for_stop:";
             }
             else
-            {
+            { 
               bac_timer_mode = true;
+              btimerFirst = true;    
+              timerMillis = millis();
+              data_curr.ac_mode = data_esp.ac_mode = 0;
               ac_payload += ":timer_clock:";
             }
             break;
