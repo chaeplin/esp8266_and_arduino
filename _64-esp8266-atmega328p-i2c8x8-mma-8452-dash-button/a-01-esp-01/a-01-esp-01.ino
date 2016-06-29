@@ -269,9 +269,9 @@ void wifi_connect()
   WiFiClient::setLocalPortStart(micros() + vdd);
   wifi_set_phy_mode(PHY_MODE_11N);
   WiFi.mode(WIFI_STA);
-  WiFi.config(ip_static, ip_gateway, ip_subnet);
+  //WiFi.config(ip_static, ip_gateway, ip_subnet);
   WiFi.begin(ssid, password);
-  //WiFi.config(IPAddress(ip_static), IPAddress(ip_gateway), IPAddress(ip_subnet), IPAddress(ip_dns));
+  WiFi.config(IPAddress(ip_static), IPAddress(ip_gateway), IPAddress(ip_subnet), IPAddress(ip_dns));
   WiFi.hostname("esp-button");
 
   int Attempt = 0;
@@ -312,19 +312,29 @@ void setup() {
   twi_setClock(200000);
 
   HT16K33_normal();
-
   matrix.begin(I2C_MATRIX_ADDR);
   matrix.setBrightness(10);
   matrix.setRotation(3);
 
   matrix.clear();
-  matrix.drawRect(0, 0, 8, 8, LED_ON);
+  matrix.drawBitmap(0, 0, small_heart, 8, 8, LED_ON);
   matrix.writeDisplay();
-  delay(200);
 
-  matrix.fillRect(2, 2, 4, 4, LED_ON);
-  matrix.writeDisplay();
-  delay(200);
+
+  /*
+    matrix.begin(I2C_MATRIX_ADDR);
+    matrix.setBrightness(10);
+    matrix.setRotation(3);
+
+    matrix.clear();
+    matrix.drawRect(0, 0, 8, 8, LED_ON);
+    matrix.writeDisplay();
+    delay(200);
+
+    matrix.fillRect(2, 2, 4, 4, LED_ON);
+    matrix.writeDisplay();
+    delay(200);
+  */
 
   clientName += "esp8266-";
   uint8_t mac[6];
@@ -348,45 +358,47 @@ void setup() {
     Serial.print(device_pro.hash);
     Serial.print(" : ");
     Serial.println(calc_hash(device_pro));
-    
+
     Attempt++;
     if (haveData && (device_pro.button != 0))
     {
       break;
     }
-    
-    if (Attempt == 8)
+
+    if (Attempt == 3)
     {
       goingToSleepWithFail();
     }
     delay(200);
   }
 
-  matrix.clear();
-  switch (device_pro.button)
-  {
-    case 1:
-      matrix.drawBitmap(0, 0, light, 8, 8, LED_ON);
-      break;
+  /*
+    matrix.clear();
+    switch (device_pro.button)
+    {
+      case 1:
+        matrix.drawBitmap(0, 0, light, 8, 8, LED_ON);
+        break;
 
-    case 2:
-      matrix.drawBitmap(0, 0, ac, 8, 8, LED_ON);
-      break;
+      case 2:
+        matrix.drawBitmap(0, 0, ac, 8, 8, LED_ON);
+        break;
 
-    case 3:
-      matrix.drawBitmap(0, 0, act, 8, 8, LED_ON);
-      break;
+      case 3:
+        matrix.drawBitmap(0, 0, act, 8, 8, LED_ON);
+        break;
 
-    default:
-      matrix.drawBitmap(0, 0, smile_bmp, 8, 8, LED_ON);
-      break;
-  }
-  matrix.writeDisplay();
-  delay(1000);
+      default:
+        matrix.drawBitmap(0, 0, smile_bmp, 8, 8, LED_ON);
+        break;
+    }
+    matrix.writeDisplay();
+    delay(1000);
+  */
 }
 
-void loop() {    
-  if (WiFi.status() == 3)
+void loop() {
+  if (WiFi.status() == WL_CONNECTED)
   {
     if (!client.connected())
     {
@@ -411,16 +423,22 @@ void loop() {
         switch (device_pro.button)
         {
           case 1:
-            if (( subMsgReceived == HIGH ) && ( relayReady == HIGH ))
+            if (subMsgReceived == HIGH)
             {
-              subMills = (millis() - startMills) - wifiMills ;
-              sendlightcmd();
-            }
-
-            if (( subMsgReceived == HIGH ) && ( relayReady == LOW ))
-            {
-              subMills = (millis() - startMills) - wifiMills ;
-              goingToSleepWithFail();
+              Serial.print("subMsgReceived / relayReady : ");
+              Serial.print(subMsgReceived);
+              Serial.print(" / ");
+              Serial.println(relayReady);
+              if (relayReady == HIGH)
+              {
+                subMills = (millis() - startMills) - wifiMills ;
+                sendlightcmd();
+              }
+              else if (relayReady == LOW)
+              {
+                subMills = (millis() - startMills) - wifiMills ;
+                goingToSleepWithFail();
+              }
             }
             break;
 
@@ -429,7 +447,7 @@ void loop() {
             break;
 
           case 3:
-            sendaccommand();
+            sendalloff();
             break;
 
           case 4:
@@ -465,6 +483,7 @@ void sendaccommand()
   acpayload += "}";
 
   sendmqttMsg(actopic, acpayload);
+  client.loop();
   sendbuttonstatus();
 }
 
@@ -475,6 +494,26 @@ void sendlightcmd()
   lightpayload += "}";
 
   sendmqttMsg(topic, lightpayload);
+  client.loop();
+  sendbuttonstatus();
+}
+
+void sendalloff()
+{
+  int i = 0;
+  String acpayload = "{\"AC\":";
+  acpayload += i;
+  acpayload += "}";
+
+  String lightpayload = "{\"LIGHT\":";
+  lightpayload += i;
+  lightpayload += "}";
+
+
+  sendmqttMsg(topic, lightpayload);
+  client.loop();
+  sendmqttMsg(actopic, acpayload);
+  client.loop();
   sendbuttonstatus();
 }
 
@@ -507,12 +546,20 @@ boolean sendmqttMsg(char* topictosend, String payload)
     if ( client.publish(topictosend, p, msg_length, 1))
     {
       free(p);
-      return 1;
+      Serial.print("publish ok. topic: ");
+      Serial.print(topictosend);
+      Serial.print(" payload: ");
+      Serial.println(payload);
+      return true;
     }
     else
     {
       free(p);
-      return 0;
+      Serial.print("publish failed. topic: ");
+      Serial.print(topictosend);
+      Serial.print(" payload: ");
+      Serial.println(payload);
+      return false;
     }
   }
 }
