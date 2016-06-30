@@ -498,10 +498,14 @@ void parseMqttMsg(String receivedpayload, String receivedtopic)
     if (root.containsKey("ac_temp"))
     {
       data_curr.ac_temp = data_esp.ac_temp = root["ac_temp"];
+      bhaveData = true;
+      sendCheck();
     }
     if (root.containsKey("ac_flow"))
     {
       data_curr.ac_flow = data_esp.ac_flow = root["ac_flow"];
+      bhaveData = true;
+      sendCheck();
     }
     if (root.containsKey("ac_etc"))
     {
