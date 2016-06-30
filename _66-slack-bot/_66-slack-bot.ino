@@ -114,7 +114,6 @@ boolean reconnect() {
       mqttclient.loop();
       mqttclient.subscribe(substopic);
       mqttclient.loop();
-      yield();
     }
   }
   return mqttclient.connected();
@@ -189,8 +188,7 @@ void sendHello()
   root["type"] = "message";
   root["id"] = nextCmdId++;
   root["channel"] = SLACK_CHANNEL;
-  //root["text"] = "Hello world";
-  root["text"] = "테스트 시작";
+  root["text"] = "nodemcu started";
   String json;
   root.printTo(json);
   webSocket.sendTXT(json);
@@ -350,8 +348,8 @@ void ICACHE_RAM_ATTR processSlackMessage(String receivedpayload)
       }
 
       if (String(text).length() == 1)
-      { 
-        uint8_t num = atoi(text);   
+      {
+        uint8_t num = atoi(text);
         if (num >= 1 && num <= 3)
         {
           if (AC_CONF_TYPE == 0 && num == 3)
@@ -486,6 +484,7 @@ void setup()
   Serial.println();
   Serial.println("Starting....... ");
   //Serial.setDebugOutput(true);
+  pinMode(LED_BUILTIN, OUTPUT);
 
   // ac
   ir_data.ac_mode     = 0;
@@ -507,7 +506,6 @@ void setup()
 
   irrecv.enableIRIn();
 
-
   // wifi connect
   wifi_connect();
 
@@ -524,8 +522,9 @@ void setup()
 
   if (timeStatus() == timeNotSet)
   {
+    Serial.println("get ntp time");
     setSyncProvider(getNtpTime);
-    delay(200);
+    delay(500);
   }
 
   // mqtt connect
@@ -704,6 +703,15 @@ void loop()
       }
       mqttclient.loop();
     }
+
+    if (nextCmdId %2 == 0)
+    {
+      digitalWrite(LED_BUILTIN, HIGH);
+    }
+    else
+    {
+      digitalWrite(LED_BUILTIN, LOW);
+    }
     ArduinoOTA.handle();
   }
   else
@@ -735,7 +743,7 @@ time_t getNtpTime()
   while (udp.parsePacket() > 0) ;
   sendNTPpacket(mqtt_server);
   uint32_t beginWait = millis();
-  while (millis() - beginWait < 1500)
+  while (millis() - beginWait < 2500)
   {
     int size = udp.parsePacket();
     if (size >= NTP_PACKET_SIZE)
