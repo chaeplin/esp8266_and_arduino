@@ -216,11 +216,11 @@ void goingSleep()
   matrix.clear();
   matrix.drawRect(0, 0, 8, 8, LED_ON);
   matrix.writeDisplay();
-  delay(200);
+  //delay(200);
 
   matrix.fillRect(2, 2, 4, 4, LED_ON);
   matrix.writeDisplay();
-  delay(200);
+  //delay(200);
 }
 
 void setup()
