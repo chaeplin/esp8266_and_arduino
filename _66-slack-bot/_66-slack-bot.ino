@@ -1,4 +1,4 @@
-// 80MHZ NODEMCU V.1
+// 80MHZ NODEMCU V.1, use git version of esp8266/Arduino
 // slackbot testing using https://github.com/urish/arduino-slack-bot
 /**
    Arduino Real-Time Slack Bot
@@ -30,6 +30,9 @@
 #include <ArduinoOTA.h>
 #include <WiFiUdp.h>
 #include <Average.h>
+//for LED status
+#include <Ticker.h>
+Ticker ticker;
 
 extern "C" {
 #include "user_interface.h"
@@ -81,7 +84,7 @@ volatile struct
 } ir_data;
 
 // mqtt
-void callback(char* intopic, byte* inpayload, unsigned int length);
+void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int length);
 
 const char* hellotopic  = "HELLO";
 const char* willTopic   = "clients/nodemcu";
@@ -103,6 +106,17 @@ Average<float> ave(20);
 IRrecv irrecv(IR_RX_PIN);
 lgWhisen lgWhisen;
 
+unsigned long lastPing = 0;
+long lastReconnectAttempt = 0;
+time_t prevDisplay = 0;
+
+void tick()
+{
+  //toggle state
+  int state = digitalRead(BUILTIN_LED);  // get the current state of GPIO1 pin
+  digitalWrite(BUILTIN_LED, !state);     // set pin to the opposite state
+}
+
 boolean reconnect() {
   if (!mqttclient.connected())
   {
@@ -119,23 +133,7 @@ boolean reconnect() {
   return mqttclient.connected();
 }
 
-void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int length)
-{
-  String receivedtopic = intopic;
-  String receivedpayload ;
-
-  for (int i = 0; i < length; i++) {
-    receivedpayload += (char)inpayload[i];
-  }
-
-  Serial.printf("[MQTT] payload: %s\n", receivedpayload.c_str());
-  if (length <= 200)
-  {
-    parseMqttMsg(receivedpayload, receivedtopic);
-  }
-}
-
-void parseMqttMsg(String receivedpayload, String receivedtopic)
+void ICACHE_RAM_ATTR parseMqttMsg(String receivedpayload, String receivedtopic)
 {
   char json[] = "{\"DS18B20\":28.00,\"FreeHeap\":32384,\"RSSI\":-74,\"millis\":2413775}";
 
@@ -150,6 +148,22 @@ void parseMqttMsg(String receivedpayload, String receivedtopic)
   if (root.containsKey("DS18B20"))
   {
     ave.push(root["DS18B20"]);
+  }
+}
+
+void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int length)
+{
+  String receivedtopic = intopic;
+  String receivedpayload ;
+
+  for (int i = 0; i < length; i++) {
+    receivedpayload += (char)inpayload[i];
+  }
+
+  Serial.printf("[MQTT] payload: %s\n", receivedpayload.c_str());
+  if (length <= 200)
+  {
+    parseMqttMsg(receivedpayload, receivedtopic);
   }
 }
 
@@ -272,7 +286,7 @@ void sendHelp()
   webSocket.sendTXT(json);
 }
 
-void ICACHE_RAM_ATTR processSlackMessage(String receivedpayload)
+void processSlackMessage(String receivedpayload)
 {
   char json[] = "{\"type\":\"message\",\"user\":\"XX0990XX\",\"text\":\"XX0990XX\",\"team\":\"XX0990XX\",\"user_team\":\"XX0990XX\",\"user_profile\":{\"avatar_hash\":\"g9c0531af70a\",\"image_72\":\"https://secure.gravatar.com/avatar/9c0531af70ad0dbed618e9f4c2198145.jpg?s=72&d=https%3A%2F%2Fa.slack-edge.com%2F66f9%2Fimg%2Favatars%2Fava_0019-72.png\",\"first_name\":null,\"real_name\":\"\",\"name\":\"XX0990XX\"},\"channel\":\"XX0990XX\",\"ts\":\"1466954463.000275\"}";
   receivedpayload.toCharArray(json, 1024);
@@ -381,6 +395,7 @@ void ICACHE_RAM_ATTR webSocketEvent(WStype_t type, uint8_t *payload, size_t len)
     case WStype_DISCONNECTED:
       Serial.printf("[WebSocket] Disconnected :-( \n");
       connected = false;
+      ticker.attach(0.3, tick);
       break;
 
     case WStype_CONNECTED:
@@ -388,6 +403,8 @@ void ICACHE_RAM_ATTR webSocketEvent(WStype_t type, uint8_t *payload, size_t len)
       sendPing();
       webSocket.loop();
       sendHello();
+      webSocket.loop();
+      ticker.attach(0.6, tick);
       break;
 
     case WStype_TEXT:
@@ -478,58 +495,8 @@ void wifi_connect()
   Serial.println(WiFi.localIP());
 }
 
-void setup()
+void ArduinoOTA_config()
 {
-  Serial.begin(115200);
-  Serial.println();
-  Serial.println("Starting....... ");
-  //Serial.setDebugOutput(true);
-  pinMode(LED_BUILTIN, OUTPUT);
-
-  // ac
-  ir_data.ac_mode     = 0;
-  ir_data.ac_temp     = 27;
-  ir_data.ac_flow     = 1;
-  ir_data.haveData    = false;
-  ir_data.timermode   = false;
-  ir_data.timerfirst  = false;
-  ir_data.intervalon  = (AC_CONF_ON_MIN * 60 * 1000); // ms
-  ir_data.intervaloff = (AC_CONF_OFF_MIN * 60 * 1000); // min
-  ir_data.timerMillis = millis();;
-  ir_data.nextTimercheck = ir_data.intervalon;
-
-  lgWhisen.setActype(AC_CONF_TYPE);
-  lgWhisen.setHeating(AC_CONF_HEATING);
-  lgWhisen.setTemp(ir_data.ac_temp);    // 18 ~ 30
-  lgWhisen.setFlow(ir_data.ac_flow);    // 0 : low, 1 : mid, 2 : high, if setActype == 1, 3 : change
-  lgWhisen.setIrpin(IR_TX_PIN);         // ir tx pin
-
-  irrecv.enableIRIn();
-
-  // wifi connect
-  wifi_connect();
-
-  clientName = "esp8266-";
-  uint8_t mac[6];
-  WiFi.macAddress(mac);
-  clientName += macToStr(mac);
-  clientName += "-";
-  clientName += String(micros() & 0xff, 16);
-
-  // ntp update
-  udp.begin(localPort);
-  setSyncProvider(getNtpTime);
-
-  if (timeStatus() == timeNotSet)
-  {
-    Serial.println("get ntp time");
-    setSyncProvider(getNtpTime);
-    delay(500);
-  }
-
-  // mqtt connect
-  reconnect();
-
   //OTA
   // Port defaults to 8266
   ArduinoOTA.setPort(8266);
@@ -562,9 +529,181 @@ void setup()
   ArduinoOTA.begin();
 }
 
-unsigned long lastPing = 0;
-long lastReconnectAttempt = 0;
-time_t prevDisplay = 0;
+void setup()
+{
+  Serial.begin(115200);
+  Serial.println();
+  Serial.println("Starting....... ");
+  
+  Serial.setDebugOutput(false);
+  pinMode(LED_BUILTIN, OUTPUT);
+  ticker.attach(0.5, tick);
+
+  // ac
+  ir_data.ac_mode     = 0;
+  ir_data.ac_temp     = 27;
+  ir_data.ac_flow     = 1;
+  ir_data.haveData    = false;
+  ir_data.timermode   = false;
+  ir_data.timerfirst  = false;
+  ir_data.intervalon  = (AC_CONF_ON_MIN * 60 * 1000); // ms
+  ir_data.intervaloff = (AC_CONF_OFF_MIN * 60 * 1000); // min
+  ir_data.timerMillis = millis();;
+  ir_data.nextTimercheck = ir_data.intervalon;
+
+  lgWhisen.setActype(AC_CONF_TYPE);
+  lgWhisen.setHeating(AC_CONF_HEATING);
+  lgWhisen.setTemp(ir_data.ac_temp);    // 18 ~ 30
+  lgWhisen.setFlow(ir_data.ac_flow);    // 0 : low, 1 : mid, 2 : high, if setActype == 1, 3 : change
+  lgWhisen.setIrpin(IR_TX_PIN);         // ir tx pin
+
+  irrecv.enableIRIn();
+
+  // wifi connect
+  wifi_connect();
+  ticker.attach(0.2, tick);
+
+  clientName = "esp8266-";
+  uint8_t mac[6];
+  WiFi.macAddress(mac);
+  clientName += macToStr(mac);
+  clientName += "-";
+  clientName += String(micros() & 0xff, 16);
+
+  // ntp update
+  udp.begin(localPort);
+  if (timeStatus() == timeNotSet)
+  {
+    Serial.println("get ntp time");
+    setSyncProvider(getNtpTime);
+    delay(500);
+  }
+  configTime(9 * 3600, 0, "pool.ntp.org", "time.nist.gov");
+
+  // OTA
+  ArduinoOTA_config();
+  // mqtt connect
+  reconnect();  
+}
+
+void irrecv_config()
+{
+  // ac ir rx
+  decode_results results;
+
+  if (irrecv.decode(&results))
+  {
+    if (lgWhisen.decode(&results))
+    {
+      if (lgWhisen.get_ir_mode() != 0)
+      {
+        ir_data.ac_mode = 1;
+        ir_data.timermode = false;
+      }
+      else
+      {
+        ir_data.ac_mode = 0;
+        ir_data.timermode = false;
+      }
+
+      if (lgWhisen.get_ir_temperature() != 255)
+      {
+        ir_data.ac_temp = lgWhisen.get_ir_temperature();
+      }
+
+      if (lgWhisen.get_ir_flow() != 255)
+      {
+        ir_data.ac_flow = lgWhisen.get_ir_flow();
+      }
+
+      sendCheck();
+    }
+    irrecv.enableIRIn();
+  }
+}
+
+void webSocket_config()
+{
+  // slack
+  webSocket.loop();
+
+  if (connected) {
+    // Send ping every 5 seconds, to keep the connection alive
+    if (millis() - lastPing > 5000)
+    {
+      sendPing();
+      webSocket.loop();
+      lastPing = millis();
+    }
+  }
+  else
+  { // Try to connect / reconnect to slack
+    connected = connectToSlack();
+    if (!connected)
+    {
+      delay(500);
+    }
+  }
+}
+
+void irtxchange_config()
+{
+  // ac change, ir tx
+  if (ir_data.haveData)
+  {
+    lgWhisen.setTemp(ir_data.ac_temp);
+    lgWhisen.setFlow(ir_data.ac_flow);
+
+    switch (ir_data.ac_mode)
+    { // ac power down
+      case 0:
+        Serial.println("IR -----> AC Power Down");
+        irrecv.disableIRIn();
+        lgWhisen.power_down();
+        delay(5);
+        irrecv.enableIRIn();
+        break;
+
+      // ac on
+      case 1:
+        Serial.println("IR -----> AC Power On");
+        irrecv.disableIRIn();
+        lgWhisen.activate();
+        delay(5);
+        irrecv.enableIRIn();
+        break;
+
+      default:
+        break;
+    }
+    sendCheck();
+    ir_data.haveData = false;
+  }
+}
+
+void irtxtimer_config()
+{
+  // ac timer
+  if (ir_data.timermode)
+  {
+    if (((millis() - ir_data.timerMillis) > ir_data.nextTimercheck) || !ir_data.timerfirst)
+    {
+      if (ir_data.ac_mode == 0)
+      {
+        ir_data.ac_mode = 1;
+        ir_data.nextTimercheck = ir_data.intervalon;
+      }
+      else
+      {
+        ir_data.ac_mode = 0;
+        ir_data.nextTimercheck = ir_data.intervaloff;
+      }
+      ir_data.haveData = true;
+      ir_data.timerfirst  = true;
+      ir_data.timerMillis = millis();
+    }
+  }
+}
 
 /**
   Sends a ping every 5 seconds, and handles reconnections
@@ -596,121 +735,11 @@ void loop()
     }
     else
     {
-      // ac ir rx
-      decode_results results;
-
-      if (irrecv.decode(&results))
-      {
-        if (lgWhisen.decode(&results))
-        {
-          if (lgWhisen.get_ir_mode() != 0)
-          {
-            ir_data.ac_mode = 1;
-            ir_data.timermode = false;
-          }
-          else
-          {
-            ir_data.ac_mode = 0;
-            ir_data.timermode = false;
-          }
-
-          if (lgWhisen.get_ir_temperature() != 255)
-          {
-            ir_data.ac_temp = lgWhisen.get_ir_temperature();
-          }
-
-          if (lgWhisen.get_ir_flow() != 255)
-          {
-            ir_data.ac_flow = lgWhisen.get_ir_flow();
-          }
-
-          sendCheck();
-        }
-        irrecv.enableIRIn();
-      }
-
-      // slack
-      webSocket.loop();
-
-      if (connected) {
-        // Send ping every 5 seconds, to keep the connection alive
-        if (millis() - lastPing > 5000)
-        {
-          sendPing();
-          lastPing = millis();
-        }
-      }
-      else
-      { // Try to connect / reconnect to slack
-        connected = connectToSlack();
-        if (!connected)
-        {
-          delay(500);
-        }
-      }
-
-      // ac change, ir tx
-      if (ir_data.haveData)
-      {
-        lgWhisen.setTemp(ir_data.ac_temp);
-        lgWhisen.setFlow(ir_data.ac_flow);
-
-        switch (ir_data.ac_mode)
-        { // ac power down
-          case 0:
-            Serial.println("IR -----> AC Power Down");
-            irrecv.disableIRIn();
-            lgWhisen.power_down();
-            delay(5);
-            irrecv.enableIRIn();
-            break;
-
-          // ac on
-          case 1:
-            Serial.println("IR -----> AC Power On");
-            irrecv.disableIRIn();
-            lgWhisen.activate();
-            delay(5);
-            irrecv.enableIRIn();
-            break;
-
-          default:
-            break;
-        }
-        sendCheck();
-        ir_data.haveData = false;
-      }
-
-      // ac timer
-      if (ir_data.timermode)
-      {
-        if (((millis() - ir_data.timerMillis) > ir_data.nextTimercheck) || !ir_data.timerfirst)
-        {
-          if (ir_data.ac_mode == 0)
-          {
-            ir_data.ac_mode = 1;
-            ir_data.nextTimercheck = ir_data.intervalon;
-          }
-          else
-          {
-            ir_data.ac_mode = 0;
-            ir_data.nextTimercheck = ir_data.intervaloff;
-          }
-          ir_data.haveData = true;
-          ir_data.timerfirst  = true;
-          ir_data.timerMillis = millis();
-        }
-      }
+      irrecv_config();
+      webSocket_config();
+      irtxchange_config();
+      irtxtimer_config();
       mqttclient.loop();
-    }
-
-    if (nextCmdId %2 == 0)
-    {
-      digitalWrite(LED_BUILTIN, HIGH);
-    }
-    else
-    {
-      digitalWrite(LED_BUILTIN, LOW);
     }
     ArduinoOTA.handle();
   }
@@ -793,7 +822,6 @@ void digitalClockDisplay()
   Serial.print(ave.mean());
   Serial.print(" ave.stddev(): ");
   Serial.println(ave.stddev());
-
 }
 
 void printDigits(int digits)
