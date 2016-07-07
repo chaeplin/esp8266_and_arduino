@@ -187,6 +187,12 @@ const char subtopic_5[] = "raspberrypi/data2";
 
 const char* substopic[6] = { subrpi, subtopic_0, subtopic_1, subtopic_3, subtopic_4, subtopic_5 } ;
 
+const char subsimple_0[] = "raspberrypi/#";
+const char subsimple_1[] = "esp8266/arduino/#";
+const char subsimple_2[] = "radio/test/2";
+
+const char* subsimple_all[3] = { subsimple_0, subsimple_1, subsimple_2};
+
 unsigned int localPort = 12390;
 const int timeZone = 9;
 
@@ -426,7 +432,7 @@ void wifi_connect()
   IPAddress ip_subnet = IPSET_SUBNET;
   IPAddress ip_dns = IPSET_DNS;
 
-  wifi_set_phy_mode(PHY_MODE_11N);
+  //wifi_set_phy_mode(PHY_MODE_11N);
   WiFi.mode(WIFI_STA);
   wifi_station_connect();
   WiFi.config(ip_static, ip_gateway, ip_subnet, ip_dns);
@@ -669,16 +675,12 @@ boolean reconnect()
     if (mqttclient.connect((char*) clientName.c_str()))
     {
 
-      mqttclient.loop();
-      yield();
-
       if (!rtc_boot_mode.gopro_mode)
       {
-        for (int i = 0; i < 6; ++i)
+        for (int i = 0; i < 3; ++i)
         {
-          mqttclient.subscribe(substopic[i]);
+          mqttclient.subscribe(subsimple_all[i]);
           mqttclient.loop();
-          yield();
         }
       }
     } //else {
@@ -1123,21 +1125,23 @@ void setup()
 time_t prevDisplay = 0;
 
 void loop() {
-
-  if (bDalasstarted)
-  {
+  /*
+    if (bDalasstarted)
+    {
     if (millis() > (startMills + (750 / (1 << (12 - TEMPERATURE_PRECISION)))))
     {
       tempCinside  = sensors.getTempC(insideThermometer);
       bDalasstarted = false;
     }
-  }
+    }
+  */
 
   if (!rtc_boot_mode.gopro_mode)
   {
     if (balm_isr)
     {
       DS3231AlarmFlag flag = Rtc.LatchAlarmsTriggeredFlags();
+      
       if (flag & DS3231AlarmFlag_Alarm2)
       {
         rtc_boot_mode.gopro_mode  = true;
@@ -1151,6 +1155,7 @@ void loop() {
 
         ESP.reset();
       }
+      
       balm_isr = false;
     }
 
@@ -1271,9 +1276,10 @@ void loop() {
           }
         }
 
-        //-----------------------------------------------
-        if ((millis() - startMills) > REPORT_INTERVAL )
-        {
+        /*
+          //-----------------------------------------------
+          if ((millis() - startMills) > REPORT_INTERVAL )
+          {
 
           payload = "{\"DS18B20\":";
           payload += tempCinside;
@@ -1291,7 +1297,8 @@ void loop() {
           bDalasstarted = true;
 
           startMills = millis();
-        }
+          }
+        */
         mqttclient.loop();
       }
       ArduinoOTA.handle();
@@ -1308,9 +1315,11 @@ void loop() {
     {
       // gopro mode
 
-      if ( rtc_boot_mode.twitter_phase > 1 )
-      {
+      /*
+        if ( rtc_boot_mode.twitter_phase > 1 )
+        {
         //-----------------------------------------------
+
         if ((millis() - startMills) > REPORT_INTERVAL )
         {
 
@@ -1331,7 +1340,8 @@ void loop() {
 
           startMills = millis();
         }
-      }
+        }
+      */
 
       if (x)
       {
@@ -1439,8 +1449,9 @@ void loop() {
             break;
         }
       }
-      if ( rtc_boot_mode.twitter_phase > 1 )
-      {
+      /*
+        if ( rtc_boot_mode.twitter_phase > 1 )
+        {
         if (!mqttclient.connected())
         {
           unsigned long now = millis();
@@ -1457,8 +1468,8 @@ void loop() {
         {
           mqttclient.loop();
         }
-      }
-
+        }
+      */
     }
   }
 }
@@ -1549,8 +1560,9 @@ void displayTemperaturedigit(float Temperature)
 void displayTemperature()
 {
   float tempdiff;
-  if (second() % 2 == 0 )
-  {
+  /*
+    if (second() % 2 == 0 )
+    {
     lcd.setCursor(1, 1);
     displayTemperaturedigit(tempCinside);
 
@@ -1558,12 +1570,12 @@ void displayTemperature()
 
     tempdiff = solar_data.Temperature2 - tempCinside;
     displayTemperaturedigit(solar_data.Temperature2);
-    
+
     lcd.setCursor(1, 1);
     lcd.write(7);
-  }
-  else
-  {
+    }
+    else
+    {
     lcd.setCursor(1, 1);
     displayTemperaturedigit(solar_data.Temperature1);
 
@@ -1571,7 +1583,17 @@ void displayTemperature()
 
     tempdiff = solar_data.Temperature2 - solar_data.Temperature1;
     displayTemperaturedigit(solar_data.Temperature2);
-  }
+    }
+  */
+
+  lcd.setCursor(1, 1);
+  displayTemperaturedigit(tempCinside);
+
+  lcd.setCursor(7, 1);
+
+  tempdiff = solar_data.Temperature2 - tempCinside;
+  displayTemperaturedigit(solar_data.Temperature2);
+
 
   lcd.setCursor(14, 1);
   if ( tempdiff > 0 )
