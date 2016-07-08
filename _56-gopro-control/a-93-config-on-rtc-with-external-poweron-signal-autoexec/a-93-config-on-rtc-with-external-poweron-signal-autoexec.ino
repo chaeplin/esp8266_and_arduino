@@ -1144,6 +1144,7 @@ void loop() {
       
       if (flag & DS3231AlarmFlag_Alarm2)
       {
+        /*
         rtc_boot_mode.gopro_mode  = true;
         rtc_boot_mode.Temperature = solar_data.Temperature2 ;
         rtc_boot_mode.attempt_this  = 0;
@@ -1154,6 +1155,7 @@ void loop() {
         delay(200);
 
         ESP.reset();
+        */
       }
       
       balm_isr = false;
