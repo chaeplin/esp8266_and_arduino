@@ -63,7 +63,7 @@ bool connected = false;
 
 // AC
 #define IR_RX_PIN 14
-#define IR_TX_PIN 2
+#define IR_TX_PIN 4
 #define AC_CONF_TYPE 1
 #define AC_CONF_HEATING 0
 #define AC_CONF_ON_MIN 30
@@ -133,7 +133,7 @@ boolean reconnect() {
   return mqttclient.connected();
 }
 
-void ICACHE_RAM_ATTR parseMqttMsg(String receivedpayload, String receivedtopic)
+void parseMqttMsg(String receivedpayload, String receivedtopic)
 {
   char json[] = "{\"DS18B20\":28.00,\"FreeHeap\":32384,\"RSSI\":-74,\"millis\":2413775}";
 
@@ -151,7 +151,7 @@ void ICACHE_RAM_ATTR parseMqttMsg(String receivedpayload, String receivedtopic)
   }
 }
 
-void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int length)
+void callback(char* intopic, byte* inpayload, unsigned int length)
 {
   String receivedtopic = intopic;
   String receivedpayload ;
@@ -570,6 +570,8 @@ void setup()
   clientName += "-";
   clientName += String(micros() & 0xff, 16);
 
+  configTime(9 * 3600, 0, "pool.ntp.org", "time.nist.gov");
+  
   // ntp update
   udp.begin(localPort);
   if (timeStatus() == timeNotSet)
@@ -578,7 +580,6 @@ void setup()
     setSyncProvider(getNtpTime);
     delay(500);
   }
-  configTime(9 * 3600, 0, "pool.ntp.org", "time.nist.gov");
 
   // OTA
   ArduinoOTA_config();
@@ -721,6 +722,8 @@ void loop()
       }
     }
 
+    webSocket_config();
+    
     if (!mqttclient.connected())
     {
       unsigned long now = millis();
@@ -736,7 +739,6 @@ void loop()
     else
     {
       irrecv_config();
-      webSocket_config();
       irtxchange_config();
       irtxtimer_config();
       mqttclient.loop();

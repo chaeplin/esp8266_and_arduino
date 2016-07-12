@@ -1589,11 +1589,11 @@ void displayTemperature()
   */
 
   lcd.setCursor(1, 1);
-  displayTemperaturedigit(tempCinside);
+  displayTemperaturedigit(solar_data.Temperature1);
 
   lcd.setCursor(7, 1);
 
-  tempdiff = solar_data.Temperature2 - tempCinside;
+  tempdiff = solar_data.Temperature2 - solar_data.Temperature1;
   displayTemperaturedigit(solar_data.Temperature2);
 
 
