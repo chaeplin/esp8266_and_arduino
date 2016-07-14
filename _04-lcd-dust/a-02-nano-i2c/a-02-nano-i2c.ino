@@ -196,7 +196,7 @@ void loop()
       case 0:
         Serial.println("IR -----> AC Power Down");
         lgWhisen.power_down();
-        delay(5);
+        //delay(5);
         irrecv.enableIRIn();
         break;
 
@@ -204,7 +204,7 @@ void loop()
       case 1:
         Serial.println("IR -----> AC Power On");
         lgWhisen.activate();
-        delay(5);
+        //delay(5);
         irrecv.enableIRIn();
         break;
 
