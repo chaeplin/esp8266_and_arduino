@@ -1,4 +1,4 @@
-// 160MHz / 1M / 64K / ESP-01 / esp-lcddust, V2.3
+// 160MHz / 1M / 64K / ESP-01 / esp-lcddust
 /* pins
   esp-01
   i2c(0/2)
@@ -144,14 +144,14 @@ int _sensor_error_count = 0;
 unsigned long _sensor_report_count = 0;
 
 // https://omerk.github.io/lcdchargen/
-const char termometru[8]      PROGMEM = { B00100, B01010, B01010, B01110, B01110, B11111, B11111, B01110 };
-const char picatura[8]        PROGMEM = { B00100, B00100, B01010, B01010, B10001, B10001, B10001, B01110 };
-const char dustDensityicon[8] PROGMEM = { B11111, B11111, B11011, B10001, B10001, B11011, B11111, B11111 };
-const char dustDensityfill[8] PROGMEM = { B11111, B11111, B11111, B11111, B11111, B11111, B11111, B11111 };
-const char pirfill[8]         PROGMEM = { B00111, B00111, B00111, B00111, B00111, B00111, B00111, B00111 };
-const char powericon[8]       PROGMEM = { B11111, B11011, B10001, B11011, B11111, B11000, B11000, B11000 };
-const char nemoicon[8]        PROGMEM = { B11011, B11011, B00100, B11111, B10101, B11111, B01010, B11011 };
-const char callbackicon[8]    PROGMEM = { B11111, B11111, B11111, B11111, B00000, B00000, B00000, B00000 };
+byte termometru[8]       = { B00100, B01010, B01010, B01110, B01110, B11111, B11111, B01110 };
+byte picatura[8]         = { B00100, B00100, B01010, B01010, B10001, B10001, B10001, B01110 };
+byte dustDensityicon[8]  = { B11111, B11111, B11011, B10001, B10001, B11011, B11111, B11111 };
+byte dustDensityfill[8]  = { B11111, B11111, B11111, B11111, B11111, B11111, B11111, B11111 };
+byte pirfill[8]          = { B00111, B00111, B00111, B00111, B00111, B00111, B00111, B00111 };
+byte powericon[8]        = { B11111, B11011, B10001, B11011, B11111, B11000, B11000, B11000 };
+byte nemoicon[8]         = { B11011, B11011, B00100, B11111, B10101, B11111, B01010, B11011 };
+byte callbackicon[8]     = { B11111, B11111, B11111, B11111, B00000, B00000, B00000, B00000 };
 
 /* for hash */
 static uint32_t fnv_1_hash_32(uint8_t *bytes, size_t length)
@@ -429,7 +429,7 @@ void parseMqttMsg(String receivedpayload, String receivedtopic)
       if (!bignoreACretained)
       {
         data_mqtt.ac_mode = root["AC"];
-        String ac_payload = "ac mqtt : ";
+        //String ac_payload = "ac mqtt : ";
 
         switch (data_mqtt.ac_mode)
         {
@@ -437,14 +437,14 @@ void parseMqttMsg(String receivedpayload, String receivedtopic)
             data_curr.ac_mode = data_esp.ac_mode = 0;
             bhaveData = true;
             bac_timer_mode = false;
-            ac_payload += ":black_square_for_stop:";
+            //ac_payload += ":black_square_for_stop:";
             break;
 
           case 1:
             data_curr.ac_mode = data_esp.ac_mode = 1;
             bhaveData = true;
             bac_timer_mode = false;
-            ac_payload += ":arrows_counterclockwise:";
+            //ac_payload += ":arrows_counterclockwise:";
             break;
 
           case 5:
@@ -453,7 +453,7 @@ void parseMqttMsg(String receivedpayload, String receivedtopic)
               bac_timer_mode = false;
               bhaveData = true;
               data_curr.ac_mode = data_esp.ac_mode = 0;
-              ac_payload += ":black_square_for_stop:";
+              //ac_payload += ":black_square_for_stop:";
             }
             else
             { 
@@ -461,18 +461,18 @@ void parseMqttMsg(String receivedpayload, String receivedtopic)
               btimerFirst = true;    
               timerMillis = millis();
               data_curr.ac_mode = data_esp.ac_mode = 0;
-              ac_payload += ":timer_clock:";
+              //ac_payload += ":timer_clock:";
             }
             break;
 
           default:
             data_curr.ac_mode = data_esp.ac_mode = 0;
             bac_timer_mode = false;
-            ac_payload += ":black_square_for_stop:";
+            //ac_payload += ":black_square_for_stop:";
             break;
         }
-
-        sendmqttMsg(reporttopic, ac_payload);
+        sendCheck();
+        //sendmqttMsg(reporttopic, ac_payload);
 
         if (DEBUG_PRINT)
         {
