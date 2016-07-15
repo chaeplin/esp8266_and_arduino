@@ -11,10 +11,15 @@
 #define AC_DEFAULT_TEMP 27  // temp 18 ~ 30
 #define AC_DEFAULT_FLOW 1   // fan speed 0: low, 1: mid, 2: high
 
+#define REPORT_INTERVAL 5000 // in msec
+#define MAX_PIR_TIME 600000  // ms
+#define PIR_INT 14
+
 #include "/usr/local/src/ap_setting.h"
 
 char* subscribe_cmd   = "esp8266/cmd/ac";
 char* subscribe_set   = "esp8266/cmd/acset";
+char* reporting_topic = "report/pirtest";
 
 volatile struct
 {
@@ -39,6 +44,69 @@ WiFiClient wifiClient;
 PubSubClient client(mqtt_server, 1883, callback, wifiClient);
 lgWhisen lgWhisen;
 WiFiUDP udp;
+
+volatile bool bpir_isr;
+volatile uint32_t pir_interuptCount = 0;
+unsigned long lastpirmillis = 0;
+unsigned long startMills;
+
+void ICACHE_RAM_ATTR pir_isr() {
+  pir_interuptCount++;
+  bpir_isr = true;
+}
+
+bool ICACHE_RAM_ATTR sendmqttMsg(char* topictosend, String payloadtosend, bool retain = false)
+{
+  unsigned int msg_length = payloadtosend.length();
+
+  byte* p = (byte*)malloc(msg_length);
+  memcpy(p, (char*) payloadtosend.c_str(), msg_length);
+
+  if (client.publish(topictosend, p, msg_length, retain))
+  {
+    free(p);
+    client.loop();
+
+    Serial.print("[MQTT] out topic : ");
+    Serial.print(topictosend);
+    Serial.print(" payload: ");
+    Serial.print(payloadtosend);
+    Serial.println(" published");
+
+    return true;
+
+  } else {
+    free(p);
+    client.loop();
+
+    Serial.print("[MQTT] out topic : ");
+    Serial.print(topictosend);
+    Serial.print(" payload: ");
+    Serial.print(payloadtosend);
+    Serial.println(" publish failed");
+
+    return false;
+  }
+}
+
+void ICACHE_RAM_ATTR sendCheck()
+{
+  DynamicJsonBuffer jsonBuffer;
+  JsonObject& root = jsonBuffer.createObject();
+  root["pir_interuptCount"] = pir_interuptCount;
+  if ((millis() - lastpirmillis < MAX_PIR_TIME) && ( lastpirmillis != 0))
+  {
+    root["presence"] = 1;
+  }
+  else
+  {
+    root["presence"] = 0;
+  }
+  String json;
+  root.printTo(json);
+
+  sendmqttMsg(reporting_topic, json, false);
+}
 
 void ICACHE_RAM_ATTR parseMqttMsg(String receivedpayload, String receivedtopic)
 {
@@ -173,6 +241,10 @@ void setup()
   lgWhisen.setFlow(ir_data.ac_flow);
   lgWhisen.setIrpin(IR_TX_PIN);
 
+  pinMode(PIR_INT, INPUT);
+  bpir_isr = false;
+  attachInterrupt(PIR_INT, pir_isr, RISING);
+
   wifi_connect();
 
   clientName += "esp8266-";
@@ -198,10 +270,18 @@ void setup()
 
   reconnect();
   lastReconnectAttempt = 0;
+  startMills = millis();
 }
 
 void loop()
 {
+  if (bpir_isr)
+  {
+    Serial.println("[PIR] ---> pir detected");
+    lastpirmillis = millis();
+    bpir_isr = false;
+  }
+
   if (now() != prevDisplay)
   {
     prevDisplay = now();
@@ -256,6 +336,13 @@ void loop()
         }
         ir_data.haveData = false;
       }
+
+      if ((millis() - startMills) > REPORT_INTERVAL) 
+      {
+        sendCheck();
+        startMills = millis();
+      }
+      
       client.loop();
     }
   }

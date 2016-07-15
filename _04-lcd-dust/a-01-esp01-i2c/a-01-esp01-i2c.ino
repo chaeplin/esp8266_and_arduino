@@ -144,6 +144,8 @@ int _sensor_error_count = 0;
 unsigned long _sensor_report_count = 0;
 
 volatile unsigned long _last_sendcheck = 0;
+volatile unsigned long _first_sendcheck = 0;
+volatile bool bsendcheck = false;
 
 // https://omerk.github.io/lcdchargen/
 byte termometru[8]       = { B00100, B01010, B01010, B01110, B01110, B11111, B11111, B01110 };
@@ -258,68 +260,64 @@ void ICACHE_RAM_ATTR sendmqttMsg(char* topictosend, String payload)
 
 void sendCheck()
 {
-  if (millis() - _last_sendcheck > 5000)
+  String check_payload = "ac status: ";
+  if (bac_timer_mode)
   {
-	  String check_payload = "ac status: ";
-	  if (bac_timer_mode)
-	  {
-	    int timeremain = ((1800000 - (millis() - timerMillis)) / 1000 ) / 60;
+    int timeremain = ((1800000 - (millis() - timerMillis)) / 1000 ) / 60;
 
-	    if (data_curr.ac_mode == 0)
-	    {
-	      check_payload += ":timer_clock::black_square_for_stop:, next change in ";
-	      check_payload += timeremain;
-	      check_payload += " min";
-	    }
-	    else
-	    {
-	      check_payload += ":timer_clock::arrows_counterclockwise:, next change in ";
-	      check_payload += timeremain;
-	      check_payload += " min";
-	    }
-	  }
-	  else
-	  {
-	    if (data_curr.ac_mode == 0)
-	    {
-	      check_payload += ":black_square_for_stop:";
-	    }
-	    else
-	    {
-	      check_payload += ":arrows_counterclockwise:";
-	    }
-	  }
-
-	  check_payload += "\n";
-	  check_payload += "ac :thermometer: set : ";
-	  check_payload += data_curr.ac_temp;
-	  check_payload += "\n";
-	  check_payload += "ac flow set : ";
-	  check_payload += data_curr.ac_flow;
-	  check_payload += "\n";
-	  check_payload += ":thermometer: inside: ";
-	  check_payload += ((data_mqtt.tempinside1 + data_mqtt.tempinside2) / 2);
-	  check_payload += "\n";
-	  check_payload += ":thermometer: outside: ";
-	  check_payload += data_mqtt.tempoutside;
-	  check_payload += "\n";
-	  check_payload += "humidity: ";
-	  check_payload += data_mqtt.humidity;
-	  check_payload += "\n";
-	  check_payload += "dustDensity: ";
-	  check_payload += data_curr.dustDensity;
-	  check_payload += "\n";
-	  check_payload += "soil moisture: ";
-	  check_payload += data_nano.moisture;
-	  check_payload += "\n";
-	  check_payload += "host all/2: ";
-	  check_payload += data_mqtt.hostall;
-	  check_payload += "/";
-	  check_payload += data_mqtt.hosttwo;
-
-	  sendmqttMsg(reporttopic, check_payload);
-	  _last_sendcheck = millis();
+    if (data_curr.ac_mode == 0)
+    {
+      check_payload += ":timer_clock::black_square_for_stop:, next change in ";
+      check_payload += timeremain;
+      check_payload += " min";
+    }
+    else
+    {
+      check_payload += ":timer_clock::arrows_counterclockwise:, next change in ";
+      check_payload += timeremain;
+      check_payload += " min";
+    }
   }
+  else
+  {
+    if (data_curr.ac_mode == 0)
+    {
+      check_payload += ":black_square_for_stop:";
+    }
+    else
+    {
+      check_payload += ":arrows_counterclockwise:";
+    }
+  }
+
+  check_payload += "\n";
+  check_payload += "ac :thermometer: set : ";
+  check_payload += data_curr.ac_temp;
+  check_payload += "\n";
+  check_payload += "ac flow set : ";
+  check_payload += data_curr.ac_flow;
+  check_payload += "\n";
+  check_payload += ":thermometer: inside: ";
+  check_payload += ((data_mqtt.tempinside1 + data_mqtt.tempinside2) / 2);
+  check_payload += "\n";
+  check_payload += ":thermometer: outside: ";
+  check_payload += data_mqtt.tempoutside;
+  check_payload += "\n";
+  check_payload += "humidity: ";
+  check_payload += data_mqtt.humidity;
+  check_payload += "\n";
+  check_payload += "dustDensity: ";
+  check_payload += data_curr.dustDensity;
+  check_payload += "\n";
+  check_payload += "soil moisture: ";
+  check_payload += data_nano.moisture;
+  check_payload += "\n";
+  check_payload += "host all/2: ";
+  check_payload += data_mqtt.hostall;
+  check_payload += "/";
+  check_payload += data_mqtt.hosttwo;
+
+  sendmqttMsg(reporttopic, check_payload);
 }
 
 void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int length)
@@ -350,7 +348,7 @@ void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int lengt
 
   if ( receivedpayload == "{\"CHECKING\":\"1\"}")
   {
-    sendCheck();
+    bsendcheck = true;
     return;
   }
 
@@ -428,6 +426,26 @@ void parseMqttMsg(String receivedpayload, String receivedtopic)
     }
   }
 
+  if ( receivedtopic == substopic[7] )
+  {
+    if (root.containsKey("ac_temp"))
+    {
+      data_curr.ac_temp = data_esp.ac_temp = root["ac_temp"];
+      bhaveData = true;
+      bsendcheck = true;
+    }
+    if (root.containsKey("ac_flow"))
+    {
+      data_curr.ac_flow = data_esp.ac_flow = root["ac_flow"];
+      bhaveData = true;
+      bsendcheck = true;
+    }
+    if (root.containsKey("ac_etc"))
+    {
+      data_curr.ac_etc = data_esp.ac_etc = root["ac_etc"];
+    }
+  }
+  
   if ( receivedtopic == substopic[6] )
   {
     if (root.containsKey("AC"))
@@ -462,9 +480,9 @@ void parseMqttMsg(String receivedpayload, String receivedtopic)
               //ac_payload += ":black_square_for_stop:";
             }
             else
-            { 
+            {
               bac_timer_mode = true;
-              btimerFirst = true;    
+              btimerFirst = true;
               timerMillis = millis();
               data_curr.ac_mode = data_esp.ac_mode = 0;
               //ac_payload += ":timer_clock:";
@@ -477,7 +495,7 @@ void parseMqttMsg(String receivedpayload, String receivedtopic)
             //ac_payload += ":black_square_for_stop:";
             break;
         }
-        sendCheck();
+        bsendcheck = true;
         //sendmqttMsg(reporttopic, ac_payload);
 
         if (DEBUG_PRINT)
@@ -499,25 +517,6 @@ void parseMqttMsg(String receivedpayload, String receivedtopic)
     }
   }
 
-  if ( receivedtopic == substopic[7] )
-  {
-    if (root.containsKey("ac_temp"))
-    {
-      data_curr.ac_temp = data_esp.ac_temp = root["ac_temp"];
-      bhaveData = true;
-      sendCheck();
-    }
-    if (root.containsKey("ac_flow"))
-    {
-      data_curr.ac_flow = data_esp.ac_flow = root["ac_flow"];
-      bhaveData = true;
-      sendCheck();
-    }
-    if (root.containsKey("ac_etc"))
-    {
-      data_curr.ac_etc = data_esp.ac_etc = root["ac_etc"];
-    }
-  }
   msgcallback = !msgcallback;
 }
 
@@ -962,7 +961,7 @@ void loop()
                 data_curr.ac_temp = data_esp.ac_temp = data_nano.ac_temp;
                 data_curr.ac_flow = data_esp.ac_flow = data_nano.ac_flow;
                 bac_timer_mode = false;
-                sendCheck();
+                bsendcheck = true;
 
                 if (DEBUG_PRINT)
                 {
@@ -1046,7 +1045,7 @@ void loop()
           btimerFirst = false;
           bhaveData   = true;
           timerMillis = millis();
-          sendCheck();
+          bsendcheck = true;
 
           if (DEBUG_PRINT)
           {
@@ -1059,7 +1058,27 @@ void loop()
 
             sendUdpSyslog(syslogPayload);
           }
+        }
+      }
 
+      if (!bsendcheck)
+      {
+        _first_sendcheck = millis();
+      }
+      else
+      {
+        if (millis() - _last_sendcheck > 5000)
+        {
+          if (millis() - _first_sendcheck > 200)
+          {
+            sendCheck();
+            bsendcheck = false;
+            _last_sendcheck = millis();
+          }
+        }
+        else
+        {
+          bsendcheck = false;
         }
       }
 
