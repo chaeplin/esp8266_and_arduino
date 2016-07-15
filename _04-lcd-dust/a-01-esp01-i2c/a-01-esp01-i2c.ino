@@ -143,6 +143,8 @@ int acquirestatus = 0;
 int _sensor_error_count = 0;
 unsigned long _sensor_report_count = 0;
 
+volatile unsigned long _last_sendcheck = 0;
+
 // https://omerk.github.io/lcdchargen/
 byte termometru[8]       = { B00100, B01010, B01010, B01110, B01110, B11111, B11111, B01110 };
 byte picatura[8]         = { B00100, B00100, B01010, B01010, B10001, B10001, B10001, B01110 };
@@ -256,64 +258,68 @@ void ICACHE_RAM_ATTR sendmqttMsg(char* topictosend, String payload)
 
 void sendCheck()
 {
-  String check_payload = "ac status: ";
-  if (bac_timer_mode)
+  if (millis() - _last_sendcheck > 5000)
   {
-    int timeremain = ((1800000 - (millis() - timerMillis)) / 1000 ) / 60;
+	  String check_payload = "ac status: ";
+	  if (bac_timer_mode)
+	  {
+	    int timeremain = ((1800000 - (millis() - timerMillis)) / 1000 ) / 60;
 
-    if (data_curr.ac_mode == 0)
-    {
-      check_payload += ":timer_clock::black_square_for_stop:, next change in ";
-      check_payload += timeremain;
-      check_payload += " min";
-    }
-    else
-    {
-      check_payload += ":timer_clock::arrows_counterclockwise:, next change in ";
-      check_payload += timeremain;
-      check_payload += " min";
-    }
+	    if (data_curr.ac_mode == 0)
+	    {
+	      check_payload += ":timer_clock::black_square_for_stop:, next change in ";
+	      check_payload += timeremain;
+	      check_payload += " min";
+	    }
+	    else
+	    {
+	      check_payload += ":timer_clock::arrows_counterclockwise:, next change in ";
+	      check_payload += timeremain;
+	      check_payload += " min";
+	    }
+	  }
+	  else
+	  {
+	    if (data_curr.ac_mode == 0)
+	    {
+	      check_payload += ":black_square_for_stop:";
+	    }
+	    else
+	    {
+	      check_payload += ":arrows_counterclockwise:";
+	    }
+	  }
+
+	  check_payload += "\n";
+	  check_payload += "ac :thermometer: set : ";
+	  check_payload += data_curr.ac_temp;
+	  check_payload += "\n";
+	  check_payload += "ac flow set : ";
+	  check_payload += data_curr.ac_flow;
+	  check_payload += "\n";
+	  check_payload += ":thermometer: inside: ";
+	  check_payload += ((data_mqtt.tempinside1 + data_mqtt.tempinside2) / 2);
+	  check_payload += "\n";
+	  check_payload += ":thermometer: outside: ";
+	  check_payload += data_mqtt.tempoutside;
+	  check_payload += "\n";
+	  check_payload += "humidity: ";
+	  check_payload += data_mqtt.humidity;
+	  check_payload += "\n";
+	  check_payload += "dustDensity: ";
+	  check_payload += data_curr.dustDensity;
+	  check_payload += "\n";
+	  check_payload += "soil moisture: ";
+	  check_payload += data_nano.moisture;
+	  check_payload += "\n";
+	  check_payload += "host all/2: ";
+	  check_payload += data_mqtt.hostall;
+	  check_payload += "/";
+	  check_payload += data_mqtt.hosttwo;
+
+	  sendmqttMsg(reporttopic, check_payload);
+	  _last_sendcheck = millis();
   }
-  else
-  {
-    if (data_curr.ac_mode == 0)
-    {
-      check_payload += ":black_square_for_stop:";
-    }
-    else
-    {
-      check_payload += ":arrows_counterclockwise:";
-    }
-  }
-
-  check_payload += "\n";
-  check_payload += "ac :thermometer: set : ";
-  check_payload += data_curr.ac_temp;
-  check_payload += "\n";
-  check_payload += "ac flow set : ";
-  check_payload += data_curr.ac_flow;
-  check_payload += "\n";
-  check_payload += ":thermometer: inside: ";
-  check_payload += ((data_mqtt.tempinside1 + data_mqtt.tempinside2) / 2);
-  check_payload += "\n";
-  check_payload += ":thermometer: outside: ";
-  check_payload += data_mqtt.tempoutside;
-  check_payload += "\n";
-  check_payload += "humidity: ";
-  check_payload += data_mqtt.humidity;
-  check_payload += "\n";
-  check_payload += "dustDensity: ";
-  check_payload += data_curr.dustDensity;
-  check_payload += "\n";
-  check_payload += "soil moisture: ";
-  check_payload += data_nano.moisture;
-  check_payload += "\n";
-  check_payload += "host all/2: ";
-  check_payload += data_mqtt.hostall;
-  check_payload += "/";
-  check_payload += data_mqtt.hosttwo;
-
-  sendmqttMsg(reporttopic, check_payload);
 }
 
 void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int length)
