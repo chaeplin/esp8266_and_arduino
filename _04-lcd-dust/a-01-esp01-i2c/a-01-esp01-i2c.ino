@@ -450,8 +450,11 @@ void parseMqttMsg(String receivedpayload, String receivedtopic)
       if (data_curr.ac_temp != root["ac_temp"])
       {
         data_curr.ac_temp = data_esp.ac_temp = root["ac_temp"];
-        bhaveData = true;
-        bsendcheck = true;
+        if ( data_curr.ac_mode != 0 )
+        {
+          bhaveData = true;
+          bsendcheck = true;
+        }
       }
     }
     if (root.containsKey("ac_flow"))
@@ -459,8 +462,11 @@ void parseMqttMsg(String receivedpayload, String receivedtopic)
       if (data_curr.ac_flow != root["ac_flow"])
       {      
         data_curr.ac_flow = data_esp.ac_flow = root["ac_flow"];
-        bhaveData = true;
-        bsendcheck = true;
+        if ( data_curr.ac_mode != 0 )
+        {
+          bhaveData = true;
+          bsendcheck = true;
+        }
       }
     }
   }
