@@ -4,36 +4,22 @@
 #include <lgWhisen.h>
 #include <WiFiUdp.h>
 #include <TimeLib.h>
-
-#define IR_TX_PIN 4
-#define AC_CONF_TYPE 1    // 0: tower, 1: wall
-#define AC_CONF_HEATING 0   // 0: cooling, 1: heating
-#define AC_DEFAULT_TEMP 27  // temp 18 ~ 30
-#define AC_DEFAULT_FLOW 1   // fan speed 0: low, 1: mid, 2: high
-
-#define REPORT_INTERVAL 5000 // in msec
-#define MAX_PIR_TIME 1800000  // ms 30 min
-#define PIR_INT 14
+#include <DallasTemperature.h>
 
 #include "/usr/local/src/ap_setting.h"
 
-char* subscribe_cmd   = "esp8266/cmd/ac";
-char* subscribe_set   = "esp8266/cmd/acset";
-char* reporting_topic = "report/pirtest";
+#define REPORT_INTERVAL 5000 // in msec
+#define ONE_WIRE_BUS 12
+#define TEMPERATURE_PRECISION 12
+#define REPORT_INTERVAL 5000 // in msec
 
-volatile struct
-{
-  uint8_t ac_mode;
-  uint8_t ac_temp;
-  uint8_t ac_flow;
-  uint8_t ac_presence_mode;
-  bool haveData;
-} ir_data;
+char* reporting_topic = "report/ds18b20";
 
 IPAddress mqtt_server = MQTT_SERVER;
 
 String clientName;
 long lastReconnectAttempt = 0;
+float tempCinside;
 
 unsigned int localPort = 12390;
 const int timeZone = 9;
@@ -43,19 +29,15 @@ void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int lengt
 
 WiFiClient wifiClient;
 PubSubClient client(mqtt_server, 1883, callback, wifiClient);
-lgWhisen lgWhisen;
 WiFiUDP udp;
 
-bool bpresence = false;
-volatile bool bpir_isr;
-volatile uint32_t pir_interuptCount = 0;
-unsigned long lastpirMillis = 0;
+// ds18b20
+OneWire oneWire(ONE_WIRE_BUS);
+DallasTemperature sensors(&oneWire);
+DeviceAddress insideThermometer;
+bool bDalasison;
+bool bDalasstarted;
 unsigned long startMills;
-
-void ICACHE_RAM_ATTR pir_isr() {
-  pir_interuptCount++;
-  bpir_isr = true;
-}
 
 bool ICACHE_RAM_ATTR sendmqttMsg(char* topictosend, String payloadtosend, bool retain = false)
 {
@@ -94,59 +76,12 @@ bool ICACHE_RAM_ATTR sendmqttMsg(char* topictosend, String payloadtosend, bool r
 void ICACHE_RAM_ATTR sendCheck()
 {
   DynamicJsonBuffer jsonBuffer;
-  JsonObject& root = jsonBuffer.createObject();
-  root["pir_interuptCount"] = pir_interuptCount;
-  root["presence"]          = uint8_t(bpresence);
-  root["ac_mode"]           = ir_data.ac_mode;
-  root["ac_presence_mode"]  = ir_data.ac_presence_mode;
+  JsonObject& root    = jsonBuffer.createObject();
+  root["tempCinside2"] = tempCinside;
   String json;
   root.printTo(json);
 
   sendmqttMsg(reporting_topic, json, false);
-}
-
-void ICACHE_RAM_ATTR parseMqttMsg(String receivedpayload, String receivedtopic)
-{
-  char json[] = "{\"AC\":0,\"ac_temp\":27,\"ac_flow\":1}";
-
-  receivedpayload.toCharArray(json, 150);
-  StaticJsonBuffer<150> jsonBuffer;
-  JsonObject& root = jsonBuffer.parseObject(json);
-
-  if (!root.success())
-  {
-    return;
-  }
-
-  if (receivedtopic == subscribe_cmd)
-  {
-    if (root.containsKey("AC"))
-    {
-      ir_data.ac_mode = root["AC"];
-      if (bpresence)
-      {
-        ir_data.haveData = true;
-      }
-    }
-  }
-
-  if (receivedtopic == subscribe_set)
-  {
-    if (root.containsKey("ac_temp"))
-    {
-      ir_data.ac_temp = root["ac_temp"];
-    }
-    /*
-        if (root.containsKey("ac_flow"))
-        {
-          ir_data.ac_flow = root["ac_flow"];
-        }
-    */
-    if (ir_data.ac_mode == 1 && bpresence)
-    {
-      ir_data.haveData = true;
-    }
-  }
 }
 
 void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int length)
@@ -163,8 +98,6 @@ void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int lengt
   Serial.print(receivedtopic);
   Serial.print(" payload: ");
   Serial.println(receivedpayload);
-
-  parseMqttMsg(receivedpayload, receivedtopic);
 }
 
 boolean reconnect()
@@ -173,10 +106,6 @@ boolean reconnect()
   {
     if (client.connect((char*) clientName.c_str()))
     {
-      client.subscribe(subscribe_cmd);
-      client.loop();
-      client.subscribe(subscribe_set);
-      client.loop();
       Serial.println("[MQTT] mqtt connected");
     }
     else
@@ -230,21 +159,6 @@ void setup()
   Serial.println();
   Serial.println("Starting....... ");
 
-  ir_data.ac_mode          = 0;
-  ir_data.ac_temp          = AC_DEFAULT_TEMP;
-  ir_data.ac_flow          = AC_DEFAULT_FLOW;
-  ir_data.haveData         = false;
-  ir_data.ac_presence_mode = 0;
-
-  lgWhisen.setActype(AC_CONF_TYPE);
-  lgWhisen.setHeating(AC_CONF_HEATING);
-  lgWhisen.setTemp(ir_data.ac_temp);
-  lgWhisen.setFlow(ir_data.ac_flow);
-  lgWhisen.setIrpin(IR_TX_PIN);
-
-  pinMode(PIR_INT, INPUT);
-  bpir_isr = false;
-  attachInterrupt(PIR_INT, pir_isr, RISING);
 
   wifi_connect();
 
@@ -266,8 +180,25 @@ void setup()
     delay(500);
   }
 
-  // start with ac power down
-  lgWhisen.power_down();
+  sensors.begin();
+  if (!sensors.getAddress(insideThermometer, 0)) {
+    Serial.println("Unable to find address for Device 0");
+  }
+  else
+  {
+    sensors.setResolution(insideThermometer, TEMPERATURE_PRECISION);
+    sensors.requestTemperatures();
+    tempCinside = sensors.getTempC(insideThermometer);
+    sensors.setWaitForConversion(false);
+
+    if (tempCinside < -30 ) {
+      Serial.println("Failed to read from DS18B20 sensor!");
+    }
+    else
+    {
+      bDalasison = true;
+    }
+  }
 
   reconnect();
   lastReconnectAttempt = 0;
@@ -276,34 +207,6 @@ void setup()
 
 void loop()
 {
-  if (bpir_isr)
-  {
-    Serial.println("[PIR] ---> pir detected");
-    lastpirMillis = millis();
-    bpir_isr = false;
-  }
-
-  if ((millis() - lastpirMillis < MAX_PIR_TIME) && ( lastpirMillis != 0))
-  {
-    bpresence = true;
-  }
-  else
-  {
-    bpresence = false;
-  }  
-
-  if (!bpresence && ir_data.ac_presence_mode == 1)
-  {
-    Serial.println("[IR] -----> AC Power Down");
-    lgWhisen.power_down();
-    ir_data.ac_presence_mode = 0;
-  }
-
-  if (bpresence && ir_data.ac_presence_mode == 0 && ir_data.ac_mode == 1)
-  {
-    ir_data.haveData = true;
-  }
-
   if (now() != prevDisplay)
   {
     prevDisplay = now();
@@ -333,39 +236,20 @@ void loop()
     }
     else
     {
-      // ac change, ir tx
-      if (ir_data.haveData)
-      {
-        lgWhisen.setTemp(ir_data.ac_temp);
-        lgWhisen.setFlow(ir_data.ac_flow);
-
-        switch (ir_data.ac_mode)
-        {
-          // ac power down
-          case 0:
-            Serial.println("[IR] -----> AC Power Down");
-            lgWhisen.power_down();
-            break;
-
-          // ac on
-          case 1:
-            Serial.println("[IR] -----> AC Power On");
-            lgWhisen.activate();
-            break;
-
-          default:
-            break;
+      if (bDalasstarted && bDalasison) {
+        if (millis() > (startMills + (750 / (1 << (12 - TEMPERATURE_PRECISION))))) {
+          tempCinside = sensors.getTempC(insideThermometer);
+          bDalasstarted = false;
         }
-        ir_data.ac_presence_mode = ir_data.ac_mode;
-        ir_data.haveData = false;
       }
 
-      if ((millis() - startMills) > REPORT_INTERVAL) 
-      {
+      if (((millis() - startMills) > REPORT_INTERVAL) && bDalasison) {
         sendCheck();
+        sensors.requestTemperatures();
+        bDalasstarted = true;
         startMills = millis();
       }
-      
+
       client.loop();
     }
   }
@@ -374,7 +258,6 @@ void loop()
     wifi_connect();
   }
 }
-
 
 String macToStr(const uint8_t* mac)
 {
@@ -453,3 +336,5 @@ void printDigits(int digits)
 }
 
 // end of file
+
+

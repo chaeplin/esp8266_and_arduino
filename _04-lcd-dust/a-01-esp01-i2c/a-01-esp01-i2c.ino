@@ -76,6 +76,23 @@ const char* substopic[9] =
   subtopic_8
 };
 
+const char subs_simple_0[] = "esp8266/arduino/#";
+const char subs_simple_1[] = "esp8266/cmd/#";
+const char subs_simple_2[] = "esp8266/check";
+const char subs_simple_3[] = "radio/test/2";
+const char subs_simple_4[] = "raspberrypi/doorpir";
+const char subs_simple_5[] = "home/check/checkhwmny";
+
+const char* subs_simple_all[6] =
+{
+  subs_simple_0,
+  subs_simple_1,
+  subs_simple_2,
+  subs_simple_3,
+  subs_simple_4,
+  subs_simple_5
+};
+
 volatile struct
 {
   uint32_t hash;
@@ -430,19 +447,21 @@ void parseMqttMsg(String receivedpayload, String receivedtopic)
   {
     if (root.containsKey("ac_temp"))
     {
-      data_curr.ac_temp = data_esp.ac_temp = root["ac_temp"];
-      bhaveData = true;
-      bsendcheck = true;
+      if (data_curr.ac_temp != root["ac_temp"])
+      {
+        data_curr.ac_temp = data_esp.ac_temp = root["ac_temp"];
+        bhaveData = true;
+        bsendcheck = true;
+      }
     }
     if (root.containsKey("ac_flow"))
     {
-      data_curr.ac_flow = data_esp.ac_flow = root["ac_flow"];
-      bhaveData = true;
-      bsendcheck = true;
-    }
-    if (root.containsKey("ac_etc"))
-    {
-      data_curr.ac_etc = data_esp.ac_etc = root["ac_etc"];
+      if (data_curr.ac_flow != root["ac_flow"])
+      {      
+        data_curr.ac_flow = data_esp.ac_flow = root["ac_flow"];
+        bhaveData = true;
+        bsendcheck = true;
+      }
     }
   }
   
@@ -454,48 +473,50 @@ void parseMqttMsg(String receivedpayload, String receivedtopic)
       {
         data_mqtt.ac_mode = root["AC"];
         //String ac_payload = "ac mqtt : ";
-
-        switch (data_mqtt.ac_mode)
+        if (data_mqtt.ac_mode != data_curr.ac_mode)
         {
-          case 0:
-            data_curr.ac_mode = data_esp.ac_mode = 0;
-            bhaveData = true;
-            bac_timer_mode = false;
-            //ac_payload += ":black_square_for_stop:";
-            break;
-
-          case 1:
-            data_curr.ac_mode = data_esp.ac_mode = 1;
-            bhaveData = true;
-            bac_timer_mode = false;
-            //ac_payload += ":arrows_counterclockwise:";
-            break;
-
-          case 5:
-            if (bac_timer_mode)
-            {
-              bac_timer_mode = false;
+          switch (data_mqtt.ac_mode)
+          {
+            case 0:
+              data_curr.ac_mode = data_esp.ac_mode = 0;
               bhaveData = true;
-              data_curr.ac_mode = data_esp.ac_mode = 0;
+              bac_timer_mode = false;
               //ac_payload += ":black_square_for_stop:";
-            }
-            else
-            {
-              bac_timer_mode = true;
-              btimerFirst = true;
-              timerMillis = millis();
-              data_curr.ac_mode = data_esp.ac_mode = 0;
-              //ac_payload += ":timer_clock:";
-            }
-            break;
+              break;
 
-          default:
-            data_curr.ac_mode = data_esp.ac_mode = 0;
-            bac_timer_mode = false;
-            //ac_payload += ":black_square_for_stop:";
-            break;
+            case 1:
+              data_curr.ac_mode = data_esp.ac_mode = 1;
+              bhaveData = true;
+              bac_timer_mode = false;
+              //ac_payload += ":arrows_counterclockwise:";
+              break;
+
+            case 5:
+              if (bac_timer_mode)
+              {
+                bac_timer_mode = false;
+                bhaveData = true;
+                data_curr.ac_mode = data_esp.ac_mode = 0;
+                //ac_payload += ":black_square_for_stop:";
+              }
+              else
+              {
+                bac_timer_mode = true;
+                btimerFirst = true;
+                timerMillis = millis();
+                data_curr.ac_mode = data_esp.ac_mode = 0;
+                //ac_payload += ":timer_clock:";
+              }
+              break;
+
+            default:
+              data_curr.ac_mode = data_esp.ac_mode = 0;
+              bac_timer_mode = false;
+              //ac_payload += ":black_square_for_stop:";
+              break;
+          }
+          bsendcheck = true;
         }
-        bsendcheck = true;
         //sendmqttMsg(reporttopic, ac_payload);
 
         if (DEBUG_PRINT)
@@ -538,9 +559,9 @@ boolean reconnect()
     }
 
     client.loop();
-    for (int i = 0; i < 9; ++i)
+    for (int i = 0; i < 5; ++i)
     {
-      client.subscribe(substopic[i]);
+      client.subscribe(subs_simple_all[i]);
       client.loop();
       yield();
 
@@ -549,7 +570,7 @@ boolean reconnect()
         syslogPayload  = "subscribed to : ";
         syslogPayload += i;
         syslogPayload += " - ";
-        syslogPayload += substopic[i];
+        syslogPayload += subs_simple_all[i];
         sendUdpSyslog(syslogPayload);
         yield();
       }

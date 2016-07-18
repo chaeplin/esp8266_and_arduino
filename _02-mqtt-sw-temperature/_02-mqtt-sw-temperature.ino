@@ -87,7 +87,7 @@ IPAddress time_server = MQTT_SERVER;
 
 // DS18B20
 #define ONE_WIRE_BUS 0
-#define TEMPERATURE_PRECISION 9
+#define TEMPERATURE_PRECISION 12
 
 OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature sensors(&oneWire);
