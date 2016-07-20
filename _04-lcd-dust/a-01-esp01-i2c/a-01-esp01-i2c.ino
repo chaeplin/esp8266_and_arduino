@@ -565,7 +565,7 @@ boolean reconnect()
     }
 
     client.loop();
-    for (int i = 0; i < 5; ++i)
+    for (int i = 0; i < 6; ++i)
     {
       client.subscribe(subs_simple_all[i]);
       client.loop();
