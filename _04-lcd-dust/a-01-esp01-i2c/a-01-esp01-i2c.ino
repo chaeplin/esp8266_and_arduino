@@ -142,7 +142,7 @@ bool resetInfosent = false;
 unsigned int localPort = 2390;
 const int timeZone = 9;
 
-volatile bool bignoreACretained = true;
+volatile bool bignoreACretained = false;
 volatile bool bac_timer_mode = false;
 volatile bool bhaveData = false;
 unsigned long timerMillis;
@@ -337,41 +337,6 @@ void sendCheck()
   sendmqttMsg(reporttopic, check_payload);
 }
 
-void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int length)
-{
-  String receivedtopic = intopic;
-  String receivedpayload ;
-
-  if ( receivedtopic == "esp8266/arduino/s03" || receivedtopic == "clients/dust" )
-  {
-    return;
-  }
-
-  for (int i = 0; i < length; i++)
-  {
-    receivedpayload += (char)inpayload[i];
-  }
-
-  /*
-    if (DEBUG_PRINT)
-    {
-      syslogPayload = "mqtt ====> ";
-      syslogPayload += intopic;
-      syslogPayload += " ====> ";
-      syslogPayload += receivedpayload;
-      sendUdpSyslog(syslogPayload);
-    }
-  */
-
-  if ( receivedpayload == "{\"CHECKING\":\"1\"}")
-  {
-    bsendcheck = true;
-    return;
-  }
-
-  parseMqttMsg(receivedpayload, receivedtopic);
-}
-
 void parseMqttMsg(String receivedpayload, String receivedtopic)
 {
   char json[] = "{\"Humidity\":43.90,\"Temperature\":22.00,\"DS18B20\":22.00,\"PIRSTATUS\":0,\"FreeHeap\":43552,\"acquireresult\":0,\"acquirestatus\":0,\"DHTnextSampleTime\":2121587,\"bDHTstarted\":0,\"RSSI\":-48,\"millis\":2117963}";
@@ -547,6 +512,41 @@ void parseMqttMsg(String receivedpayload, String receivedtopic)
   msgcallback = !msgcallback;
 }
 
+void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int length)
+{
+  String receivedtopic = intopic;
+  String receivedpayload ;
+
+  if ( receivedtopic == "esp8266/arduino/s03" || receivedtopic == "clients/dust" )
+  {
+    return;
+  }
+
+  for (int i = 0; i < length; i++)
+  {
+    receivedpayload += (char)inpayload[i];
+  }
+
+  /*
+    if (DEBUG_PRINT)
+    {
+      syslogPayload = "mqtt ====> ";
+      syslogPayload += intopic;
+      syslogPayload += " ====> ";
+      syslogPayload += receivedpayload;
+      sendUdpSyslog(syslogPayload);
+    }
+  */
+
+  if ( receivedpayload == "{\"CHECKING\":\"1\"}")
+  {
+    bsendcheck = true;
+    return;
+  }
+
+  parseMqttMsg(receivedpayload, receivedtopic);
+}
+
 boolean reconnect()
 {
   if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage))
@@ -691,6 +691,285 @@ time_t requestRtc()
 {
   RtcDateTime Epoch32Time = Rtc.GetDateTime();
   return (Epoch32Time + 946684800);
+}
+
+
+String macToStr(const uint8_t* mac)
+{
+  String result;
+  for (int i = 0; i < 6; ++i)
+  {
+    result += String(mac[i], 16);
+    if (i < 5)
+    {
+      result += ':';
+    }
+  }
+  return result;
+}
+
+/*-------- NTP code ----------*/
+const int NTP_PACKET_SIZE = 48;
+byte packetBuffer[NTP_PACKET_SIZE];
+
+void sendNTPpacket(IPAddress & address)
+{
+  memset(packetBuffer, 0, NTP_PACKET_SIZE);
+  packetBuffer[0] = 0b11100011;
+  packetBuffer[1] = 0;
+  packetBuffer[2] = 6;
+  packetBuffer[3] = 0xEC;
+  packetBuffer[12]  = 49;
+  packetBuffer[13]  = 0x4E;
+  packetBuffer[14]  = 49;
+  packetBuffer[15]  = 52;
+  udp.beginPacket(address, 123);
+  udp.write(packetBuffer, NTP_PACKET_SIZE);
+  udp.endPacket();
+}
+
+time_t getNtpTime()
+{
+  while (udp.parsePacket() > 0) ;
+  sendNTPpacket(mqtt_server);
+  uint32_t beginWait = millis();
+  while (millis() - beginWait < 2500)
+  {
+    int size = udp.parsePacket();
+    if (size >= NTP_PACKET_SIZE)
+    {
+      udp.read(packetBuffer, NTP_PACKET_SIZE);
+      unsigned long secsSince1900;
+      secsSince1900 =  (unsigned long)packetBuffer[40] << 24;
+      secsSince1900 |= (unsigned long)packetBuffer[41] << 16;
+      secsSince1900 |= (unsigned long)packetBuffer[42] << 8;
+      secsSince1900 |= (unsigned long)packetBuffer[43];
+      return secsSince1900 - 2208988800UL + timeZone * SECS_PER_HOUR;
+    }
+  }
+  return 0;
+}
+
+void displayTimermode()
+{
+  if (bac_timer_mode)
+  {
+    lcd.setCursor(19, 3);
+    lcd.write(8);
+  }
+  else
+  {
+    lcd.setCursor(19, 3);
+    lcd.print(" ");
+  }
+}
+
+void displayHost(int numofhost, int numofall)
+{
+  lcd.setCursor(17, 2);
+  if (numofall < 10)
+  {
+    lcd.print(' ');
+  }
+  lcd.print(numofall);
+
+  lcd.setCursor(15, 2);
+  lcd.print(numofhost);
+}
+
+void displayPIR(int PIR)
+{
+  if ( PIR == 1)
+  {
+    for ( int i = 0 ; i <= 2 ; i ++ )
+    {
+      lcd.setCursor(19, i);
+      lcd.write(5);
+    }
+  }
+  else
+  {
+    for ( int i = 0 ; i <= 2 ; i ++ )
+    {
+      lcd.setCursor(19, i);
+      lcd.print(" ");
+    }
+  }
+}
+
+void displayNemoWeight(int nemoWeight)
+{
+  String str_nemoWeight = String(nemoWeight);
+  int length_nemoWeight = str_nemoWeight.length();
+
+  lcd.setCursor(2, 3);
+
+  for ( int i = 0; i < ( 4 - length_nemoWeight ) ; i++ )
+  {
+    lcd.print(" ");
+  }
+  lcd.print(str_nemoWeight);
+}
+
+void displaypowerAvg(int Power)
+{
+  String str_Power = String(Power);
+  int length_Power = str_Power.length();
+
+  lcd.setCursor(10, 2);
+  for ( int i = 0; i < ( 4 - length_Power ) ; i++ )
+  {
+    lcd.print(" ");
+  }
+  lcd.print(str_Power);
+}
+
+void displayTemperaturedigit(float Temperature)
+{
+  String str_Temperature = String(int(Temperature)) ;
+  int length_Temperature = str_Temperature.length();
+
+  for ( int i = 0; i < ( 3 - length_Temperature ) ; i++ )
+  {
+    lcd.print(" ");
+  }
+  lcd.print(Temperature, 1);
+}
+
+void displayTemperature() {
+  lcd.setCursor(1, 1);
+  displayTemperaturedigit((data_mqtt.tempinside1 + data_mqtt.tempinside2) / 2);
+
+  lcd.setCursor(7, 1);
+
+  if ( data_mqtt.tempoutside != -1000 ) {
+
+    float tempdiff = data_mqtt.tempoutside - ((data_mqtt.tempinside1 + data_mqtt.tempinside2) / 2) ;
+    displayTemperaturedigit(data_mqtt.tempoutside);
+
+    lcd.setCursor(14, 1);
+    if ( tempdiff > 0 ) {
+      lcd.print("+");
+    } else if ( tempdiff < 0 ) {
+      lcd.print("-");
+    }
+
+    String str_tempdiff = String(int abs(tempdiff));
+    int length_tempdiff = str_tempdiff.length();
+
+    lcd.setCursor(15, 1);
+    lcd.print(abs(tempdiff), 1);
+    if ( length_tempdiff == 1) {
+      lcd.print(" ");
+    }
+  }
+
+  lcd.setCursor(2, 2);
+  if ( data_mqtt.humidity >= 10 ) {
+    lcd.print(data_mqtt.humidity, 1);
+  } else {
+    lcd.print(" ");
+    lcd.print(data_mqtt.humidity, 1);
+  }
+}
+
+void printDigits(int digits)
+{
+  lcd.print(":");
+  if (digits < 10)
+  {
+    lcd.print('0');
+  }
+  lcd.print(digits);
+}
+
+void printDigitsnocolon(int digits)
+{
+  if (digits < 10)
+  {
+    lcd.print('0');
+  }
+  lcd.print(digits);
+}
+
+void digitalClockDisplay()
+{
+  lcd.setCursor(0, 0);
+  printDigitsnocolon(month());
+  lcd.print("/");
+  printDigitsnocolon(day());
+
+  lcd.setCursor(6, 0);
+  lcd.print(dayShortStr(weekday()));
+  lcd.setCursor(10, 0);
+  printDigitsnocolon(hour());
+  printDigits(minute());
+  printDigits(second());
+}
+
+void displaydustDensity(float dustDensity)
+{
+  int n = int(dustDensity / 0.05) ;
+
+  if ( n > 9 )
+  {
+    n = 9 ;
+  }
+
+  for ( int i = 0 ; i < n ; i++)
+  {
+    lcd.setCursor(10 + i, 3);
+    lcd.write(4);
+  }
+
+  for ( int o = 0 ; o < ( 9 - n) ; o++)
+  {
+    lcd.setCursor(10 + n + o, 3);
+    lcd.print(".");
+  }
+}
+
+void printEdgeTiming(class PietteTech_DHT * _d)
+{
+  byte n;
+#if defined(DHT_DEBUG_TIMING)
+  volatile uint8_t *_e = &_d->_edges[0];
+#endif
+  int result = _d->getStatus();
+  if (result != 0)
+  {
+    _sensor_error_count++;
+  }
+
+  _sensor_report_count++;
+
+  String udppayload = "edges2,device=esp-12-N1,debug=on,DHTLIB_ONE_TIMING=110 ";
+  for (n = 0; n < 41; n++)
+  {
+    char buf[2];
+    udppayload += "e";
+    sprintf(buf, "%02d", n);
+    udppayload += buf;
+    udppayload += "=";
+#if defined(DHT_DEBUG_TIMING)
+    udppayload += *_e++;
+#endif
+    udppayload += "i,";
+  }
+  udppayload += "F=";
+  udppayload += ESP.getCpuFreqMHz();
+  udppayload += "i,C=";
+  udppayload += _sensor_report_count;
+  udppayload += "i,R=";
+  udppayload += result;
+  udppayload += ",E=";
+  udppayload += _sensor_error_count;
+  udppayload += "i,H=";
+  udppayload += _d->getHumidity();
+  udppayload += ",T=";
+  udppayload += _d->getCelsius();
+
+  sendUdpmsg(udppayload);
 }
 
 void setup()
@@ -1157,283 +1436,5 @@ void loop()
   {
     wifi_connect();
   }
-}
-
-void displayTimermode()
-{
-  if (bac_timer_mode)
-  {
-    lcd.setCursor(19, 3);
-    lcd.write(8);
-  }
-  else
-  {
-    lcd.setCursor(19, 3);
-    lcd.print(" ");
-  }
-}
-
-void displayHost(int numofhost, int numofall)
-{
-  lcd.setCursor(17, 2);
-  if (numofall < 10)
-  {
-    lcd.print(' ');
-  }
-  lcd.print(numofall);
-
-  lcd.setCursor(15, 2);
-  lcd.print(numofhost);
-}
-
-void displayPIR(int PIR)
-{
-  if ( PIR == 1)
-  {
-    for ( int i = 0 ; i <= 2 ; i ++ )
-    {
-      lcd.setCursor(19, i);
-      lcd.write(5);
-    }
-  }
-  else
-  {
-    for ( int i = 0 ; i <= 2 ; i ++ )
-    {
-      lcd.setCursor(19, i);
-      lcd.print(" ");
-    }
-  }
-}
-
-void displayNemoWeight(int nemoWeight)
-{
-  String str_nemoWeight = String(nemoWeight);
-  int length_nemoWeight = str_nemoWeight.length();
-
-  lcd.setCursor(2, 3);
-
-  for ( int i = 0; i < ( 4 - length_nemoWeight ) ; i++ )
-  {
-    lcd.print(" ");
-  }
-  lcd.print(str_nemoWeight);
-}
-
-void displaypowerAvg(int Power)
-{
-  String str_Power = String(Power);
-  int length_Power = str_Power.length();
-
-  lcd.setCursor(10, 2);
-  for ( int i = 0; i < ( 4 - length_Power ) ; i++ )
-  {
-    lcd.print(" ");
-  }
-  lcd.print(str_Power);
-}
-
-void displayTemperaturedigit(float Temperature)
-{
-  String str_Temperature = String(int(Temperature)) ;
-  int length_Temperature = str_Temperature.length();
-
-  for ( int i = 0; i < ( 3 - length_Temperature ) ; i++ )
-  {
-    lcd.print(" ");
-  }
-  lcd.print(Temperature, 1);
-}
-
-void displayTemperature() {
-  lcd.setCursor(1, 1);
-  displayTemperaturedigit((data_mqtt.tempinside1 + data_mqtt.tempinside2) / 2);
-
-  lcd.setCursor(7, 1);
-
-  if ( data_mqtt.tempoutside != -1000 ) {
-
-    float tempdiff = data_mqtt.tempoutside - ((data_mqtt.tempinside1 + data_mqtt.tempinside2) / 2) ;
-    displayTemperaturedigit(data_mqtt.tempoutside);
-
-    lcd.setCursor(14, 1);
-    if ( tempdiff > 0 ) {
-      lcd.print("+");
-    } else if ( tempdiff < 0 ) {
-      lcd.print("-");
-    }
-
-    String str_tempdiff = String(int abs(tempdiff));
-    int length_tempdiff = str_tempdiff.length();
-
-    lcd.setCursor(15, 1);
-    lcd.print(abs(tempdiff), 1);
-    if ( length_tempdiff == 1) {
-      lcd.print(" ");
-    }
-  }
-
-  lcd.setCursor(2, 2);
-  if ( data_mqtt.humidity >= 10 ) {
-    lcd.print(data_mqtt.humidity, 1);
-  } else {
-    lcd.print(" ");
-    lcd.print(data_mqtt.humidity, 1);
-  }
-}
-
-void digitalClockDisplay()
-{
-  lcd.setCursor(0, 0);
-  printDigitsnocolon(month());
-  lcd.print("/");
-  printDigitsnocolon(day());
-
-  lcd.setCursor(6, 0);
-  lcd.print(dayShortStr(weekday()));
-  lcd.setCursor(10, 0);
-  printDigitsnocolon(hour());
-  printDigits(minute());
-  printDigits(second());
-}
-
-void printDigitsnocolon(int digits)
-{
-  if (digits < 10)
-  {
-    lcd.print('0');
-  }
-  lcd.print(digits);
-}
-
-void printDigits(int digits)
-{
-  lcd.print(":");
-  if (digits < 10)
-  {
-    lcd.print('0');
-  }
-  lcd.print(digits);
-}
-
-void displaydustDensity(float dustDensity)
-{
-  int n = int(dustDensity / 0.05) ;
-
-  if ( n > 9 )
-  {
-    n = 9 ;
-  }
-
-  for ( int i = 0 ; i < n ; i++)
-  {
-    lcd.setCursor(10 + i, 3);
-    lcd.write(4);
-  }
-
-  for ( int o = 0 ; o < ( 9 - n) ; o++)
-  {
-    lcd.setCursor(10 + n + o, 3);
-    lcd.print(".");
-  }
-}
-
-void printEdgeTiming(class PietteTech_DHT * _d)
-{
-  byte n;
-#if defined(DHT_DEBUG_TIMING)
-  volatile uint8_t *_e = &_d->_edges[0];
-#endif
-  int result = _d->getStatus();
-  if (result != 0)
-  {
-    _sensor_error_count++;
-  }
-
-  _sensor_report_count++;
-
-  String udppayload = "edges2,device=esp-12-N1,debug=on,DHTLIB_ONE_TIMING=110 ";
-  for (n = 0; n < 41; n++)
-  {
-    char buf[2];
-    udppayload += "e";
-    sprintf(buf, "%02d", n);
-    udppayload += buf;
-    udppayload += "=";
-#if defined(DHT_DEBUG_TIMING)
-    udppayload += *_e++;
-#endif
-    udppayload += "i,";
-  }
-  udppayload += "F=";
-  udppayload += ESP.getCpuFreqMHz();
-  udppayload += "i,C=";
-  udppayload += _sensor_report_count;
-  udppayload += "i,R=";
-  udppayload += result;
-  udppayload += ",E=";
-  udppayload += _sensor_error_count;
-  udppayload += "i,H=";
-  udppayload += _d->getHumidity();
-  udppayload += ",T=";
-  udppayload += _d->getCelsius();
-
-  sendUdpmsg(udppayload);
-}
-
-String macToStr(const uint8_t* mac)
-{
-  String result;
-  for (int i = 0; i < 6; ++i)
-  {
-    result += String(mac[i], 16);
-    if (i < 5)
-    {
-      result += ':';
-    }
-  }
-  return result;
-}
-
-/*-------- NTP code ----------*/
-const int NTP_PACKET_SIZE = 48;
-byte packetBuffer[NTP_PACKET_SIZE];
-
-time_t getNtpTime()
-{
-  while (udp.parsePacket() > 0) ;
-  sendNTPpacket(mqtt_server);
-  uint32_t beginWait = millis();
-  while (millis() - beginWait < 2500)
-  {
-    int size = udp.parsePacket();
-    if (size >= NTP_PACKET_SIZE)
-    {
-      udp.read(packetBuffer, NTP_PACKET_SIZE);
-      unsigned long secsSince1900;
-      secsSince1900 =  (unsigned long)packetBuffer[40] << 24;
-      secsSince1900 |= (unsigned long)packetBuffer[41] << 16;
-      secsSince1900 |= (unsigned long)packetBuffer[42] << 8;
-      secsSince1900 |= (unsigned long)packetBuffer[43];
-      return secsSince1900 - 2208988800UL + timeZone * SECS_PER_HOUR;
-    }
-  }
-  return 0;
-}
-
-void sendNTPpacket(IPAddress & address)
-{
-  memset(packetBuffer, 0, NTP_PACKET_SIZE);
-  packetBuffer[0] = 0b11100011;
-  packetBuffer[1] = 0;
-  packetBuffer[2] = 6;
-  packetBuffer[3] = 0xEC;
-  packetBuffer[12]  = 49;
-  packetBuffer[13]  = 0x4E;
-  packetBuffer[14]  = 49;
-  packetBuffer[15]  = 52;
-  udp.beginPacket(address, 123);
-  udp.write(packetBuffer, NTP_PACKET_SIZE);
-  udp.endPacket();
 }
 //
