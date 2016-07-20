@@ -1,9 +1,12 @@
+//
 #include <ESP8266WiFi.h>
-#include <PubSubClient.h>
-#include <ArduinoJson.h>
-#include <lgWhisen.h>
+#include <ESP8266mDNS.h>
 #include <WiFiUdp.h>
+#include <ArduinoOTA.h>
+#include <PubSubClient.h>
+#include <lgWhisen.h>
 #include <TimeLib.h>
+#include <ArduinoJson.h>
 
 #define IR_TX_PIN 4
 #define AC_CONF_TYPE 1    // 0: tower, 1: wall
@@ -134,17 +137,21 @@ void ICACHE_RAM_ATTR parseMqttMsg(String receivedpayload, String receivedtopic)
   {
     if (root.containsKey("ac_temp"))
     {
-      ir_data.ac_temp = root["ac_temp"];
-    }
-    /*
-        if (root.containsKey("ac_flow"))
+     if (ir_data.ac_temp != root["ac_temp"])
+     {
+        ir_data.ac_temp = root["ac_temp"];
+        /*
+            if (root.containsKey("ac_flow"))
+            {
+                ir_data.ac_flow = root["ac_flow"];
+            }
+        */
+
+        if (ir_data.ac_mode == 1 && bpresence)
         {
-          ir_data.ac_flow = root["ac_flow"];
+            ir_data.haveData = true;
         }
-    */
-    if (ir_data.ac_mode == 1 && bpresence)
-    {
-      ir_data.haveData = true;
+      }
     }
   }
 }
@@ -188,6 +195,104 @@ boolean reconnect()
   return client.connected();
 }
 
+void ArduinoOTA_config()
+{
+  //OTA
+  // Port defaults to 8266
+  ArduinoOTA.setPort(8266);
+  ArduinoOTA.setHostname("esp-irbedroom");
+  ArduinoOTA.setPassword(OTA_PASSWORD);
+  ArduinoOTA.onStart([]()
+  {
+    //sendUdpSyslog("ArduinoOTA Start");
+  });
+  ArduinoOTA.onEnd([]()
+  {
+    //sendUdpSyslog("ArduinoOTA End");
+  });
+  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total)
+  {
+    //syslogPayload = "Progress: ";
+    //syslogPayload += (progress / (total / 100));
+    //sendUdpSyslog(syslogPayload);
+  });
+  ArduinoOTA.onError([](ota_error_t error)
+  {
+    //ESP.restart();
+    if (error == OTA_AUTH_ERROR) abort();
+    else if (error == OTA_BEGIN_ERROR) abort();
+    else if (error == OTA_CONNECT_ERROR) abort();
+    else if (error == OTA_RECEIVE_ERROR) abort();
+    else if (error == OTA_END_ERROR) abort();
+  });
+
+  ArduinoOTA.begin();
+}
+
+/*-------- NTP code ----------*/
+const int NTP_PACKET_SIZE = 48;
+byte packetBuffer[NTP_PACKET_SIZE];
+
+void sendNTPpacket(IPAddress & address)
+{
+  memset(packetBuffer, 0, NTP_PACKET_SIZE);
+  packetBuffer[0] = 0b11100011;
+  packetBuffer[1] = 0;
+  packetBuffer[2] = 6;
+  packetBuffer[3] = 0xEC;
+  packetBuffer[12]  = 49;
+  packetBuffer[13]  = 0x4E;
+  packetBuffer[14]  = 49;
+  packetBuffer[15]  = 52;
+  udp.beginPacket(address, 123);
+  udp.write(packetBuffer, NTP_PACKET_SIZE);
+  udp.endPacket();
+}
+
+time_t getNtpTime()
+{
+  while (udp.parsePacket() > 0) ;
+  sendNTPpacket(mqtt_server);
+  uint32_t beginWait = millis();
+  while (millis() - beginWait < 2500)
+  {
+    int size = udp.parsePacket();
+    if (size >= NTP_PACKET_SIZE)
+    {
+      udp.read(packetBuffer, NTP_PACKET_SIZE);
+      unsigned long secsSince1900;
+      secsSince1900 =  (unsigned long)packetBuffer[40] << 24;
+      secsSince1900 |= (unsigned long)packetBuffer[41] << 16;
+      secsSince1900 |= (unsigned long)packetBuffer[42] << 8;
+      secsSince1900 |= (unsigned long)packetBuffer[43];
+      return secsSince1900 - 2208988800UL + timeZone * SECS_PER_HOUR;
+    }
+  }
+  return 0;
+}
+
+void printDigits(int digits)
+{
+  Serial.print(":");
+  if (digits < 10)
+    Serial.print('0');
+  Serial.print(digits);
+}
+
+void digitalClockDisplay()
+{
+  Serial.print("[TIME] ");
+  Serial.print(hour());
+  printDigits(minute());
+  printDigits(second());
+  Serial.print(" ");
+  Serial.print(day());
+  Serial.print(" ");
+  Serial.print(month());
+  Serial.print(" ");
+  Serial.println(year());
+}
+
 void wifi_connect()
 {
   if (WiFi.status() != WL_CONNECTED)
@@ -222,6 +327,18 @@ void wifi_connect()
     Serial.print(" --> IP address: ");
     Serial.println(WiFi.localIP());
   }
+}
+
+String macToStr(const uint8_t* mac)
+{
+  String result;
+  for (int i = 0; i < 6; ++i)
+  {
+    result += String(mac[i], 16);
+    if (i < 5)
+      result += ':';
+  }
+  return result;
 }
 
 void setup()
@@ -268,6 +385,8 @@ void setup()
 
   // start with ac power down
   lgWhisen.power_down();
+
+  ArduinoOTA_config();
 
   reconnect();
   lastReconnectAttempt = 0;
@@ -373,83 +492,6 @@ void loop()
   {
     wifi_connect();
   }
-}
-
-
-String macToStr(const uint8_t* mac)
-{
-  String result;
-  for (int i = 0; i < 6; ++i)
-  {
-    result += String(mac[i], 16);
-    if (i < 5)
-      result += ':';
-  }
-  return result;
-}
-
-/*-------- NTP code ----------*/
-const int NTP_PACKET_SIZE = 48;
-byte packetBuffer[NTP_PACKET_SIZE];
-
-time_t getNtpTime()
-{
-  while (udp.parsePacket() > 0) ;
-  sendNTPpacket(mqtt_server);
-  uint32_t beginWait = millis();
-  while (millis() - beginWait < 2500)
-  {
-    int size = udp.parsePacket();
-    if (size >= NTP_PACKET_SIZE)
-    {
-      udp.read(packetBuffer, NTP_PACKET_SIZE);
-      unsigned long secsSince1900;
-      secsSince1900 =  (unsigned long)packetBuffer[40] << 24;
-      secsSince1900 |= (unsigned long)packetBuffer[41] << 16;
-      secsSince1900 |= (unsigned long)packetBuffer[42] << 8;
-      secsSince1900 |= (unsigned long)packetBuffer[43];
-      return secsSince1900 - 2208988800UL + timeZone * SECS_PER_HOUR;
-    }
-  }
-  return 0;
-}
-
-void sendNTPpacket(IPAddress & address)
-{
-  memset(packetBuffer, 0, NTP_PACKET_SIZE);
-  packetBuffer[0] = 0b11100011;
-  packetBuffer[1] = 0;
-  packetBuffer[2] = 6;
-  packetBuffer[3] = 0xEC;
-  packetBuffer[12]  = 49;
-  packetBuffer[13]  = 0x4E;
-  packetBuffer[14]  = 49;
-  packetBuffer[15]  = 52;
-  udp.beginPacket(address, 123);
-  udp.write(packetBuffer, NTP_PACKET_SIZE);
-  udp.endPacket();
-}
-
-void digitalClockDisplay()
-{
-  Serial.print("[TIME] ");
-  Serial.print(hour());
-  printDigits(minute());
-  printDigits(second());
-  Serial.print(" ");
-  Serial.print(day());
-  Serial.print(" ");
-  Serial.print(month());
-  Serial.print(" ");
-  Serial.println(year());
-}
-
-void printDigits(int digits)
-{
-  Serial.print(":");
-  if (digits < 10)
-    Serial.print('0');
-  Serial.print(digits);
 }
 
 // end of file
