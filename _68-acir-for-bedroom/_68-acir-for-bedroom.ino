@@ -487,6 +487,7 @@ void loop()
       
       client.loop();
     }
+    ArduinoOTA.handle();
   }
   else
   {
