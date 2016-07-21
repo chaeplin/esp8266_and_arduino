@@ -142,7 +142,7 @@ bool resetInfosent = false;
 unsigned int localPort = 2390;
 const int timeZone = 9;
 
-volatile bool bignoreACretained = true;
+volatile bool bignoreACretained = false;
 volatile bool bac_timer_mode = false;
 volatile bool bhaveData = false;
 unsigned long timerMillis;
