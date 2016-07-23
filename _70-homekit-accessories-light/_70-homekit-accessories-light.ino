@@ -7,7 +7,6 @@
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
 #include <Ticker.h>
-
 #include "/usr/local/src/rpi2_setting.h"
 
 #define BUTTON_PIN 0
@@ -174,14 +173,24 @@ void change_light()
 {
   digitalWrite(RELAY_PIN, bRelayState);
   bUpdated = false;
-  attachInterrupt(BUTTON_PIN, run_lightcmd_isr, FALLING);
 }
 
 void run_lightcmd_isr()
 {
-  detachInterrupt(BUTTON_PIN);
   bRelayState = !bRelayState;
   bUpdated = true;
+}
+
+String macToStr(const uint8_t* mac)
+{
+  String result;
+  for (int i = 0; i < 6; ++i)
+  {
+    result += String(mac[i], 16);
+    if (i < 5)
+      result += ':';
+  }
+  return result;
 }
 
 void ArduinoOTA_config()
@@ -273,6 +282,7 @@ void loop()
     {
       client.loop();
     }
+    ArduinoOTA.handle();
   }
   else
   {
@@ -280,18 +290,4 @@ void loop()
     wifi_connect();
   }
 }
-
-
-String macToStr(const uint8_t* mac)
-{
-  String result;
-  for (int i = 0; i < 6; ++i)
-  {
-    result += String(mac[i], 16);
-    if (i < 5)
-      result += ':';
-  }
-  return result;
-}
-
 // end of file
