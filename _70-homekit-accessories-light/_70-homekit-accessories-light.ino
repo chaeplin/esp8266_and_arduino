@@ -13,13 +13,17 @@
 #define RELAY_PIN 12
 #define LED_PIN 13
 
+#define BETWEEN_RELAY_ACTIVE 5000
+
 IPAddress mqtt_server = MQTT_SERVER;
 
 char* subscribe_topic = "light/bedroomlight";
 long lastReconnectAttempt = 0;
 volatile bool bUpdated = false;
 volatile bool bRelayState = false;
+volatile bool bRelayReady = false; 
 String clientName;
+unsigned long lastRelayActionmillis;
 
 void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int length);
 
@@ -173,7 +177,6 @@ void wifi_connect()
 void change_light()
 {
   digitalWrite(RELAY_PIN, bRelayState);
-  bUpdated = false;
 }
 
 void run_lightcmd_isr()
@@ -203,11 +206,11 @@ void ArduinoOTA_config()
   ArduinoOTA.setPassword(OTA_PASSWORD);
   ArduinoOTA.onStart([]()
   {
-    //sendUdpSyslog("ArduinoOTA Start");
+    ticker.attach(0.1, tick);
   });
   ArduinoOTA.onEnd([]()
   {
-    //sendUdpSyslog("ArduinoOTA End");
+    ticker.attach(0.2, tick);
   });
   ArduinoOTA.onProgress([](unsigned int progress, unsigned int total)
   {
@@ -237,6 +240,8 @@ void setup()
   pinMode(RELAY_PIN, OUTPUT);
   pinMode(BUTTON_PIN, INPUT_PULLUP);
 
+  lastRelayActionmillis = millis();
+
   attachInterrupt(BUTTON_PIN, run_lightcmd_isr, RISING);
 
   ticker.attach(0.2, tick);
@@ -260,9 +265,27 @@ void setup()
 
 void loop()
 {
+  if ((millis() - lastRelayActionmillis) > BETWEEN_RELAY_ACTIVE)
+  {
+    bRelayReady = true;
+  }
+  else
+  {
+    bRelayReady = false;
+  }
+
   if (bUpdated)
   {
-    change_light();
+    if (bRelayReady)
+    {
+      change_light();
+      lastRelayActionmillis = millis();
+      bUpdated = false;
+    }
+    else
+    {
+      bUpdated = false;
+    }
   }
 
   if (WiFi.status() == WL_CONNECTED)
