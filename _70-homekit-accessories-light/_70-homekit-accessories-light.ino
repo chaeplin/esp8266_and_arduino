@@ -234,9 +234,9 @@ void setup()
   Serial.println("Starting....... ");
   pinMode(LED_PIN, OUTPUT);
   pinMode(RELAY_PIN, OUTPUT);
-  pinMode(BUTTON_PIN, INPUT);
+  pinMode(BUTTON_PIN, INPUT_PULLUP);
 
-  attachInterrupt(BUTTON_PIN, run_lightcmd_isr, FALLING);
+  attachInterrupt(BUTTON_PIN, run_lightcmd_isr, RISING);
 
   ticker.attach(0.2, tick);
 
