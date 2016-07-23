@@ -144,6 +144,7 @@ void wifi_connect()
     delay(10);
     WiFi.mode(WIFI_STA);
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+    WiFi.hostname("esp-bedroomlight");
 
     int Attempt = 0;
     while (WiFi.status() != WL_CONNECTED)
