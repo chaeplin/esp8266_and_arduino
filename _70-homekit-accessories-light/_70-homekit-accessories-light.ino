@@ -94,6 +94,24 @@ void ICACHE_RAM_ATTR sendCheck()
   sendmqttMsg(reporting_topic, payload, true);
 }
 
+void ICACHE_RAM_ATTR sendUpdate()
+{
+  DynamicJsonBuffer jsonBuffer;
+  JsonObject& root = jsonBuffer.createObject();
+  if (bRelayState)
+  {   
+     root["cmd"] = "on";
+  }
+  else
+  {
+     root["cmd"] = "off";
+  }
+  String json;
+  root.printTo(json);
+
+  sendmqttMsg(subscribe_topic, json, true);
+}
+
 void ICACHE_RAM_ATTR parseMqttMsg(String receivedpayload, String receivedtopic)
 {
   char json[] = "{\"cmd\":\"off\"}";
@@ -202,6 +220,7 @@ void wifi_connect()
     Serial.println(WIFI_SSID);
 
     //wifi_set_phy_mode(PHY_MODE_11N);
+    //WiFi.setOutputPower(18);
     WiFi.mode(WIFI_STA);
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
     WiFi.hostname("esp-bedroomlight");
@@ -262,7 +281,7 @@ void ArduinoOTA_config()
   ArduinoOTA.setPassword(OTA_PASSWORD);
   ArduinoOTA.onStart([]() 
   { 
-     ticker.attach(0.1, tick); 
+     //ticker.attach(0.1, tick); 
   });
   ArduinoOTA.onEnd([]() { });
   ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) { });
@@ -329,7 +348,10 @@ void loop()
       change_light();
       if (client.connected())
       {
+         sendUpdate();
+         client.loop();
          sendCheck();
+         client.loop();
       }
       lastRelayActionmillis = millis();
       bUpdated = false;
