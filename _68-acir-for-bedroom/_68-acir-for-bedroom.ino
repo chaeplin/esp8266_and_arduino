@@ -125,10 +125,13 @@ void ICACHE_RAM_ATTR parseMqttMsg(String receivedpayload, String receivedtopic)
   {
     if (root.containsKey("AC"))
     {
-      ir_data.ac_mode = root["AC"];
-      if (bpresence)
+      if (ir_data.ac_mode != root["AC"])
       {
-        ir_data.haveData = true;
+        ir_data.ac_mode = root["AC"];
+        if (bpresence)
+        {
+          ir_data.haveData = true;
+        }
       }
     }
   }
@@ -140,6 +143,7 @@ void ICACHE_RAM_ATTR parseMqttMsg(String receivedpayload, String receivedtopic)
      if (ir_data.ac_temp != root["ac_temp"])
      {
         ir_data.ac_temp = root["ac_temp"];
+
         /*
             if (root.containsKey("ac_flow"))
             {
@@ -304,6 +308,7 @@ void wifi_connect()
     delay(10);
     WiFi.mode(WIFI_STA);
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+    WiFi.hostname("esp-irbedroom");
 
     int Attempt = 0;
     while (WiFi.status() != WL_CONNECTED)
