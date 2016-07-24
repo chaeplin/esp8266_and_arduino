@@ -18,6 +18,7 @@ extern "C" {
 #define LED_PIN 13
 
 #define BETWEEN_RELAY_ACTIVE 1000
+#define REPORT_INTERVAL 5000 // in msec
 
 IPAddress mqtt_server = MQTT_SERVER;
 
@@ -30,6 +31,7 @@ volatile bool bRelayState = false;
 volatile bool bRelayReady = false; 
 String clientName;
 unsigned long lastRelayActionmillis;
+unsigned long startMills;
 
 void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int length);
 
@@ -286,7 +288,7 @@ void setup()
   pinMode(RELAY_PIN, OUTPUT);
   pinMode(BUTTON_PIN, INPUT_PULLUP);
 
-  lastRelayActionmillis = millis();
+  startMills = lastRelayActionmillis = millis();
 
   attachInterrupt(BUTTON_PIN, run_lightcmd_isr, RISING);
 
@@ -325,7 +327,10 @@ void loop()
     if (bRelayReady)
     {
       change_light();
-      sendCheck();
+      if (client.connected())
+      {
+         sendCheck();
+      }
       lastRelayActionmillis = millis();
       bUpdated = false;
     }
@@ -351,6 +356,11 @@ void loop()
     }
     else
     {
+      if (millis() - startMills > REPORT_INTERVAL)
+      {
+         sendCheck();
+         startMills = millis();
+      }
       client.loop();
     }
     ArduinoOTA.handle();
