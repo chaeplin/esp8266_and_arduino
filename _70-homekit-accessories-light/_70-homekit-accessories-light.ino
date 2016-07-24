@@ -17,7 +17,7 @@ extern "C" {
 #define RELAY_PIN 12
 #define LED_PIN 13
 
-#define BETWEEN_RELAY_ACTIVE 1000
+#define BETWEEN_RELAY_ACTIVE 3000
 #define REPORT_INTERVAL 5000 // in msec
 
 IPAddress mqtt_server = MQTT_SERVER;
@@ -130,17 +130,20 @@ void ICACHE_RAM_ATTR parseMqttMsg(String receivedpayload, String receivedtopic)
     if (root.containsKey("cmd"))
     {
       const char* mqtt_relay_state = root["cmd"];
-      if ( String(mqtt_relay_state) == "on")
+      if (bRelayReady)
       {
-        Serial.println("call on");
-        bRelayState = HIGH;
-      }
-      else
-      {
-        Serial.println("call off");
-        bRelayState = LOW;
-      }
-      bUpdated = true;
+        if ( String(mqtt_relay_state) == "on")
+        {
+          Serial.println("call on");
+          bRelayState = HIGH;
+        }
+        else
+        {
+          Serial.println("call off");
+          bRelayState = LOW;
+        }
+        bUpdated = true;
+     }
     }
   }
 }
