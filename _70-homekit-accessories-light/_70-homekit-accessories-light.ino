@@ -9,15 +9,21 @@
 #include <Ticker.h>
 #include "/usr/local/src/rpi2_setting.h"
 
+extern "C" {
+#include "user_interface.h"
+}
+
 #define BUTTON_PIN 0
 #define RELAY_PIN 12
 #define LED_PIN 13
 
-#define BETWEEN_RELAY_ACTIVE 5000
+#define BETWEEN_RELAY_ACTIVE 1000
 
 IPAddress mqtt_server = MQTT_SERVER;
 
-char* subscribe_topic = "light/bedroomlight";
+const char* subscribe_topic = "light/bedroomlight";
+const char* reporting_topic = "light/bedroomlight/report";
+
 long lastReconnectAttempt = 0;
 volatile bool bUpdated = false;
 volatile bool bRelayState = false;
@@ -36,6 +42,54 @@ void tick()
   //toggle state
   int state = digitalRead(LED_PIN);  // get the current state of GPIO13 pin
   digitalWrite(LED_PIN, !state);     // set pin to the opposite state
+}
+
+bool ICACHE_RAM_ATTR sendmqttMsg(const char* topictosend, String payloadtosend, bool retain = false)
+{
+  unsigned int msg_length = payloadtosend.length();
+
+  byte* p = (byte*)malloc(msg_length);
+  memcpy(p, (char*) payloadtosend.c_str(), msg_length);
+
+  if (client.publish(topictosend, p, msg_length, retain))
+  {
+    free(p);
+    client.loop();
+
+    Serial.print("[MQTT] out topic : ");
+    Serial.print(topictosend);
+    Serial.print(" payload: ");
+    Serial.print(payloadtosend);
+    Serial.println(" published");
+
+    return true;
+
+  } else {
+    free(p);
+    client.loop();
+
+    Serial.print("[MQTT] out topic : ");
+    Serial.print(topictosend);
+    Serial.print(" payload: ");
+    Serial.print(payloadtosend);
+    Serial.println(" publish failed");
+
+    return false;
+  }
+}
+
+void ICACHE_RAM_ATTR sendCheck()
+{
+  String payload;
+  if (bRelayState)
+  {
+      payload = "on";
+  }
+  else
+  {
+      payload = "false";
+  }
+  sendmqttMsg(reporting_topic, payload, true);
 }
 
 void ICACHE_RAM_ATTR parseMqttMsg(String receivedpayload, String receivedtopic)
@@ -145,7 +199,7 @@ void wifi_connect()
     Serial.print("[WIFI] Connecting to ");
     Serial.println(WIFI_SSID);
 
-    delay(10);
+    //wifi_set_phy_mode(PHY_MODE_11N);
     WiFi.mode(WIFI_STA);
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
     WiFi.hostname("esp-bedroomlight");
@@ -204,20 +258,12 @@ void ArduinoOTA_config()
   ArduinoOTA.setPort(8266);
   ArduinoOTA.setHostname("esp-bedroomlight");
   ArduinoOTA.setPassword(OTA_PASSWORD);
-  ArduinoOTA.onStart([]()
-  {
-    ticker.attach(0.1, tick);
+  ArduinoOTA.onStart([]() 
+  { 
+     ticker.attach(0.1, tick); 
   });
-  ArduinoOTA.onEnd([]()
-  {
-    ticker.attach(0.2, tick);
-  });
-  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total)
-  {
-    //syslogPayload = "Progress: ";
-    //syslogPayload += (progress / (total / 100));
-    //sendUdpSyslog(syslogPayload);
-  });
+  ArduinoOTA.onEnd([]() { });
+  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) { });
   ArduinoOTA.onError([](ota_error_t error)
   {
     //ESP.restart();
@@ -279,6 +325,7 @@ void loop()
     if (bRelayReady)
     {
       change_light();
+      sendCheck();
       lastRelayActionmillis = millis();
       bUpdated = false;
     }
