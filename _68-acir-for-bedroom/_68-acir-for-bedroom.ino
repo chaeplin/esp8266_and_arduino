@@ -7,6 +7,9 @@
 #include <lgWhisen.h>
 #include <TimeLib.h>
 #include <ArduinoJson.h>
+#include <Wire.h>
+#include <SI7021.h>
+
 
 #define IR_TX_PIN 4
 #define AC_CONF_TYPE 1    // 0: tower, 1: wall
@@ -17,6 +20,9 @@
 #define REPORT_INTERVAL 5000 // in msec
 #define MAX_PIR_TIME 1800000  // ms 30 min
 #define PIR_INT 14
+
+#define SDA 12
+#define SCL 13
 
 #include "/usr/local/src/ap_setting.h"
 
@@ -48,6 +54,7 @@ WiFiClient wifiClient;
 PubSubClient client(mqtt_server, 1883, callback, wifiClient);
 lgWhisen lgWhisen;
 WiFiUDP udp;
+SI7021 sensor;
 
 bool bpresence = false;
 volatile bool bpir_isr;
@@ -397,6 +404,7 @@ void setup()
 
   reconnect();
   lastReconnectAttempt = 0;
+  sensor.begin(SDA,SCL);
   startMills = millis();
 }
 
@@ -490,6 +498,12 @@ void loop()
       {
         sendCheck();
         startMills = millis();
+
+        int temperature = sensor.getCelsiusHundredths();
+        int humidity = sensor.getHumidityPercent();
+
+        Serial.println(temperature);
+        Serial.println(humidity);
       }
       
       client.loop();
