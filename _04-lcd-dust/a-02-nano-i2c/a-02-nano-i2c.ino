@@ -205,7 +205,7 @@ void loop()
         Serial.println("IR -----> AC Power On");
         lgWhisen.activate();
         delay(2);
-        lgWhisen.alrclean_on();
+        lgWhisen.airclean_on();
         //delay(5);
         irrecv.enableIRIn();
         break;
