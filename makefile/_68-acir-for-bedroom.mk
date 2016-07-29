@@ -22,9 +22,11 @@ SKETCH ?= $(HOME)/esp8266_and_arduino/_68-acir-for-bedroom/_68-acir-for-bedroom.
 LIBS ?= $(ESP_LIBS)/ESP8266WiFi \
 $(ESP_LIBS)/ESP8266mDNS \
 $(ESP_LIBS)/ArduinoOTA \
+$(ESP_LIBS)/Wire \
 $(HOME)/esp8266_libraries/pubsubclient/src \
 $(HOME)/esp8266_libraries/IRremoteESP8266 \
 $(HOME)/esp8266_libraries/lgwhisen \
+$(HOME)/esp8266_libraries/SI7021 \
 $(HOME)/esp8266_libraries/Time 
 
 INCLUDE_DIRS = $(HOME)/esp8266_libraries/ArduinoJson

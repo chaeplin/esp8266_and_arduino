@@ -14,7 +14,7 @@
 #define IR_TX_PIN 4
 #define AC_CONF_TYPE 1    // 0: tower, 1: wall
 #define AC_CONF_HEATING 0   // 0: cooling, 1: heating
-#define AC_DEFAULT_TEMP 26  // temp 18 ~ 30
+#define AC_DEFAULT_TEMP 27  // temp 18 ~ 30
 #define AC_DEFAULT_FLOW 1   // fan speed 0: low, 1: mid, 2: high
 
 #define REPORT_INTERVAL 5000 // in msec
@@ -47,6 +47,8 @@ long lastReconnectAttempt = 0;
 unsigned int localPort = 12390;
 const int timeZone = 9;
 time_t prevDisplay = 0;
+int temperature;
+int humidity;
 
 void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int length);
 
@@ -109,6 +111,8 @@ void ICACHE_RAM_ATTR sendCheck()
   root["presence"]          = uint8_t(bpresence);
   root["ac_mode"]           = ir_data.ac_mode;
   root["ac_presence_mode"]  = ir_data.ac_presence_mode;
+  root["temperature"]       = temperature * 0.01;
+  root["humidity"]          = humidity;
   String json;
   root.printTo(json);
 
@@ -405,6 +409,11 @@ void setup()
   reconnect();
   lastReconnectAttempt = 0;
   sensor.begin(SDA,SCL);
+  temperature = sensor.getCelsiusHundredths();
+  humidity = sensor.getHumidityPercent();
+  Serial.println(temperature);
+  Serial.println(humidity);
+
   startMills = millis();
 }
 
@@ -496,14 +505,10 @@ void loop()
 
       if ((millis() - startMills) > REPORT_INTERVAL) 
       {
+        temperature = sensor.getCelsiusHundredths();
+        humidity = sensor.getHumidityPercent();
         sendCheck();
         startMills = millis();
-
-        int temperature = sensor.getCelsiusHundredths();
-        int humidity = sensor.getHumidityPercent();
-
-        Serial.println(temperature);
-        Serial.println(humidity);
       }
       
       client.loop();

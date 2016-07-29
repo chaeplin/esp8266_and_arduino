@@ -7,7 +7,7 @@
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
 #include <Ticker.h>
-#include "/usr/local/src/rpi2_setting.h"
+#include "/usr/local/src/aptls_setting.h"
 
 extern "C" {
 #include "user_interface.h"
