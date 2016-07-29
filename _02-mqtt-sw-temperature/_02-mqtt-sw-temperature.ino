@@ -19,6 +19,7 @@
 #include <OneWire.h>
 #include <PubSubClient.h>
 #include <ESP8266WiFi.h>
+#include <WiFiClientSecure.h>
 #include <DallasTemperature.h>
 #include <ESP8266mDNS.h>
 #include <ArduinoOTA.h>
@@ -36,7 +37,7 @@ extern "C" {
 #include "user_interface.h"
 }
 
-#include "/usr/local/src/ap_setting.h"
+#include "/usr/local/src/aptls_setting.h"
 
 //#define ENABLE_DHT
 
@@ -155,7 +156,7 @@ char* reporttopic   = "esp8266/report/s02";
 char subtopic_0[]   = "esp8266/cmd/light";   // light command
 char subtopic_1[]   = "esp8266/cmd/timer1";
 char subtopic_2[]   = "esp8266/check";
-char* substopic[3] = { subtopic_0, subtopic_1, subtopic_2 } ;
+char* substopic[3]  = { subtopic_0, subtopic_1, subtopic_2 } ;
 //
 unsigned int localPort = 12390;
 const int timeZone = 9;
@@ -218,8 +219,8 @@ bool bDalasstarted;
 bool bupdateLightStatus;
 
 /////////////
-WiFiClient wifiClient;
-PubSubClient client(mqtt_server, 1883, callback, wifiClient);
+WiFiClientSecure sslclient;
+PubSubClient client(mqtt_server, 8883, callback, sslclient);
 WiFiUDP udp;
 
 long lastReconnectAttempt = 0;
@@ -249,7 +250,7 @@ void wifi_connect() {
   wifi_set_phy_mode(PHY_MODE_11N);
   //wifi_set_channel(channel);
 
-  //WiFiClient::setLocalPortStart(micros());
+  //sslclient::setLocalPortStart(micros());
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
   WiFi.hostname("esp-swtemp");
@@ -265,31 +266,59 @@ void wifi_connect() {
   }
 }
 
+bool verifytls()
+{
+  Serial.print("[MQTT] tls connecting to ");
+  Serial.println(mqtt_server);
+  if (!sslclient.connect(mqtt_server, 8883))
+  {
+    Serial.println("[MQTT] tls connection failed");
+    return false;
+  }
+
+  if (sslclient.verify(MQTT_FINGERPRINT, MQTT_SERVER_CN))
+  {
+    Serial.println("[MQTT] tls certificate matches");
+    sslclient.stop();
+    return true;
+  }
+  else
+  {
+    Serial.println("[MQTT] tls certificate doesn't match");
+    sslclient.stop();
+    return false;
+  }
+}
+
 boolean reconnect() {
-  if (!client.connected()) {
-    if (client.connect((char*) clientName.c_str(), willTopic, 0, true, willMessage)) {
-      client.publish(willTopic, "1", true);
-      if ( ResetInfo == LOW) {
-        client.publish(hellotopic, (char*) getResetInfo.c_str());
-        ResetInfo = HIGH;
-      } else {
-        client.publish(hellotopic, "hello again 1 from switch");
-      }
+  if (!client.connected())
+  {
+    if (verifytls())
+    {
+      if (client.connect((char*) clientName.c_str(), MQTT_USER, MQTT_PASS, willTopic, 0, true, willMessage)) {
+        client.publish(willTopic, "1", true);
+        if ( ResetInfo == LOW) {
+          client.publish(hellotopic, (char*) getResetInfo.c_str());
+          ResetInfo = HIGH;
+        } else {
+          client.publish(hellotopic, "hello again 1 from switch");
+        }
 
-      client.loop();
-      for (int i = 0; i < 3; ++i) {
-        client.subscribe(substopic[i]);
         client.loop();
-      }
+        for (int i = 0; i < 3; ++i) {
+          client.subscribe(substopic[i]);
+          client.loop();
+        }
 
-      if (DEBUG_PRINT) {
-        sendUdpSyslog("---> mqttconnected");
-      }
-    } else {
-      if (DEBUG_PRINT) {
-        syslogPayload = "failed, rc=";
-        syslogPayload += client.state();
-        sendUdpSyslog(syslogPayload);
+        if (DEBUG_PRINT) {
+          sendUdpSyslog("---> mqttconnected");
+        }
+      } else {
+        if (DEBUG_PRINT) {
+          syslogPayload = "failed, rc=";
+          syslogPayload += client.state();
+          sendUdpSyslog(syslogPayload);
+        }
       }
     }
   }
@@ -324,7 +353,7 @@ void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int lengt
       {
         lightpayload += "off";
       }
-        
+
       sendmqttMsg(reporttopic, lightpayload, 1);
     }
     return;
@@ -384,7 +413,7 @@ void parseMqttMsg(String receivedpayload, String receivedtopic) {
       syslogPayload += lightoffmin;
       sendUdpSyslog(syslogPayload);
     }
-  }  
+  }
 }
 
 void setup() {
