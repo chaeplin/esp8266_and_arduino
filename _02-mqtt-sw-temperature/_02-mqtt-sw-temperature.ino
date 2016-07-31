@@ -268,23 +268,18 @@ void wifi_connect() {
 
 bool verifytls()
 {
-  Serial.print("[MQTT] tls connecting to ");
-  Serial.println(mqtt_server);
   if (!sslclient.connect(mqtt_server, 8883))
   {
-    Serial.println("[MQTT] tls connection failed");
     return false;
   }
 
   if (sslclient.verify(MQTT_FINGERPRINT, MQTT_SERVER_CN))
   {
-    Serial.println("[MQTT] tls certificate matches");
     sslclient.stop();
     return true;
   }
   else
   {
-    Serial.println("[MQTT] tls certificate doesn't match");
     sslclient.stop();
     return false;
   }
@@ -358,8 +353,6 @@ void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int lengt
     }
     return;
   }
-
-
   parseMqttMsg(receivedpayload, receivedtopic);
 }
 
