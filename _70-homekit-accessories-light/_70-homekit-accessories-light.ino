@@ -17,13 +17,13 @@ extern "C" {
 #define RELAY_PIN 12
 #define LED_PIN 13
 
-#define BETWEEN_RELAY_ACTIVE 3000
-#define REPORT_INTERVAL 5000 // in msec
+#define BETWEEN_RELAY_ACTIVE 1000
 
 IPAddress mqtt_server = MQTT_SERVER;
 
 const char* subscribe_topic = "light/bedroomlight";
 const char* reporting_topic = "light/bedroomlight/report";
+const char* hellotopic      = "HELLO";
 
 long lastReconnectAttempt = 0;
 volatile bool bUpdated = false;
@@ -32,6 +32,10 @@ volatile bool bRelayReady = false;
 String clientName;
 unsigned long lastRelayActionmillis;
 unsigned long startMills;
+
+// send reset info
+String getResetInfo;
+int ResetInfo = LOW;
 
 void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int length);
 
@@ -85,7 +89,7 @@ void ICACHE_RAM_ATTR sendCheck()
   String payload;
   if (bRelayState)
   {
-      payload = "on";
+      payload = "true";
   }
   else
   {
@@ -94,58 +98,28 @@ void ICACHE_RAM_ATTR sendCheck()
   sendmqttMsg(reporting_topic, payload, true);
 }
 
-void ICACHE_RAM_ATTR sendUpdate()
-{
-  DynamicJsonBuffer jsonBuffer;
-  JsonObject& root = jsonBuffer.createObject();
-  if (bRelayState)
-  {   
-     root["cmd"] = "on";
-  }
-  else
-  {
-     root["cmd"] = "off";
-  }
-  String json;
-  root.printTo(json);
-
-  sendmqttMsg(subscribe_topic, json, true);
-}
-
 void ICACHE_RAM_ATTR parseMqttMsg(String receivedpayload, String receivedtopic)
 {
-  char json[] = "{\"cmd\":\"off\"}";
-
-  receivedpayload.toCharArray(json, 150);
-  StaticJsonBuffer<150> jsonBuffer;
-  JsonObject& root = jsonBuffer.parseObject(json);
-
-  if (!root.success())
-  {
-    return;
-  }
-
   if (receivedtopic == subscribe_topic)
   {
-    if (root.containsKey("cmd"))
+    if (bRelayReady)
     {
-      const char* mqtt_relay_state = root["cmd"];
-      if (bRelayReady)
+      if ( receivedpayload == "true")
       {
-        if ( String(mqtt_relay_state) == "on")
-        {
-          Serial.println("call on");
-          bRelayState = HIGH;
-        }
-        else
-        {
-          Serial.println("call off");
-          bRelayState = LOW;
-        }
-        bUpdated = true;
-     }
+        bRelayState = HIGH;
+      }
+      else
+      {
+        bRelayState = LOW;
+      }
+      bUpdated = true;
     }
-  }
+    else
+    {
+      sendCheck();
+      client.loop();
+    }
+  }   
 }
 
 void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int length)
@@ -198,6 +172,13 @@ boolean reconnect()
     {
       if (client.connect((char*) clientName.c_str(), MQTT_USER, MQTT_PASS))
       {
+         if ( ResetInfo == LOW) {
+            client.publish(hellotopic, (char*) getResetInfo.c_str());
+            ResetInfo = HIGH;
+         } else {
+            client.publish(hellotopic, "hello again 1 from bedroomlight");
+         }
+
         client.subscribe(subscribe_topic);
         client.loop();
         Serial.println("[MQTT] mqtt connected");
@@ -222,7 +203,7 @@ void wifi_connect()
     Serial.print("[WIFI] Connecting to ");
     Serial.println(WIFI_SSID);
 
-    //wifi_set_phy_mode(PHY_MODE_11N);
+    wifi_set_phy_mode(PHY_MODE_11N);
     //WiFi.setOutputPower(18);
     WiFi.mode(WIFI_STA);
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
@@ -325,6 +306,9 @@ void setup()
   clientName += "-";
   clientName += String(micros() & 0xff, 16);
 
+  getResetInfo = "hello from bedroomlight ";
+  getResetInfo += ESP.getResetInfo().substring(0, 50);
+
   configTime(9 * 3600, 0, "pool.ntp.org", "time.nist.gov");
 
   ArduinoOTA_config();
@@ -351,8 +335,6 @@ void loop()
       change_light();
       if (client.connected())
       {
-         sendUpdate();
-         client.loop();
          sendCheck();
          client.loop();
       }
@@ -370,7 +352,7 @@ void loop()
     if (!client.connected())
     {
       long now = millis();
-      if (now - lastReconnectAttempt > 5000)
+      if (now - lastReconnectAttempt > 1000)
       {
         lastReconnectAttempt = now;
         if (reconnect())
@@ -381,11 +363,6 @@ void loop()
     }
     else
     {
-      if (millis() - startMills > REPORT_INTERVAL)
-      {
-         sendCheck();
-         startMills = millis();
-      }
       client.loop();
     }
     ArduinoOTA.handle();
