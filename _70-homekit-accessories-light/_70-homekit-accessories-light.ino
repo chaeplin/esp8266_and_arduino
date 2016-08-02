@@ -61,25 +61,11 @@ bool ICACHE_RAM_ATTR sendmqttMsg(const char* topictosend, String payloadtosend, 
   {
     free(p);
     client.loop();
-
-    Serial.print("[MQTT] out topic : ");
-    Serial.print(topictosend);
-    Serial.print(" payload: ");
-    Serial.print(payloadtosend);
-    Serial.println(" published");
-
     return true;
 
   } else {
     free(p);
     client.loop();
-
-    Serial.print("[MQTT] out topic : ");
-    Serial.print(topictosend);
-    Serial.print(" payload: ");
-    Serial.print(payloadtosend);
-    Serial.println(" publish failed");
-
     return false;
   }
 }
@@ -117,7 +103,6 @@ void ICACHE_RAM_ATTR parseMqttMsg(String receivedpayload, String receivedtopic)
     else
     {
       sendCheck();
-      client.loop();
     }
   }   
 }
@@ -132,33 +117,24 @@ void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int lengt
     receivedpayload += (char)inpayload[i];
   }
 
-  Serial.print("[MQTT] intopic : ");
-  Serial.print(receivedtopic);
-  Serial.print(" payload: ");
-  Serial.println(receivedpayload);
-
   parseMqttMsg(receivedpayload, receivedtopic);
 }
 
 bool verifytls()
 {
-  Serial.print("[MQTT] tls connecting to ");
-  Serial.println(mqtt_server);
+
   if (!sslclient.connect(mqtt_server, 8883))
   {
-    Serial.println("[MQTT] tls connection failed");
     return false;
   }
 
   if (sslclient.verify(MQTT_FINGERPRINT, MQTT_SERVER_CN))
   {
-    Serial.println("[MQTT] tls certificate matches");
     sslclient.stop();
     return true;
   }
   else
   {
-    Serial.println("[MQTT] tls certificate doesn't match");
     sslclient.stop();
     return false;
   }
@@ -181,14 +157,6 @@ boolean reconnect()
 
         client.subscribe(subscribe_topic);
         client.loop();
-        Serial.println("[MQTT] mqtt connected");
-        ticker.attach(1, tick);
-      }
-      else
-      {
-        Serial.print("[MQTT] mqtt failed, rc=");
-        Serial.println(client.state());
-        ticker.attach(0.5, tick);
       }
     }
   }
@@ -199,12 +167,8 @@ void wifi_connect()
 {
   if (WiFi.status() != WL_CONNECTED)
   {
-    Serial.println();
-    Serial.print("[WIFI] Connecting to ");
-    Serial.println(WIFI_SSID);
-
     wifi_set_phy_mode(PHY_MODE_11N);
-    //WiFi.setOutputPower(18);
+    WiFi.setOutputPower(20);
     WiFi.mode(WIFI_STA);
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
     WiFi.hostname("esp-bedroomlight");
@@ -212,24 +176,14 @@ void wifi_connect()
     int Attempt = 0;
     while (WiFi.status() != WL_CONNECTED)
     {
-      Serial.print(". ");
-      Serial.print(Attempt);
       delay(100);
       Attempt++;
       if (Attempt == 150)
       {
-        Serial.println();
-        Serial.println("[WIFI] Could not connect to WIFI, restarting...");
-        Serial.flush();
         ESP.restart();
         delay(200);
       }
     }
-
-    Serial.println();
-    Serial.print("[WIFI] connected");
-    Serial.print(" --> IP address: ");
-    Serial.println(WiFi.localIP());
   }
 }
 
@@ -284,9 +238,6 @@ void ArduinoOTA_config()
 
 void setup()
 {
-  Serial.begin(115200);
-  Serial.println();
-  Serial.println("Starting....... ");
   pinMode(LED_PIN, OUTPUT);
   pinMode(RELAY_PIN, OUTPUT);
   pinMode(BUTTON_PIN, INPUT_PULLUP);
@@ -336,7 +287,6 @@ void loop()
       if (client.connected())
       {
          sendCheck();
-         client.loop();
       }
       lastRelayActionmillis = millis();
       bUpdated = false;
