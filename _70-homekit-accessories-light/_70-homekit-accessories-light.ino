@@ -157,6 +157,11 @@ boolean reconnect()
 
         client.subscribe(subscribe_topic);
         client.loop();
+        ticker.attach(1, tick);
+      }
+      else
+      {
+        ticker.attach(0.5, tick);
       }
     }
   }
