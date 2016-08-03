@@ -266,10 +266,10 @@ boolean reconnect()
 
 void wifi_connect()
 {
-  //WiFiClient::setLocalPortStart(micros() + vdd);
-  //wifi_set_phy_mode(PHY_MODE_11N);
+  WiFiClient::setLocalPortStart(micros() + vdd);
+  wifi_set_phy_mode(PHY_MODE_11N);
+  WiFi.setOutputPower(20);
   WiFi.mode(WIFI_STA);
-  //WiFi.config(ip_static, ip_gateway, ip_subnet);
   WiFi.begin(ssid, password);
   WiFi.config(IPAddress(ip_static), IPAddress(ip_gateway), IPAddress(ip_subnet), IPAddress(ip_dns));
   WiFi.hostname("esp-button");
