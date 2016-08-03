@@ -70,11 +70,11 @@ IPAddress ip_subnet = IPSET_SUBNET;
 IPAddress ip_dns = IPSET_DNS;
 // ****************
 
-char* topic = "esp8266/cmd/light";
-char* subtopic = "esp8266/cmd/light/rlst";
-char* buttontopic = "button";
+const char* topic = "esp8266/cmd/light";
+const char* subtopic = "esp8266/cmd/light/rlst";
+const char* buttontopic = "button";
 
-char* actopic = "esp8266/cmd/ac";
+const char* actopic = "esp8266/cmd/ac";
 
 String clientName;
 String payload;
@@ -266,8 +266,8 @@ boolean reconnect()
 
 void wifi_connect()
 {
-  WiFiClient::setLocalPortStart(micros() + vdd);
-  wifi_set_phy_mode(PHY_MODE_11N);
+  //WiFiClient::setLocalPortStart(micros() + vdd);
+  //wifi_set_phy_mode(PHY_MODE_11N);
   WiFi.mode(WIFI_STA);
   //WiFi.config(ip_static, ip_gateway, ip_subnet);
   WiFi.begin(ssid, password);
@@ -535,7 +535,7 @@ void sendbuttonstatus()
   }
 }
 
-boolean sendmqttMsg(char* topictosend, String payload)
+boolean sendmqttMsg(const char* topictosend, String payload)
 {
   if (client.connected())
   {
