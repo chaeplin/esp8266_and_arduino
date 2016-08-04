@@ -3,6 +3,7 @@
 #include <ESP8266mDNS.h>
 #include <WiFiUdp.h>
 #include <ArduinoOTA.h>
+#include <WiFiClientSecure.h>
 #include <PubSubClient.h>
 #include <TimeLib.h>
 #include <ArduinoJson.h>
@@ -10,8 +11,10 @@
 #define COOL_PIN 5
 #define HEAT_PIN 4
 
-#include "/usr/local/src/ap_setting.h"
+#include "/usr/local/src/aptls_setting.h"
 const char* reporting_topic = "esp8266/nestbridge";
+const char* topic_ac_cmd    = "esp8266/cmd/ac";
+const char* hellotopic      = "HELLO";
 
 IPAddress mqtt_server = MQTT_SERVER;
 
@@ -22,15 +25,24 @@ unsigned int localPort = 12390;
 const int timeZone = 9;
 time_t prevDisplay = 0;
 
+// send reset info
+String getResetInfo;
+int ResetInfo = LOW;
+
 void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int length);
-WiFiClient wifiClient;
-PubSubClient client(mqtt_server, 1883, callback, wifiClient);
+WiFiClientSecure sslclient;
+PubSubClient client(mqtt_server, 8883, callback, sslclient);
 WiFiUDP udp;
 
-volatile bool bnest_isr = false;
+volatile bool bnest_isr_cool = false;
+volatile bool bnest_isr_heat = false;
 
-void ICACHE_RAM_ATTR nest_isr() {
-  bnest_isr = true;
+void ICACHE_RAM_ATTR nest_isr_cool() {
+  bnest_isr_cool = true;
+}
+
+void ICACHE_RAM_ATTR nest_isr_heat() {
+  bnest_isr_heat = true;
 }
 
 bool ICACHE_RAM_ATTR sendmqttMsg(const char* topictosend, String payloadtosend, bool retain = false)
@@ -79,23 +91,63 @@ void ICACHE_RAM_ATTR sendCheck()
   sendmqttMsg(reporting_topic, json, false);
 }
 
+void ICACHE_RAM_ATTR send_ac_cmd()
+{
+  DynamicJsonBuffer jsonBuffer;
+  JsonObject& root = jsonBuffer.createObject();
+  root["AC"] = !digitalRead(COOL_PIN);
+  String json;
+  root.printTo(json);
+
+  sendmqttMsg(topic_ac_cmd, json, true);
+}
+
 void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int length)
 {
+}
+
+bool verifytls()
+{
+
+  if (!sslclient.connect(mqtt_server, 8883))
+  {
+    return false;
+  }
+
+  if (sslclient.verify(MQTT_FINGERPRINT, MQTT_SERVER_CN))
+  {
+    sslclient.stop();
+    return true;
+  }
+  else
+  {
+    sslclient.stop();
+    return false;
+  }
 }
 
 boolean reconnect()
 {
   if (!client.connected())
   {
-    if (client.connect((char*) clientName.c_str()))
-    {
-      Serial.println("[MQTT] mqtt connected");
-    }
-    else
-    {
-      Serial.print("[MQTT] mqtt failed, rc=");
-      Serial.println(client.state());
-    }
+   if (verifytls())
+   {
+      if (client.connect((char*) clientName.c_str(), MQTT_USER, MQTT_PASS))
+      {
+         if ( ResetInfo == LOW) {
+            client.publish(hellotopic, (char*) getResetInfo.c_str());
+            ResetInfo = HIGH;
+         } else {
+            client.publish(hellotopic, "hello again 1 from nestbridge");
+         }
+         Serial.println("[MQTT] mqtt connected");
+      }
+      else
+      {
+         Serial.print("[MQTT] mqtt failed, rc=");
+         Serial.println(client.state());
+      }
+   }
   }
   return client.connected();
 }
@@ -256,8 +308,8 @@ void setup()
    pinMode(COOL_PIN, INPUT);
    pinMode(HEAT_PIN, INPUT);
 
-   attachInterrupt(COOL_PIN, nest_isr, CHANGE);
-   attachInterrupt(HEAT_PIN, nest_isr, CHANGE);
+   attachInterrupt(COOL_PIN, nest_isr_cool, CHANGE);
+   attachInterrupt(HEAT_PIN, nest_isr_heat, CHANGE);
 
 	wifi_connect();
 	
@@ -267,6 +319,9 @@ void setup()
 	clientName += macToStr(mac);
 	clientName += "-";
 	clientName += String(micros() & 0xff, 16);
+
+   getResetInfo = "hello from nestbridge ";
+   getResetInfo += ESP.getResetInfo().substring(0, 50);
 	
 	configTime(9 * 3600, 0, "pool.ntp.org", "time.nist.gov");
 	
@@ -317,11 +372,19 @@ void loop()
     }
     else
     {
-      if (bnest_isr) 
+      if (bnest_isr_cool)
       {
          sendCheck();
-         bnest_isr = false;
+         send_ac_cmd();
+         bnest_isr_cool = false;
       }      
+
+      if (bnest_isr_heat)
+      {
+         sendCheck();
+         bnest_isr_heat = false;
+      }
+
       client.loop();
     }
     ArduinoOTA.handle();
