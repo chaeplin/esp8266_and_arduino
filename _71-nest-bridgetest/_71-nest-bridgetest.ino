@@ -311,28 +311,28 @@ void setup()
    attachInterrupt(COOL_PIN, nest_isr_cool, CHANGE);
    attachInterrupt(HEAT_PIN, nest_isr_heat, CHANGE);
 
-	wifi_connect();
-	
-	clientName += "esp8266-";
-	uint8_t mac[6];
-	WiFi.macAddress(mac);
-	clientName += macToStr(mac);
-	clientName += "-";
-	clientName += String(micros() & 0xff, 16);
+   wifi_connect();
+
+   clientName += "esp8266-";
+   uint8_t mac[6];
+   WiFi.macAddress(mac);
+   clientName += macToStr(mac);
+   clientName += "-";
+   clientName += String(micros() & 0xff, 16);
 
    getResetInfo = "hello from nestbridge ";
    getResetInfo += ESP.getResetInfo().substring(0, 50);
-	
-	configTime(9 * 3600, 0, "pool.ntp.org", "time.nist.gov");
-	
-	// ntp update
-	udp.begin(localPort);
-	if (timeStatus() == timeNotSet)
-	{
-	  Serial.println("[NTP] get ntp time");
-	  setSyncProvider(getNtpTime);
-	  delay(500);
-	}
+
+   configTime(9 * 3600, 0, "pool.ntp.org", "time.nist.gov");
+
+   // ntp update
+   udp.begin(localPort);
+   if (timeStatus() == timeNotSet)
+   {
+     Serial.println("[NTP] get ntp time");
+     setSyncProvider(getNtpTime);
+     delay(500);
+   }
 
    ArduinoOTA_config();
 
