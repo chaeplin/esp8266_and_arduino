@@ -339,6 +339,7 @@ void setup()
    reconnect();
    lastReconnectAttempt = 0;
    sendCheck();
+   send_ac_cmd();
 }
 
 void loop()

@@ -18,11 +18,13 @@ extern "C" {
 #define LED_PIN 13
 
 #define BETWEEN_RELAY_ACTIVE 1000
+#define REPORT_INTERVAL 5000 // in msec
 
 IPAddress mqtt_server = MQTT_SERVER;
 
 const char* subscribe_topic = "light/bedroomlight";
 const char* reporting_topic = "light/bedroomlight/report";
+const char* status_topic    = "light/bedroomlight/status";
 const char* hellotopic      = "HELLO";
 
 long lastReconnectAttempt = 0;
@@ -70,7 +72,7 @@ bool ICACHE_RAM_ATTR sendmqttMsg(const char* topictosend, String payloadtosend, 
   }
 }
 
-void ICACHE_RAM_ATTR sendCheck()
+void ICACHE_RAM_ATTR sendreport()
 {
   String payload;
   if (bRelayState)
@@ -82,6 +84,19 @@ void ICACHE_RAM_ATTR sendCheck()
       payload = "false";
   }
   sendmqttMsg(reporting_topic, payload, true);
+}
+
+void ICACHE_RAM_ATTR sendCheck()
+{
+  DynamicJsonBuffer jsonBuffer;
+  JsonObject& root = jsonBuffer.createObject();
+  root["FreeHeap"] = ESP.getFreeHeap();
+  root["RSSI"]     = WiFi.RSSI();
+  root["millis"]   = millis();
+  String json;
+  root.printTo(json);
+
+  sendmqttMsg(status_topic, json, false);
 }
 
 void ICACHE_RAM_ATTR parseMqttMsg(String receivedpayload, String receivedtopic)
@@ -102,7 +117,7 @@ void ICACHE_RAM_ATTR parseMqttMsg(String receivedpayload, String receivedtopic)
     }
     else
     {
-      sendCheck();
+      sendreport();
     }
   }   
 }
@@ -291,7 +306,7 @@ void loop()
       change_light();
       if (client.connected())
       {
-         sendCheck();
+         sendreport();
       }
       lastRelayActionmillis = millis();
       bUpdated = false;
@@ -318,6 +333,11 @@ void loop()
     }
     else
     {
+      if (millis() - startMills > REPORT_INTERVAL)
+      {
+         sendCheck();
+         startMills = millis();
+      }
       client.loop();
     }
     ArduinoOTA.handle();
