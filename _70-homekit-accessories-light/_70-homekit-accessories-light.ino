@@ -7,6 +7,7 @@
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
 #include <Ticker.h>
+#include <pgmspace.h>
 #include "/usr/local/src/aptls_setting.h"
 
 extern "C" {
@@ -31,6 +32,8 @@ long lastReconnectAttempt = 0;
 volatile bool bUpdated = false;
 volatile bool bRelayState = false;
 volatile bool bRelayReady = false; 
+volatile bool bsendReport = false;
+
 String clientName;
 unsigned long lastRelayActionmillis;
 unsigned long startMills;
@@ -62,12 +65,12 @@ bool ICACHE_RAM_ATTR sendmqttMsg(const char* topictosend, String payloadtosend, 
   if (client.publish(topictosend, p, msg_length, retain))
   {
     free(p);
-    client.loop();
+    //client.loop();
     return true;
 
   } else {
     free(p);
-    client.loop();
+    //client.loop();
     return false;
   }
 }
@@ -166,12 +169,16 @@ boolean reconnect()
          if ( ResetInfo == LOW) {
             client.publish(hellotopic, (char*) getResetInfo.c_str());
             ResetInfo = HIGH;
-         } else {
-            client.publish(hellotopic, "hello again 1 from bedroomlight");
          }
+         /* 
+         else 
+         {
+            client.publish(hellotopic, "hello again 1 from bedroomlight");
+         } 
+         */
 
         client.subscribe(subscribe_topic);
-        client.loop();
+        //client.loop();
         ticker.attach(1, tick);
       }
       else
@@ -210,6 +217,7 @@ void wifi_connect()
 void change_light()
 {
   digitalWrite(RELAY_PIN, bRelayState);
+  bsendReport = true;
 }
 
 void run_lightcmd_isr()
@@ -304,10 +312,6 @@ void loop()
     if (bRelayReady)
     {
       change_light();
-      if (client.connected())
-      {
-         sendreport();
-      }
       lastRelayActionmillis = millis();
       bUpdated = false;
     }
@@ -333,6 +337,11 @@ void loop()
     }
     else
     {
+      if (bsendReport)
+      {
+         sendreport();
+         bsendReport = false;
+      }
       if (millis() - startMills > REPORT_INTERVAL)
       {
          sendCheck();
