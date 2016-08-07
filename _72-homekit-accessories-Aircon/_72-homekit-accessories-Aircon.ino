@@ -160,6 +160,10 @@ void ICACHE_RAM_ATTR parseMqttMsg(String receivedpayload, String receivedtopic)
       if (ir_data.ac_temp != root["ac_temp"])
       {
         ir_data.ac_temp = root["ac_temp"];
+        if (ir_data.ac_mode == 1)
+        {
+          ir_data.haveData = true;
+        }
       }
     }
 
