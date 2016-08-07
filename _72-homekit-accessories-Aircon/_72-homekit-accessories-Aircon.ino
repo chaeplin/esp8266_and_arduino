@@ -17,8 +17,9 @@
 #define AC_DEFAULT_TEMP 27  // temp 18 ~ 30
 #define AC_DEFAULT_FLOW 1   // fan speed 0: low, 1: mid, 2: high
 
-#define REPORT_INTERVAL 5000 // in msec
-#define MAX_PIR_TIME 1800000  // ms 30 min
+#define REPORT_INTERVAL 5000    // in msec
+//#define MAX_PIR_TIME 1800000  // ms 30 min
+#define MAX_PIR_TIME 300000     // ms 5 min
 #define PIR_INT 14
 
 #define SDA 12
@@ -563,7 +564,6 @@ void loop()
         sendHomekit();
         startMills = millis();
       }
-
       client.loop();
     }
     ArduinoOTA.handle();
