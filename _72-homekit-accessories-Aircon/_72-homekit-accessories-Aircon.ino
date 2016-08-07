@@ -116,6 +116,7 @@ void sendHomekit()
   root["ac_temp"]           = ir_data.ac_temp;
   root["cur_temp"]          = temperature * 0.01;
   root["cur_humi"]          = humidity;
+  root["presence"]          = uint8_t(bpresence);
   String json;
   root.printTo(json);
 
@@ -142,7 +143,6 @@ void sendCheck()
 
 void ICACHE_RAM_ATTR parseMqttMsg(String receivedpayload, String receivedtopic)
 {
-  //char json[] = "{\"AC\":0,\"ac_temp\":27,\"ac_flow\":1}";
   char json[] = "{\"ac_mode\":0,\"ac_temp\":27}";
 
   receivedpayload.toCharArray(json, 150);
@@ -173,54 +173,16 @@ void ICACHE_RAM_ATTR parseMqttMsg(String receivedpayload, String receivedtopic)
       if (ir_data.ac_mode != root["ac_mode"])
       {
         ir_data.ac_mode = root["ac_mode"];
+        /*
         if (bpresence)
         {
           ir_data.haveData = true;
         }
+        */
+        ir_data.haveData = true;
       }
     }
   }
-
-  /*
-    if (receivedtopic == subscribe_cmd)
-    {
-      if (root.containsKey("AC"))
-      {
-        if (ir_data.ac_mode != root["AC"])
-        {
-          ir_data.ac_mode = root["AC"];
-          if (bpresence)
-          {
-            ir_data.haveData = true;
-          }
-        }
-      }
-    }
-
-    if (receivedtopic == subscribe_set)
-    {
-      if (root.containsKey("ac_temp"))
-      {
-       if (ir_data.ac_temp != root["ac_temp"])
-       {
-          ir_data.ac_temp = root["ac_temp"];
-          //
-          //
-          //   if (root.containsKey("ac_flow"))
-          //    {
-          //        ir_data.ac_flow = root["ac_flow"];
-          //    }
-          //
-          //
-          //if (ir_data.ac_mode == 1 && bpresence)
-          //{
-          //    ir_data.haveData = true;
-          //}
-          //
-        }
-      }
-    }
-  */
 }
 
 void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int length)
@@ -247,10 +209,6 @@ boolean reconnect()
   {
     if (client.connect((char*) clientName.c_str()))
     {
-      //client.subscribe(subscribe_cmd);
-      //client.loop();
-      //client.subscribe(subscribe_set);
-      //client.loop();
       client.subscribe(homekit_subscribe_topic);
       client.loop();
       Serial.println("[MQTT] mqtt connected");
