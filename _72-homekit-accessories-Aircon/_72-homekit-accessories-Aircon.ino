@@ -163,7 +163,6 @@ void ICACHE_RAM_ATTR parseMqttMsg(String receivedpayload, String receivedtopic)
     }
   }
 
-  /*
   if (receivedtopic == subscribe_set)
   {
     if (root.containsKey("ac_temp"))
@@ -178,15 +177,15 @@ void ICACHE_RAM_ATTR parseMqttMsg(String receivedpayload, String receivedtopic)
         //        ir_data.ac_flow = root["ac_flow"];
         //    }
         //
-
+        /*
         if (ir_data.ac_mode == 1 && bpresence)
         {
             ir_data.haveData = true;
         }
+        */
       }
     }
   }
-  */
 }
 
 void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int length)
