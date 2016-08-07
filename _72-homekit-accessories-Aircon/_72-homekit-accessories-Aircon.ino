@@ -9,7 +9,7 @@
 #include <ArduinoJson.h>
 #include <Wire.h>
 #include <SI7021.h>
-
+#include <Average.h>
 
 #define IR_TX_PIN 4
 #define AC_CONF_TYPE 1    // 0: tower, 1: wall
@@ -53,6 +53,8 @@ int temperature;
 int humidity;
 
 void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int length);
+
+Average<float> ave(10);
 
 WiFiClient wifiClient;
 PubSubClient client(mqtt_server, 1883, callback, wifiClient);
@@ -129,6 +131,8 @@ void sendCheck()
   root["ac_presence_mode"]  = ir_data.ac_presence_mode;
   root["temperature"]       = temperature * 0.01;
   root["humidity"]          = humidity;
+  root["ave.mean"]          = ave.mean();
+  root["ave.stddev"]        = ave.stddev();
   String json;
   root.printTo(json);
 
@@ -137,7 +141,8 @@ void sendCheck()
 
 void ICACHE_RAM_ATTR parseMqttMsg(String receivedpayload, String receivedtopic)
 {
-  char json[] = "{\"AC\":0,\"ac_temp\":27,\"ac_flow\":1}";
+  //char json[] = "{\"AC\":0,\"ac_temp\":27,\"ac_flow\":1}";
+  char json[] = "{\"ac_mode\":0,\"ac_temp\":27}";
 
   receivedpayload.toCharArray(json, 150);
   StaticJsonBuffer<150> jsonBuffer;
@@ -148,13 +153,21 @@ void ICACHE_RAM_ATTR parseMqttMsg(String receivedpayload, String receivedtopic)
     return;
   }
 
-  if (receivedtopic == subscribe_cmd)
+  if (receivedtopic == homekit_subscribe_topic)
   {
-    if (root.containsKey("AC"))
+    if (root.containsKey("ac_temp"))
     {
-      if (ir_data.ac_mode != root["AC"])
+      if (ir_data.ac_temp != root["ac_temp"])
       {
-        ir_data.ac_mode = root["AC"];
+        ir_data.ac_temp = root["ac_temp"];
+      }
+    }
+
+    if (root.containsKey("ac_mode"))
+    {
+      if (ir_data.ac_mode != root["ac_mode"])
+      {
+        ir_data.ac_mode = root["ac_mode"];
         if (bpresence)
         {
           ir_data.haveData = true;
@@ -163,29 +176,46 @@ void ICACHE_RAM_ATTR parseMqttMsg(String receivedpayload, String receivedtopic)
     }
   }
 
-  if (receivedtopic == subscribe_set)
-  {
-    if (root.containsKey("ac_temp"))
+  /*
+    if (receivedtopic == subscribe_cmd)
     {
-     if (ir_data.ac_temp != root["ac_temp"])
-     {
-        ir_data.ac_temp = root["ac_temp"];
-
-        //
-        //   if (root.containsKey("ac_flow"))
-        //    {
-        //        ir_data.ac_flow = root["ac_flow"];
-        //    }
-        //
-        /*
-        if (ir_data.ac_mode == 1 && bpresence)
+      if (root.containsKey("AC"))
+      {
+        if (ir_data.ac_mode != root["AC"])
         {
+          ir_data.ac_mode = root["AC"];
+          if (bpresence)
+          {
             ir_data.haveData = true;
+          }
         }
-        */
       }
     }
-  }
+
+    if (receivedtopic == subscribe_set)
+    {
+      if (root.containsKey("ac_temp"))
+      {
+       if (ir_data.ac_temp != root["ac_temp"])
+       {
+          ir_data.ac_temp = root["ac_temp"];
+          //
+          //
+          //   if (root.containsKey("ac_flow"))
+          //    {
+          //        ir_data.ac_flow = root["ac_flow"];
+          //    }
+          //
+          //
+          //if (ir_data.ac_mode == 1 && bpresence)
+          //{
+          //    ir_data.haveData = true;
+          //}
+          //
+        }
+      }
+    }
+  */
 }
 
 void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int length)
@@ -212,9 +242,11 @@ boolean reconnect()
   {
     if (client.connect((char*) clientName.c_str()))
     {
-      client.subscribe(subscribe_cmd);
-      client.loop();
-      client.subscribe(subscribe_set);
+      //client.subscribe(subscribe_cmd);
+      //client.loop();
+      //client.subscribe(subscribe_set);
+      //client.loop();
+      client.subscribe(homekit_subscribe_topic);
       client.loop();
       Serial.println("[MQTT] mqtt connected");
     }
@@ -423,7 +455,7 @@ void setup()
 
   reconnect();
   lastReconnectAttempt = 0;
-  sensor.begin(SDA,SCL);
+  sensor.begin(SDA, SCL);
   temperature = sensor.getCelsiusHundredths();
   humidity = sensor.getHumidityPercent();
   Serial.println(temperature);
@@ -448,7 +480,7 @@ void loop()
   else
   {
     bpresence = false;
-  }  
+  }
 
   if (!bpresence && ir_data.ac_presence_mode == 1)
   {
@@ -518,15 +550,16 @@ void loop()
         ir_data.haveData = false;
       }
 
-      if ((millis() - startMills) > REPORT_INTERVAL) 
+      if ((millis() - startMills) > REPORT_INTERVAL)
       {
         temperature = sensor.getCelsiusHundredths();
         humidity = sensor.getHumidityPercent();
+        ave.push((temperature * 0.01));
         sendCheck();
         sendHomekit();
         startMills = millis();
       }
-      
+
       client.loop();
     }
     ArduinoOTA.handle();
