@@ -20,7 +20,7 @@
 
 #define REPORT_INTERVAL 5000    // in msec
 //#define MAX_PIR_TIME 1800000  // ms 30 min
-#define MAX_PIR_TIME 300000     // ms 5 min
+#define MAX_PIR_TIME 900000     // ms 15 min
 #define PIR_INT 14
 
 #define SDA 12
@@ -33,6 +33,7 @@ const char* subscribe_set   = "esp8266/cmd/acset";
 const char* reporting_topic = "report/pirtest";
 const char* homekit_reporting_topic = "homekit/bedroom/aircon/get";
 const char* homekit_subscribe_topic = "homekit/bedroom/aircon/set";
+const char* hellotopic              = "HELLO";
 
 volatile struct
 {
@@ -53,6 +54,10 @@ const int timeZone = 9;
 time_t prevDisplay = 0;
 int temperature;
 int humidity;
+
+// send reset info
+String getResetInfo;
+int ResetInfo = LOW;
 
 void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int length);
 
@@ -171,17 +176,8 @@ void ICACHE_RAM_ATTR parseMqttMsg(String receivedpayload, String receivedtopic)
 
     if (root.containsKey("ac_mode"))
     {
-      if (ir_data.ac_mode != root["ac_mode"])
-      {
-        ir_data.ac_mode = root["ac_mode"];
-        /*
-          if (bpresence)
-          {
-          ir_data.haveData = true;
-          }
-        */
-        ir_data.haveData = true;
-      }
+      ir_data.ac_mode = root["ac_mode"];
+      ir_data.haveData = true;
     }
   }
 }
@@ -229,8 +225,13 @@ boolean reconnect()
   {
     if (verifytls())
     {
-      if (client.connect((char*) clientName.c_str()))
+      if (client.connect((char*) clientName.c_str(), MQTT_USER, MQTT_PASS))
       {
+        if ( ResetInfo == LOW) {
+          client.publish(hellotopic, (char*) getResetInfo.c_str());
+          ResetInfo = HIGH;
+        }
+        client.loop();
         client.subscribe(homekit_subscribe_topic);
         client.loop();
         Serial.println("[MQTT] mqtt connected");
@@ -422,6 +423,9 @@ void setup()
   clientName += macToStr(mac);
   clientName += "-";
   clientName += String(micros() & 0xff, 16);
+
+  getResetInfo = "hello from esp-irbedroom ";
+  getResetInfo += ESP.getResetInfo().substring(0, 50);
 
   configTime(9 * 3600, 0, "pool.ntp.org", "time.nist.gov");
 
