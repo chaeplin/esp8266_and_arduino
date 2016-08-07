@@ -1,5 +1,6 @@
 // nodemcu v1
 #include <ESP8266WiFi.h>
+#include <WiFiClientSecure.h>
 #include <ESP8266mDNS.h>
 #include <WiFiUdp.h>
 #include <ArduinoOTA.h>
@@ -25,7 +26,7 @@
 #define SDA 12
 #define SCL 13
 
-#include "/usr/local/src/ap_setting.h"
+#include "/usr/local/src/aptls_setting.h"
 
 const char* subscribe_cmd   = "esp8266/cmd/ac";
 const char* subscribe_set   = "esp8266/cmd/acset";
@@ -57,8 +58,8 @@ void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int lengt
 
 Average<float> ave(10);
 
-WiFiClient wifiClient;
-PubSubClient client(mqtt_server, 1883, callback, wifiClient);
+WiFiClientSecure sslclient;
+PubSubClient client(mqtt_server, 8883, callback, sslclient);
 lgWhisen lgWhisen;
 WiFiUDP udp;
 SI7021 sensor;
@@ -174,10 +175,10 @@ void ICACHE_RAM_ATTR parseMqttMsg(String receivedpayload, String receivedtopic)
       {
         ir_data.ac_mode = root["ac_mode"];
         /*
-        if (bpresence)
-        {
+          if (bpresence)
+          {
           ir_data.haveData = true;
-        }
+          }
         */
         ir_data.haveData = true;
       }
@@ -203,20 +204,42 @@ void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int lengt
   parseMqttMsg(receivedpayload, receivedtopic);
 }
 
+bool verifytls()
+{
+  if (!sslclient.connect(mqtt_server, 8883))
+  {
+    return false;
+  }
+
+  if (sslclient.verify(MQTT_FINGERPRINT, MQTT_SERVER_CN))
+  {
+    sslclient.stop();
+    return true;
+  }
+  else
+  {
+    sslclient.stop();
+    return false;
+  }
+}
+
 boolean reconnect()
 {
   if (!client.connected())
   {
-    if (client.connect((char*) clientName.c_str()))
+    if (verifytls())
     {
-      client.subscribe(homekit_subscribe_topic);
-      client.loop();
-      Serial.println("[MQTT] mqtt connected");
-    }
-    else
-    {
-      Serial.print("[MQTT] mqtt failed, rc=");
-      Serial.println(client.state());
+      if (client.connect((char*) clientName.c_str()))
+      {
+        client.subscribe(homekit_subscribe_topic);
+        client.loop();
+        Serial.println("[MQTT] mqtt connected");
+      }
+      else
+      {
+        Serial.print("[MQTT] mqtt failed, rc=");
+        Serial.println(client.state());
+      }
     }
   }
   return client.connected();
