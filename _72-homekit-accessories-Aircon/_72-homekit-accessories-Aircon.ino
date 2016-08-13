@@ -28,9 +28,9 @@
 
 #include "/usr/local/src/aptls_setting.h"
 
-const char* subscribe_cmd   = "esp8266/cmd/ac";
-const char* subscribe_set   = "esp8266/cmd/acset";
-const char* reporting_topic = "report/pirtest";
+const char* subscribe_cmd           = "esp8266/cmd/ac";
+const char* subscribe_set           = "esp8266/cmd/acset";
+const char* reporting_topic         = "report/pirtest";
 const char* homekit_reporting_topic = "homekit/bedroom/aircon/get";
 const char* homekit_subscribe_topic = "homekit/bedroom/aircon/set";
 const char* hellotopic              = "HELLO";
@@ -120,6 +120,7 @@ void sendHomekit()
   JsonObject& root = jsonBuffer.createObject();
   root["ac_mode"]           = ir_data.ac_mode;
   root["ac_temp"]           = ir_data.ac_temp;
+  root["ac_flow"]           = ir_data.ac_flow;  
   root["cur_temp"]          = temperature * 0.01;
   root["cur_humi"]          = humidity;
   root["presence"]          = uint8_t(bpresence);
@@ -149,7 +150,7 @@ void sendCheck()
 
 void ICACHE_RAM_ATTR parseMqttMsg(String receivedpayload, String receivedtopic)
 {
-  char json[] = "{\"ac_mode\":0,\"ac_temp\":27}";
+  char json[] = "{\"ac_mode\":0,\"ac_temp\":27,\"ac_flow\":2}";
 
   receivedpayload.toCharArray(json, 150);
   StaticJsonBuffer<150> jsonBuffer;
@@ -167,11 +168,13 @@ void ICACHE_RAM_ATTR parseMqttMsg(String receivedpayload, String receivedtopic)
       if (ir_data.ac_temp != root["ac_temp"])
       {
         ir_data.ac_temp = root["ac_temp"];
+        
         if (ir_data.ac_mode == 1)
         {
           ir_data.haveData = true;
         }
       }
+      ir_data.ac_flow = root["ac_flow"];
     }
 
     if (root.containsKey("ac_mode"))
@@ -463,7 +466,7 @@ void loop()
     bpir_isr = false;
   }
 
-  if ((millis() - lastpirMillis < MAX_PIR_TIME) && ( lastpirMillis != 0))
+  if (((millis() - lastpirMillis) < MAX_PIR_TIME) && ( lastpirMillis != 0))
   {
     bpresence = true;
   }
@@ -472,7 +475,7 @@ void loop()
     bpresence = false;
   }
 
-  if (!bpresence && ir_data.ac_presence_mode == 1)
+  if (!bpresence && (ir_data.ac_presence_mode == 1))
   {
     Serial.println("[IR] -----> AC Power Down");
     lgWhisen.power_down();
