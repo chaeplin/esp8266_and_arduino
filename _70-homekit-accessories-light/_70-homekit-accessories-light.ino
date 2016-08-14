@@ -1,4 +1,4 @@
-// Using Sonoff wifi switch, 80MHz, 1M
+// Using Sonoff wifi switch, 80MHz, 1M / 64K
 #include <ESP8266WiFi.h>
 #include <ESP8266mDNS.h>
 #include <WiFiUdp.h>
@@ -31,7 +31,7 @@ const char* hellotopic      = "HELLO";
 long lastReconnectAttempt = 0;
 volatile bool bUpdated = false;
 volatile bool bRelayState = false;
-volatile bool bRelayReady = false; 
+volatile bool bRelayReady = false;
 volatile bool bsendReport = false;
 
 String clientName;
@@ -80,17 +80,18 @@ void ICACHE_RAM_ATTR sendreport()
   String payload;
   if (bRelayState)
   {
-      payload = "true";
+    payload = "true";
   }
   else
   {
-      payload = "false";
+    payload = "false";
   }
   sendmqttMsg(reporting_topic, payload, true);
 }
 
 void ICACHE_RAM_ATTR sendCheck()
 {
+
   DynamicJsonBuffer jsonBuffer;
   JsonObject& root = jsonBuffer.createObject();
   root["FreeHeap"] = ESP.getFreeHeap();
@@ -100,6 +101,19 @@ void ICACHE_RAM_ATTR sendCheck()
   root.printTo(json);
 
   sendmqttMsg(status_topic, json, false);
+  /*
+
+    String payload;
+    payload += "{\"FreeHeap\":";
+    payload += ESP.getFreeHeap();
+    payload += ",\"RSSI\":";
+    payload += WiFi.RSSI();
+    payload += ",\"millis\":";
+    payload += millis();
+    payload += "}";
+
+    sendmqttMsg(status_topic, payload, false);
+  */
 }
 
 void ICACHE_RAM_ATTR parseMqttMsg(String receivedpayload, String receivedtopic)
@@ -122,7 +136,7 @@ void ICACHE_RAM_ATTR parseMqttMsg(String receivedpayload, String receivedtopic)
     {
       sendreport();
     }
-  }   
+  }
 }
 
 void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int length)
@@ -166,16 +180,16 @@ boolean reconnect()
     {
       if (client.connect((char*) clientName.c_str(), MQTT_USER, MQTT_PASS))
       {
-         if ( ResetInfo == LOW) {
-            client.publish(hellotopic, (char*) getResetInfo.c_str());
-            ResetInfo = HIGH;
-         }
-         /* 
-         else 
-         {
-            client.publish(hellotopic, "hello again 1 from bedroomlight");
-         } 
-         */
+        if ( ResetInfo == LOW) {
+          client.publish(hellotopic, (char*) getResetInfo.c_str());
+          ResetInfo = HIGH;
+        }
+        /*
+          else
+          {
+           client.publish(hellotopic, "hello again 1 from bedroomlight");
+          }
+        */
 
         client.subscribe(subscribe_topic);
         //client.loop();
@@ -245,9 +259,9 @@ void ArduinoOTA_config()
   ArduinoOTA.setPort(8266);
   ArduinoOTA.setHostname("esp-bedroomlight");
   ArduinoOTA.setPassword(OTA_PASSWORD);
-  ArduinoOTA.onStart([]() 
-  { 
-     //ticker.attach(0.1, tick); 
+  ArduinoOTA.onStart([]()
+  {
+    //ticker.attach(0.1, tick);
   });
   ArduinoOTA.onEnd([]() { });
   ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) { });
@@ -291,7 +305,7 @@ void setup()
   configTime(9 * 3600, 0, "pool.ntp.org", "time.nist.gov");
 
   ArduinoOTA_config();
-  
+
   reconnect();
   lastReconnectAttempt = 0;
 }
@@ -339,14 +353,16 @@ void loop()
     {
       if (bsendReport)
       {
-         sendreport();
-         bsendReport = false;
+        sendreport();
+        bsendReport = false;
       }
-      if (millis() - startMills > REPORT_INTERVAL)
+
+      if ((millis() - startMills) > REPORT_INTERVAL)
       {
-         sendCheck();
-         startMills = millis();
+        sendCheck();
+        startMills = millis();
       }
+
       client.loop();
     }
     ArduinoOTA.handle();

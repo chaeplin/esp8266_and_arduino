@@ -1,4 +1,4 @@
-// 160MHz, 1M / 64K SPIFFS / esp-emontxv2
+// 80MHz, 1M / 64K SPIFFS / esp-emontxv2
 #include <Wire.h>
 // https://github.com/Makuna/Rtc
 #include <RtcDS1307.h>
@@ -31,7 +31,7 @@ extern "C"
 #define SYS_CPU_80MHz 80
 #define SYS_CPU_160MHz 160
 
-#define DEBUG_PRINT 1
+#define DEBUG_PRINT 0
 #define DATA_IS_RDY_PIN 1
 
 // rtc size --> 56 byte
@@ -109,7 +109,7 @@ void data_isr()
   bdata_is_rdy = digitalRead(DATA_IS_RDY_PIN);
 }
 
-void ICACHE_RAM_ATTR sendUdpmsg(String msgtosend)
+void sendUdpmsg(String msgtosend)
 {
   unsigned int msg_length = msgtosend.length();
   byte* p = (byte*)malloc(msg_length);
@@ -122,7 +122,7 @@ void ICACHE_RAM_ATTR sendUdpmsg(String msgtosend)
   delay(100);
 }
 
-void ICACHE_RAM_ATTR sendUdpSyslog(String msgtosend)
+void sendUdpSyslog(String msgtosend)
 {
   unsigned int msg_length = msgtosend.length();
   byte* p = (byte*)malloc(msg_length);
@@ -183,15 +183,15 @@ void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int lengt
   if ( receivedpayload == "{\"CHECKING\":\"1\"}")
   {
     /*
-    String check_doorpayload = "{\"DOOR\":";
-    if ( sensor_data.door == 0 ) {
+      String check_doorpayload = "{\"DOOR\":";
+      if ( sensor_data.door == 0 ) {
       check_doorpayload += "\"CHECK_CLOSED\"";
-    }
-    else
-    {
+      }
+      else
+      {
       check_doorpayload += "\"CHECK_OPEN\"";
-    }
-    check_doorpayload += "}";
+      }
+      check_doorpayload += "}";
     */
     String check_doorpayload = "door: ";
     if ( sensor_data.door == 0 ) {
@@ -207,7 +207,7 @@ void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int lengt
     check_doorpayload += "\r\n";
     check_doorpayload += "powerAC: ";
     check_doorpayload += sensor_data.ct3_rp;
-    
+
     sendmqttMsg(reporttopic, check_doorpayload);
   }
 }
@@ -274,7 +274,7 @@ String macToStr(const uint8_t* mac)
   return result;
 }
 
-void ICACHE_RAM_ATTR send_raw_data()
+void send_raw_data()
 {
 
 
@@ -311,7 +311,7 @@ void ICACHE_RAM_ATTR send_raw_data()
   sendUdpSyslog(syslogPayload);
 }
 
-void ICACHE_RAM_ATTR sendtoInfluxdb()
+void sendtoInfluxdb()
 {
   String udppayload = "emontxv2,device=esp-01 ";
   udppayload += "F=";
@@ -365,7 +365,7 @@ bool ICACHE_RAM_ATTR get_i2c_data()
 
 void setup()
 {
-  system_update_cpu_freq(SYS_CPU_160MHz);
+  system_update_cpu_freq(SYS_CPU_80MHz);
   Serial.swap();
   //
   pinMode(DATA_IS_RDY_PIN, INPUT_PULLUP);
