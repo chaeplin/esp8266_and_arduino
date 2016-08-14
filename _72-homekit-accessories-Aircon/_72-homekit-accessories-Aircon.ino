@@ -12,6 +12,10 @@
 #include <SI7021.h>
 #include <Average.h>
 
+extern "C" {
+#include "user_interface.h"
+}
+
 #define IR_TX_PIN 4
 #define AC_CONF_TYPE 1    // 0: tower, 1: wall
 #define AC_CONF_HEATING 0   // 0: cooling, 1: heating
@@ -47,6 +51,7 @@ volatile struct
 IPAddress mqtt_server = MQTT_SERVER;
 
 String clientName;
+String syslogPayload;
 long lastReconnectAttempt = 0;
 
 unsigned int localPort = 12390;
@@ -72,8 +77,21 @@ SI7021 sensor;
 bool bpresence = false;
 volatile bool bpir_isr;
 volatile uint32_t pir_interuptCount = 0;
+volatile uint8_t where_haveData_called = 0;
 unsigned long lastpirMillis = 0;
 unsigned long startMills;
+
+void ICACHE_RAM_ATTR sendUdpSyslog(String msg_to_send) {
+  unsigned int msg_length = msg_to_send.length();
+  byte* p = (byte*)malloc(msg_length);
+  memcpy(p, (char*) msg_to_send.c_str(), msg_length);
+
+  udp.beginPacket(mqtt_server, 514);
+  udp.write("esp-irbedroom: ");
+  udp.write(p, msg_length);
+  udp.endPacket();
+  free(p);
+}
 
 void ICACHE_RAM_ATTR pir_isr() {
   pir_interuptCount++;
@@ -120,7 +138,7 @@ void sendHomekit()
   JsonObject& root = jsonBuffer.createObject();
   root["ac_mode"]           = ir_data.ac_mode;
   root["ac_temp"]           = ir_data.ac_temp;
-  root["ac_flow"]           = ir_data.ac_flow;  
+  root["ac_flow"]           = ir_data.ac_flow;
   root["cur_temp"]          = temperature * 0.01;
   root["cur_humi"]          = humidity;
   root["presence"]          = uint8_t(bpresence);
@@ -148,7 +166,7 @@ void sendCheck()
   sendmqttMsg(reporting_topic, json, false);
 }
 
-void ICACHE_RAM_ATTR parseMqttMsg(String receivedpayload, String receivedtopic)
+void parseMqttMsg(String receivedpayload, String receivedtopic)
 {
   char json[] = "{\"ac_mode\":0,\"ac_temp\":27,\"ac_flow\":2}";
 
@@ -168,10 +186,11 @@ void ICACHE_RAM_ATTR parseMqttMsg(String receivedpayload, String receivedtopic)
       if (ir_data.ac_temp != root["ac_temp"])
       {
         ir_data.ac_temp = root["ac_temp"];
-        
+
         if (ir_data.ac_mode == 1)
         {
           ir_data.haveData = true;
+          where_haveData_called = 1;
         }
       }
       ir_data.ac_flow = root["ac_flow"];
@@ -181,6 +200,7 @@ void ICACHE_RAM_ATTR parseMqttMsg(String receivedpayload, String receivedtopic)
     {
       ir_data.ac_mode = root["ac_mode"];
       ir_data.haveData = true;
+      where_haveData_called = 2;
     }
   }
 }
@@ -258,17 +278,17 @@ void ArduinoOTA_config()
   ArduinoOTA.setPassword(OTA_PASSWORD);
   ArduinoOTA.onStart([]()
   {
-    //sendUdpSyslog("ArduinoOTA Start");
+    sendUdpSyslog("ArduinoOTA Start");
   });
   ArduinoOTA.onEnd([]()
   {
-    //sendUdpSyslog("ArduinoOTA End");
+    sendUdpSyslog("ArduinoOTA End");
   });
   ArduinoOTA.onProgress([](unsigned int progress, unsigned int total)
   {
-    //syslogPayload = "Progress: ";
-    //syslogPayload += (progress / (total / 100));
-    //sendUdpSyslog(syslogPayload);
+    syslogPayload = "Progress: ";
+    syslogPayload += (progress / (total / 100));
+    sendUdpSyslog(syslogPayload);
   });
   ArduinoOTA.onError([](ota_error_t error)
   {
@@ -356,6 +376,8 @@ void wifi_connect()
     Serial.println(WIFI_SSID);
 
     delay(10);
+    wifi_set_phy_mode(PHY_MODE_11N);
+    WiFi.setOutputPower(20);
     WiFi.mode(WIFI_STA);
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
     WiFi.hostname("esp-irbedroom");
@@ -480,11 +502,22 @@ void loop()
     Serial.println("[IR] -----> AC Power Down");
     lgWhisen.power_down();
     ir_data.ac_presence_mode = 0;
+    where_haveData_called = 3;
+
+    syslogPayload = "havedata called ====> ";
+    syslogPayload += where_haveData_called;
+    syslogPayload += " ir_data.ac_mode ====> ";
+    syslogPayload += ir_data.ac_mode;
+    syslogPayload += " ir_data.ac_flow ====> ";
+    syslogPayload += ir_data.ac_flow;
+    sendUdpSyslog(syslogPayload);
+
   }
 
   if (bpresence && ir_data.ac_presence_mode == 0 && ir_data.ac_mode == 1)
   {
     ir_data.haveData = true;
+    where_haveData_called = 4;
   }
 
   if (now() != prevDisplay)
@@ -541,6 +574,14 @@ void loop()
         }
         ir_data.ac_presence_mode = ir_data.ac_mode;
         ir_data.haveData = false;
+
+        syslogPayload = "havedata called ====> ";
+        syslogPayload += where_haveData_called;
+        syslogPayload += " ir_data.ac_mode ====> ";
+        syslogPayload += ir_data.ac_mode;
+        syslogPayload += " ir_data.ac_flow ====> ";
+        syslogPayload += ir_data.ac_flow;
+        sendUdpSyslog(syslogPayload);
       }
 
       if ((millis() - startMills) > REPORT_INTERVAL)
