@@ -110,11 +110,11 @@ bool ICACHE_RAM_ATTR sendmqttMsg(const char* topictosend, String payloadtosend, 
     free(p);
     client.loop();
     /*
-    Serial.print("[MQTT] out topic : ");
-    Serial.print(topictosend);
-    Serial.print(" payload: ");
-    Serial.print(payloadtosend);
-    Serial.println(" published");
+      Serial.print("[MQTT] out topic : ");
+      Serial.print(topictosend);
+      Serial.print(" payload: ");
+      Serial.print(payloadtosend);
+      Serial.println(" published");
     */
     return true;
 
@@ -122,11 +122,11 @@ bool ICACHE_RAM_ATTR sendmqttMsg(const char* topictosend, String payloadtosend, 
     free(p);
     client.loop();
     /*
-    Serial.print("[MQTT] out topic : ");
-    Serial.print(topictosend);
-    Serial.print(" payload: ");
-    Serial.print(payloadtosend);
-    Serial.println(" publish failed");
+      Serial.print("[MQTT] out topic : ");
+      Serial.print(topictosend);
+      Serial.print(" payload: ");
+      Serial.print(payloadtosend);
+      Serial.println(" publish failed");
     */
     return false;
   }
@@ -181,26 +181,16 @@ void parseMqttMsg(String receivedpayload, String receivedtopic)
 
   if (receivedtopic == homekit_subscribe_topic)
   {
-    if (root.containsKey("ac_temp"))
+    if (root.containsKey("ac_temp") && root.containsKey("ac_mode") && root.containsKey("ac_flow"))
     {
-      if (ir_data.ac_temp != root["ac_temp"])
+      if ((ir_data.ac_temp != root["ac_temp"]) || (ir_data.ac_flow != root["ac_flow"]) || (ir_data.ac_mode != root["ac_mode"]))
       {
         ir_data.ac_temp = root["ac_temp"];
-
-        if (ir_data.ac_mode == 1)
-        {
-          ir_data.haveData = true;
-          where_haveData_called = 1;
-        }
+        ir_data.ac_flow = root["ac_flow"];
+        ir_data.ac_mode = root["ac_mode"];
+        ir_data.haveData = true;
+        where_haveData_called = 1;
       }
-      ir_data.ac_flow = root["ac_flow"];
-    }
-
-    if (root.containsKey("ac_mode"))
-    {
-      ir_data.ac_mode = root["ac_mode"];
-      ir_data.haveData = true;
-      where_haveData_called = 2;
     }
   }
 }
@@ -215,10 +205,10 @@ void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int lengt
     receivedpayload += (char)inpayload[i];
   }
   /*
-  Serial.print("[MQTT] intopic : ");
-  Serial.print(receivedtopic);
-  Serial.print(" payload: ");
-  Serial.println(receivedpayload);
+    Serial.print("[MQTT] intopic : ");
+    Serial.print(receivedtopic);
+    Serial.print(" payload: ");
+    Serial.println(receivedpayload);
   */
   parseMqttMsg(receivedpayload, receivedtopic);
 }
@@ -263,8 +253,8 @@ boolean reconnect()
       else
       {
         /*
-        Serial.print("[MQTT] mqtt failed, rc=");
-        Serial.println(client.state());
+          Serial.print("[MQTT] mqtt failed, rc=");
+          Serial.println(client.state());
         */
       }
     }
@@ -375,13 +365,13 @@ void wifi_connect()
   if (WiFi.status() != WL_CONNECTED)
   {
     /*
-    Serial.println();
-    Serial.print("[WIFI] Connecting to ");
-    Serial.println(WIFI_SSID);
+      Serial.println();
+      Serial.print("[WIFI] Connecting to ");
+      Serial.println(WIFI_SSID);
     */
 
     delay(10);
-    wifi_set_phy_mode(PHY_MODE_11N);
+    //wifi_set_phy_mode(PHY_MODE_11N);
     WiFi.setOutputPower(20);
     WiFi.mode(WIFI_STA);
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
@@ -391,27 +381,27 @@ void wifi_connect()
     while (WiFi.status() != WL_CONNECTED)
     {
       /*
-      Serial.print(". ");
-      Serial.print(Attempt);
+        Serial.print(". ");
+        Serial.print(Attempt);
       */
       delay(100);
       Attempt++;
       if (Attempt == 150)
       {
         /*
-        Serial.println();
-        Serial.println("[WIFI] Could not connect to WIFI, restarting...");
-        Serial.flush();
+          Serial.println();
+          Serial.println("[WIFI] Could not connect to WIFI, restarting...");
+          Serial.flush();
         */
         ESP.restart();
         delay(200);
       }
     }
     /*
-    Serial.println();
-    Serial.print("[WIFI] connected");
-    Serial.print(" --> IP address: ");
-    Serial.println(WiFi.localIP());
+      Serial.println();
+      Serial.print("[WIFI] connected");
+      Serial.print(" --> IP address: ");
+      Serial.println(WiFi.localIP());
     */
   }
 }
@@ -431,11 +421,11 @@ String macToStr(const uint8_t* mac)
 void setup()
 {
   /*
-  Serial.begin(115200);
-  Serial.println();
-  Serial.println("Starting....... ");
+    Serial.begin(115200);
+    Serial.println();
+    Serial.println("Starting....... ");
   */
-  
+
   ir_data.ac_mode          = 0;
   ir_data.ac_temp          = AC_DEFAULT_TEMP;
   ir_data.ac_flow          = AC_DEFAULT_FLOW;
@@ -533,8 +523,8 @@ void loop()
   }
 
   /*
-  if (now() != prevDisplay)
-  {
+    if (now() != prevDisplay)
+    {
     prevDisplay = now();
     if (timeStatus() == timeSet)
     {
@@ -544,7 +534,7 @@ void loop()
     {
       Serial.println("[TIME] time not set");
     }
-  }
+    }
   */
 
   if (WiFi.status() == WL_CONNECTED)
