@@ -1,4 +1,4 @@
-// nodemcu v1
+// nodemcu v1, esp-irbedroom
 #include <ESP8266WiFi.h>
 #include <WiFiClientSecure.h>
 #include <ESP8266mDNS.h>
@@ -109,25 +109,25 @@ bool ICACHE_RAM_ATTR sendmqttMsg(const char* topictosend, String payloadtosend, 
   {
     free(p);
     client.loop();
-
+    /*
     Serial.print("[MQTT] out topic : ");
     Serial.print(topictosend);
     Serial.print(" payload: ");
     Serial.print(payloadtosend);
     Serial.println(" published");
-
+    */
     return true;
 
   } else {
     free(p);
     client.loop();
-
+    /*
     Serial.print("[MQTT] out topic : ");
     Serial.print(topictosend);
     Serial.print(" payload: ");
     Serial.print(payloadtosend);
     Serial.println(" publish failed");
-
+    */
     return false;
   }
 }
@@ -214,12 +214,12 @@ void ICACHE_RAM_ATTR callback(char* intopic, byte* inpayload, unsigned int lengt
   {
     receivedpayload += (char)inpayload[i];
   }
-
+  /*
   Serial.print("[MQTT] intopic : ");
   Serial.print(receivedtopic);
   Serial.print(" payload: ");
   Serial.println(receivedpayload);
-
+  */
   parseMqttMsg(receivedpayload, receivedtopic);
 }
 
@@ -257,12 +257,15 @@ boolean reconnect()
         client.loop();
         client.subscribe(homekit_subscribe_topic);
         client.loop();
-        Serial.println("[MQTT] mqtt connected");
+        sendUdpSyslog("mqtt connected");
+
       }
       else
       {
+        /*
         Serial.print("[MQTT] mqtt failed, rc=");
         Serial.println(client.state());
+        */
       }
     }
   }
@@ -371,9 +374,11 @@ void wifi_connect()
 {
   if (WiFi.status() != WL_CONNECTED)
   {
+    /*
     Serial.println();
     Serial.print("[WIFI] Connecting to ");
     Serial.println(WIFI_SSID);
+    */
 
     delay(10);
     wifi_set_phy_mode(PHY_MODE_11N);
@@ -385,24 +390,29 @@ void wifi_connect()
     int Attempt = 0;
     while (WiFi.status() != WL_CONNECTED)
     {
+      /*
       Serial.print(". ");
       Serial.print(Attempt);
+      */
       delay(100);
       Attempt++;
       if (Attempt == 150)
       {
+        /*
         Serial.println();
         Serial.println("[WIFI] Could not connect to WIFI, restarting...");
         Serial.flush();
+        */
         ESP.restart();
         delay(200);
       }
     }
-
+    /*
     Serial.println();
     Serial.print("[WIFI] connected");
     Serial.print(" --> IP address: ");
     Serial.println(WiFi.localIP());
+    */
   }
 }
 
@@ -420,10 +430,12 @@ String macToStr(const uint8_t* mac)
 
 void setup()
 {
+  /*
   Serial.begin(115200);
   Serial.println();
   Serial.println("Starting....... ");
-
+  */
+  
   ir_data.ac_mode          = 0;
   ir_data.ac_temp          = AC_DEFAULT_TEMP;
   ir_data.ac_flow          = AC_DEFAULT_FLOW;
@@ -458,7 +470,7 @@ void setup()
   udp.begin(localPort);
   if (timeStatus() == timeNotSet)
   {
-    Serial.println("[NTP] get ntp time");
+    //Serial.println("[NTP] get ntp time");
     setSyncProvider(getNtpTime);
     delay(500);
   }
@@ -473,8 +485,8 @@ void setup()
   sensor.begin(SDA, SCL);
   temperature = sensor.getCelsiusHundredths();
   humidity = sensor.getHumidityPercent();
-  Serial.println(temperature);
-  Serial.println(humidity);
+  //Serial.println(temperature);
+  //Serial.println(humidity);
 
   startMills = millis();
 }
@@ -483,7 +495,7 @@ void loop()
 {
   if (bpir_isr)
   {
-    Serial.println("[PIR] ---> pir detected");
+    //Serial.println("[PIR] ---> pir detected");
     lastpirMillis = millis();
     bpir_isr = false;
   }
@@ -499,7 +511,7 @@ void loop()
 
   if (!bpresence && (ir_data.ac_presence_mode == 1))
   {
-    Serial.println("[IR] -----> AC Power Down");
+    //Serial.println("[IR] -----> AC Power Down");
     lgWhisen.power_down();
     ir_data.ac_presence_mode = 0;
     where_haveData_called = 3;
@@ -520,6 +532,7 @@ void loop()
     where_haveData_called = 4;
   }
 
+  /*
   if (now() != prevDisplay)
   {
     prevDisplay = now();
@@ -532,6 +545,7 @@ void loop()
       Serial.println("[TIME] time not set");
     }
   }
+  */
 
   if (WiFi.status() == WL_CONNECTED)
   {
@@ -559,13 +573,13 @@ void loop()
         {
           // ac power down
           case 0:
-            Serial.println("[IR] -----> AC Power Down");
+            //Serial.println("[IR] -----> AC Power Down");
             lgWhisen.power_down();
             break;
 
           // ac on
           case 1:
-            Serial.println("[IR] -----> AC Power On");
+            //Serial.println("[IR] -----> AC Power On");
             lgWhisen.activate();
             break;
 
