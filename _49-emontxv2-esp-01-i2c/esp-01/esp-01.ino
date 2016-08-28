@@ -91,6 +91,7 @@ int16_t pls_p = 0;
 bool bdoor_status;
 bool ResetInfo = false;
 long lastReconnectAttempt = 0;
+bool bwifireconnect = false;
 
 String syslogPayload, clientName, payload, doorpayload, getResetInfo;
 
@@ -225,9 +226,17 @@ boolean reconnect() {
       }
       else
       {
-        client.publish(hellotopic, "hello again 1 from esp-power");
+        if (bwifireconnect) 
+        {
+          client.publish(hellotopic, "hello again 1 from esp-power with wifi reconnected");
+        }
+        else
+        {
+          client.publish(hellotopic, "hello again 1 from esp-power");
+        }
       }
       client.subscribe(subtopic);
+      bwifireconnect = false;
       sendUdpSyslog("---> mqttconnected");
     }
     else
@@ -260,6 +269,7 @@ void wifi_connect()
       ESP.restart();
     }
   }
+  bwifireconnect = true;
 }
 
 String macToStr(const uint8_t* mac)
@@ -510,7 +520,6 @@ void loop() {
       }
       client.loop();
     }
-
     ArduinoOTA.handle();
   }
   else

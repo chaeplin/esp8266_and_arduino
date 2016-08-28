@@ -1,4 +1,4 @@
-// Using Sonoff wifi switch, 80MHz, 1M / 64K
+// Using Sonoff wifi switch, esp-bedroomlight,  80MHz, 1M / 64K
 #include <ESP8266WiFi.h>
 #include <ESP8266mDNS.h>
 #include <WiFiUdp.h>
@@ -101,19 +101,6 @@ void ICACHE_RAM_ATTR sendCheck()
   root.printTo(json);
 
   sendmqttMsg(status_topic, json, false);
-  /*
-
-    String payload;
-    payload += "{\"FreeHeap\":";
-    payload += ESP.getFreeHeap();
-    payload += ",\"RSSI\":";
-    payload += WiFi.RSSI();
-    payload += ",\"millis\":";
-    payload += millis();
-    payload += "}";
-
-    sendmqttMsg(status_topic, payload, false);
-  */
 }
 
 void ICACHE_RAM_ATTR parseMqttMsg(String receivedpayload, String receivedtopic)
@@ -184,12 +171,6 @@ boolean reconnect()
           client.publish(hellotopic, (char*) getResetInfo.c_str());
           ResetInfo = HIGH;
         }
-        /*
-          else
-          {
-           client.publish(hellotopic, "hello again 1 from bedroomlight");
-          }
-        */
 
         client.subscribe(subscribe_topic);
         //client.loop();
