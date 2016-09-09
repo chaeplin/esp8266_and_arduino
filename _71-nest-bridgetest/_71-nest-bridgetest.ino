@@ -1,4 +1,4 @@
-// esp8266/nestbridge
+// esp8266/nestbridge // Wemos D1 Mini
 #include <ESP8266WiFi.h>
 #include <ESP8266mDNS.h>
 #include <WiFiUdp.h>
