@@ -23,7 +23,8 @@ void setup()
   Serial.println("------- Emulate Tag --------");
 
   message = NdefMessage();
-  message.addUriRecord("dash:XxdaVbaPzXm8ow7zZbUeEYftAYpuZhairZ?amount=0.01");
+  // Amanda B. Johnson's
+  message.addUriRecord("dash:XuhHHnjLbm559kzByxtQ6gHMpjs32MHKb2?amount=0.01");
   messageSize = message.getEncodedSize();
   if (messageSize > sizeof(ndefBuf)) {
     Serial.println("ndefBuf is too small");
