@@ -1,4 +1,6 @@
-
+// card : elechouse pn532 card
+// lib : https://github.com/elechouse/PN532
+// example from : https://github.com/don/NDEF/blob/master/examples/WriteTag/WriteTag.ino
 #include <SPI.h>
 #include <PN532_SPI.h>
 #include <PN532.h>
