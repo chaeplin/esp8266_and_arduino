@@ -21,12 +21,12 @@ extern "C" {
 }
 
 #include "/usr/local/src/ap_setting.h"
-#include "/usr/local/src/slack_door_setting.h"
+#include "/usr/local/src/slack_pir1_setting.h"
 
 // slack.com : Expires: Saturday, 2 February 2019 at 08:59:59 Korean Standard Time
 const char* api_fingerprint = "AC 95 5A 58 B8 4E 0B CD B3 97 D2 88 68 F5 CA C1 0A 81 E3 6E";
 
-#define DOOR_PIN 14
+#define DOOR_PIN 12
 
 
 //#define SLACK_BOT_TOKEN "put-your-slack-token-here"
@@ -48,6 +48,8 @@ bool door_status;
 volatile uint32_t door_interuptCount = 0;
 uint32_t prev_interuptCount = 0;
 
+volatile bool bsendstatus = false;
+
 void ICACHE_RAM_ATTR door_isr() {
   if (bdoor_isr == false) {
     door_interuptCount++;
@@ -63,14 +65,9 @@ void sendCheck()
   root["type"] = "message";
   root["id"] = nextCmdId++;
   root["channel"] = SLACK_CHANNEL;
-
-  String msg = "door status : ";
-  if (door_status) {
-    msg += "open";
-  } else {
-    msg += "closed";
-  }
-
+  
+  String msg = "pir-one : detected ";
+  
   root["text"] = msg.c_str();
   String json;
   root.printTo(json);
@@ -99,7 +96,11 @@ void sendHello()
   root["type"] = "message";
   root["id"] = nextCmdId++;
   root["channel"] = SLACK_CHANNEL;
-  root["text"] = "Hello world";
+
+  String msg = "Hello world - pir-one : ";
+  msg += door_interuptCount;
+
+  root["text"] = msg.c_str();
   String json;
   root.printTo(json);
   webSocket.sendTXT(json);
@@ -122,10 +123,17 @@ void ICACHE_RAM_ATTR processSlackMessage(String receivedpayload)
     const char* text = root["text"];
     Serial.printf("[Processing] text: %s\n", text);
 
-    if (String(text) == "check")
+    if (String(text) == "piron")
     {
+      bsendstatus = true;
       sendCheck();
     }
+
+    if (String(text) == "piroff")
+    {
+      bsendstatus = false;
+      sendCheck();
+    }    
 
   }
 }
@@ -209,9 +217,10 @@ void setup() {
   //Serial.setDebugOutput(true);
 
 
-  pinMode(DOOR_PIN, INPUT_PULLUP);
+  pinMode(DOOR_PIN, INPUT);
   bdoor_isr = false;
-  attachInterrupt(DOOR_PIN, door_isr, CHANGE);
+  bsendstatus = false;
+  attachInterrupt(DOOR_PIN, door_isr, RISING);
 
 
   WiFi.mode(WIFI_STA);
@@ -233,13 +242,15 @@ void loop()
 {
   webSocket.loop();
 
-  if (bdoor_isr) {
+  if (bdoor_isr && bsendstatus) {
     door_status = digitalRead(DOOR_PIN);
     Serial.print("[door_status] ---> bdoor_isr detected : ");
     Serial.print(door_status);
     Serial.print(" door_interuptCount : ");
     Serial.println(door_interuptCount);
-    sendCheck();
+    if (door_status) {
+    	sendCheck();
+	}
     bdoor_isr = false;
   }
 
