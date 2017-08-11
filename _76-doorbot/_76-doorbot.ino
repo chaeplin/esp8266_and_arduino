@@ -6,9 +6,9 @@
 */
 
 /*
- modified by chaeplin @ gmail.com
- */
-
+  modified by chaeplin @ gmail.com
+*/
+#include <time.h>
 #include <Arduino.h>
 #include <ESP8266WiFi.h>
 #include <WiFiClientSecure.h>
@@ -81,7 +81,7 @@ void sendCheck()
   Sends a ping message to Slack. Call this function immediately after establishing
   the WebSocket connection, and then every 5 seconds to keep the connection alive.
 */
-void sendPing() 
+void sendPing()
 {
   DynamicJsonBuffer jsonBuffer;
   JsonObject& root = jsonBuffer.createObject();
@@ -106,7 +106,7 @@ void sendHello()
 }
 
 
-void ICACHE_RAM_ATTR processSlackMessage(String receivedpayload) 
+void ICACHE_RAM_ATTR processSlackMessage(String receivedpayload)
 {
   char json[] = "{\"type\":\"message\",\"channel\":\"XXXXXXXX\",\"user\":\"XXXXXXXX\",\"text\":\"xxxxxxxxxxxx\",\"ts\":\"1491047008.621282\",\"source_team\":\"XXXXXXXX\",\"team\":\"XXXXXXXX\"}";
   receivedpayload.toCharArray(json, 1204);
@@ -134,7 +134,7 @@ void ICACHE_RAM_ATTR processSlackMessage(String receivedpayload)
   Called on each web socket event. Handles disconnection, and also
   incoming messages from slack.
 */
-void webSocketEvent(WStype_t type, uint8_t *payload, size_t len) 
+void webSocketEvent(WStype_t type, uint8_t *payload, size_t len)
 {
   switch (type) {
     case WStype_DISCONNECTED:
@@ -151,7 +151,7 @@ void webSocketEvent(WStype_t type, uint8_t *payload, size_t len)
 
     case WStype_TEXT:
       Serial.printf("[WebSocket] Message: %s\n", payload);
-      
+
       String receivedpayload;
       for (int i = 0; i < len; i++)
       {
@@ -176,7 +176,7 @@ void webSocketEvent(WStype_t type, uint8_t *payload, size_t len)
   2. Conencts the WebSocket
   Returns true if the connection was established successfully.
 */
-bool connectToSlack() 
+bool connectToSlack()
 {
   // Step 1: Find WebSocket address via RTM API (https://api.slack.com/methods/rtm.start)
   HTTPClient http;
@@ -185,7 +185,7 @@ bool connectToSlack()
 
   http.begin("slack.com", 443, uri_to_post, api_fingerprint);
   int httpCode = http.GET();
-  if (httpCode != HTTP_CODE_OK) 
+  if (httpCode != HTTP_CODE_OK)
   {
     Serial.printf("HTTP GET failed with code %d\n", httpCode);
     return false;
@@ -204,6 +204,37 @@ bool connectToSlack()
   return true;
 }
 
+void get_ntptime() {
+  Serial.println("Setting time using SNTP");
+  configTime(9 * 3600, 0, "pool.ntp.org", "time.nist.gov");
+  time_t now = time(nullptr);
+  while (now < 1000) {
+    delay(500);
+    Serial.print(".");
+    now = time(nullptr);
+    Serial.println(now);
+  }
+  Serial.println("");
+  struct tm timeinfo;
+  gmtime_r(&now, &timeinfo);
+  Serial.print("Current time: ");
+  Serial.print(asctime(&timeinfo));
+}
+
+void wifi_connect() {
+  Serial.print("[WIFI] start millis     : ");
+  Serial.println(millis());
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(100);
+  }
+  Serial.print("[WIFI] connected millis : ");
+  Serial.print(millis());
+  Serial.print(" - ");
+  Serial.println(WiFi.localIP());
+}
+
 void setup() {
   Serial.begin(115200);
   //Serial.setDebugOutput(true);
@@ -213,15 +244,9 @@ void setup() {
   bdoor_isr = false;
   attachInterrupt(DOOR_PIN, door_isr, CHANGE);
 
+  wifi_connect();
+  get_ntptime();
 
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  while (WiFi.status() != WL_CONNECTED) 
-  {
-    delay(100);
-  }
-
-  configTime(3 * 3600, 0, "pool.ntp.org", "time.nist.gov");
 }
 
 unsigned long lastPing = 0;
@@ -229,35 +254,40 @@ unsigned long lastPing = 0;
 /**
   Sends a ping every 5 seconds, and handles reconnections
 */
-void loop() 
+void loop()
 {
-  webSocket.loop();
+  if (WiFi.status() == WL_CONNECTED) {
+    webSocket.loop();
 
-  if (bdoor_isr) {
-    door_status = digitalRead(DOOR_PIN);
-    Serial.print("[door_status] ---> bdoor_isr detected : ");
-    Serial.print(door_status);
-    Serial.print(" door_interuptCount : ");
-    Serial.println(door_interuptCount);
-    sendCheck();
-    bdoor_isr = false;
-  }
+    if (bdoor_isr) {
+      door_status = digitalRead(DOOR_PIN);
+      Serial.print("[door_status] ---> bdoor_isr detected : ");
+      Serial.print(door_status);
+      Serial.print(" door_interuptCount : ");
+      Serial.println(door_interuptCount);
+      sendCheck();
+      bdoor_isr = false;
+    }
 
-  if (connected) {
-    // Send ping every 5 seconds, to keep the connection alive
-    if (millis() - lastPing > 5000) 
-    {
-      sendPing();
-      lastPing = millis();
+    if (connected) {
+      // Send ping every 5 seconds, to keep the connection alive
+      if (millis() - lastPing > 5000)
+      {
+        sendPing();
+        lastPing = millis();
+      }
     }
-  } 
-  else 
-  {
-    // Try to connect / reconnect to slack
-    connected = connectToSlack();
-    if (!connected) 
+    else
     {
-      delay(500);
+      // Try to connect / reconnect to slack
+      connected = connectToSlack();
+      if (!connected)
+      {
+        delay(500);
+      }
     }
+  } else {
+    wifi_connect();
+    get_ntptime();
   }
 }
