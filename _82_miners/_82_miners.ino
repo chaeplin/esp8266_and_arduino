@@ -287,7 +287,7 @@ void webSocketEvent(WStype_t type, uint8_t *payload, size_t len)
 bool connectToSlack()
 {
   HTTPClient http;
-  String uri_to_post = "/api/rtm.start?token=";
+  String uri_to_post = "/api/rtm.connect?token=";
   uri_to_post += SLACK_BOT_TOKEN;
 
   http.begin("slack.com", 443, uri_to_post, api_fingerprint);
