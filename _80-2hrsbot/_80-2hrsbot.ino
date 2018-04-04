@@ -26,7 +26,7 @@ extern "C" {
 #include "/usr/local/src/slack_2hrs_setting.h"
 
 // slack.com : Expires: Saturday, 2 February 2019 at 08:59:59 Korean Standard Time
-const char* api_fingerprint = "AC 95 5A 58 B8 4E 0B CD B3 97 D2 88 68 F5 CA C1 0A 81 E3 6E";
+const char* api_fingerprint = "C1 0D 53 49 D2 3E E5 2B A2 61 D5 9E 6F 99 0D 3D FD 8B B2 B3";
 
 #define BUTTON_PIN 12
 #define BUZZER_PIN 14
@@ -168,7 +168,8 @@ void sendHello()
 
 void ICACHE_RAM_ATTR processSlackMessage(String receivedpayload)
 {
-  char json[] = "{\"type\":\"message\",\"channel\":\"XXXXXXXX\",\"user\":\"XXXXXXXX\",\"text\":\"xxxxxxxxxxxx\",\"ts\":\"1491047008.621282\",\"source_team\":\"XXXXXXXX\",\"team\":\"XXXXXXXX\"}";
+  //char json[] = "{\"type\":\"message\",\"channel\":\"XXXXXXXX\",\"user\":\"XXXXXXXX\",\"text\":\"xxxxxxxxxxxx\",\"ts\":\"1491047008.621282\",\"source_team\":\"XXXXXXXX\",\"team\":\"XXXXXXXX\"}";
+  char json[] = "{\"type\":\"message\",\"channel\":\"XXXXXXXX\",\"user\":\"XXXXXXXX\",\"client_msg_id\":\"BBA0F81E-8DF6-46C9-8DB7-F0ACF11E1C5E\",\"event_ts\":\"1522027419.000121\"\"text\":\"xxxxxxxxxxxx\",\"ts\":\"1491047008.621282\",\"source_team\":\"XXXXXXXX\",\"team\":\"XXXXXXXX\"}";
   receivedpayload.toCharArray(json, 1204);
   StaticJsonBuffer<1024> jsonBuffer;
   JsonObject& root = jsonBuffer.parseObject(json);

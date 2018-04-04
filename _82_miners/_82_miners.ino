@@ -7,7 +7,7 @@
 #include "Queue.h"
 
 #include "/usr/local/src/hotspot_setting.h"
-#include "/usr/local/src/slack_miner1_setting.h"
+#include "/usr/local/src/slack_miner2_setting.h"
 
 #define POWER_OFF 0
 #define POWER_ON 1
@@ -21,8 +21,8 @@
 #define WORKING_STAGE_QUEUE 1
 #define WORKING_STAGE_START 2
 
-#define MINER_START 1
-#define MINER_STOP 16
+#define MINER_START 17
+#define MINER_STOP 32
 
 #define SELECT_ALL_MINERS 30
 
