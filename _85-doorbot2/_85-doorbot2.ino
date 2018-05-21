@@ -70,6 +70,7 @@ void send_door_Check()
   root["channel"] = SLACK_CHANNEL;
 
   String msg = "door status : ";
+  door_status = digitalRead(DOOR_PIN);
   if (door_status) {
     msg += "open";
   } else {
@@ -92,6 +93,7 @@ void send_pir_check()
   root["channel"] = SLACK_CHANNEL;
 
   String msg = "pir status : ";
+  pir_status = digitalRead(PIR_PIN);
   if (pir_status) {
     msg += "detected";
   } else {
