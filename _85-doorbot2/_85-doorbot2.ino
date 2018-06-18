@@ -36,6 +36,8 @@ long nextCmdId = 1;
 bool connected = false;
 unsigned long lastPing = 0;
 
+int check_connection = 0;
+
 bool door_status;
 volatile bool bdoor_isr;
 volatile uint32_t door_interuptCount = 0;
@@ -69,35 +71,19 @@ void send_door_Check()
   root["id"] = nextCmdId++;
   root["channel"] = SLACK_CHANNEL;
 
-  String msg = "door status : ";
+  String msg = "status : ";
   door_status = digitalRead(DOOR_PIN);
+  pir_status = digitalRead(PIR_PIN);
   if (door_status) {
     msg += "open";
   } else {
     msg += "closed";
   }
 
-  root["text"] = msg.c_str();
-  String json;
-  root.printTo(json);
-  webSocket.sendTXT(json);
-}
-
-
-void send_pir_check()
-{
-  DynamicJsonBuffer jsonBuffer;
-  JsonObject& root = jsonBuffer.createObject();
-  root["type"] = "message";
-  root["id"] = nextCmdId++;
-  root["channel"] = SLACK_CHANNEL;
-
-  String msg = "pir status : ";
-  pir_status = digitalRead(PIR_PIN);
   if (pir_status) {
-    msg += "detected";
+    msg += " = detected";
   } else {
-    msg += "not detected";
+    msg += " = not detected";
   }
 
   root["text"] = msg.c_str();
@@ -155,7 +141,6 @@ void ICACHE_RAM_ATTR processSlackMessage(String receivedpayload)
     if (String(text) == "check")
     {
       send_door_Check();
-      send_pir_check();
     }
 
   }
@@ -296,7 +281,7 @@ void loop()
   if (WiFi.status() == WL_CONNECTED) {
     webSocket.loop();
 
-    if (bdoor_isr) {
+    if (bdoor_isr || bpir_isr) {
       door_status = digitalRead(DOOR_PIN);
       Serial.print("[door_status] ---> bdoor_isr detected : ");
       Serial.print(door_status);
@@ -304,15 +289,6 @@ void loop()
       Serial.println(door_interuptCount);
       send_door_Check();
       bdoor_isr = false;
-    }
-
-    if (bpir_isr) {
-      pir_status = digitalRead(PIR_PIN);
-      Serial.print("[pir_status] ---> bpir_isr detected : ");
-      Serial.print(pir_status);
-      Serial.print(" pir_interuptCount : ");
-      Serial.println(pir_interuptCount);
-      send_pir_check();
       bpir_isr = false;
     }
 
@@ -324,6 +300,7 @@ void loop()
         sendPing();
         lastPing = millis();
       }
+      check_connection = 0;
     }
     else
     {
@@ -333,6 +310,11 @@ void loop()
       {
         digitalWrite(LEDOUT_PIN, LOW);
         delay(500);
+        check_connection++;
+        if (check_connection > 100)
+        {
+          ESP.reset();
+        }
       }
     }
   } else {

@@ -54,6 +54,8 @@ uint32_t prev_interuptCount = 0;
 
 unsigned long lastPing = 0;
 
+int check_connection = 0;
+
 Ticker ticker, ticker_buzzer;
 
 void tick()
@@ -399,6 +401,7 @@ void loop()
             digitalWrite(LED_YELL, LOW);
           }
         }
+        check_connection = 0;
       } else {
         // Try to connect / reconnect to slack
         connected = connectToSlack();
@@ -406,6 +409,11 @@ void loop()
         {
           digitalWrite(LED_BLUE, LOW);
           delay(500);
+          check_connection++;
+          if (check_connection > 100)
+          {
+            ESP.reset();
+          }
         }
       }
     } else {
