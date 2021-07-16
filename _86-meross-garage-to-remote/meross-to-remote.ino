@@ -27,7 +27,8 @@ void setup() {
 }
  
 void loop() {
-  DURATION = pulseIn(HKIT_CMD_PIN, LOW, 1000000000);
+  Serial.println("working....");
+  DURATION = pulseIn(HKIT_CMD_PIN, LOW, 6000000);
   if ( DURATION > 10 ) {
     AWNING_REEDS_STATUS = digitalRead(REED_SENSOR_PIN);
     if(AWNING_REEDS_STATUS) { // CLOSED STATUS --> OPEN
@@ -41,5 +42,7 @@ void loop() {
       digitalWrite(AWNING_CLOSE_CMD_PIN, LOW);
       Serial.println("CMD IN, CLOSING AWNING");         
     }
+   Serial.println("delay 60 secs");
+   delay(60000);
   }
 }
